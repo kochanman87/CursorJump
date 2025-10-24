@@ -1,7 +1,6 @@
 using System;
 using System.Drawing;
 using System.Windows.Forms;
-using WpfApplication = System.Windows.Application;
 
 namespace CursorJump.App;
 
@@ -51,7 +50,7 @@ public sealed class TrayIconService : IDisposable
         }
 
         // 日本語コメント: メニューからの終了要求をUIスレッドで処理
-        WpfApplication.Current?.Dispatcher.Invoke(() => WpfApplication.Current.Shutdown());
+        System.Windows.Application.Current?.Dispatcher.Invoke(() => System.Windows.Application.Current.Shutdown());
     }
 
     public void Dispose()
