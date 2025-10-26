@@ -51,7 +51,7 @@ public sealed class TrayIconService : IDisposable
         }
 
         // 日本語コメント: メニューからの終了要求をUIスレッドで処理
-        Application.Current?.Dispatcher.Invoke(() => Application.Current.Shutdown());
+        System.Windows.Application.Current?.Dispatcher.Invoke(() => System.Windows.Application.Current.Shutdown());
     }
 
     public void Dispose()

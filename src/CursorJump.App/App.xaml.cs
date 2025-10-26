@@ -4,6 +4,10 @@ namespace CursorJump.App;
 
 public partial class App : Application
 {
+    public App()
+    {
+        // 日本語コメント: XAML 定義を読み込み、アプリケーションを初期化する
+        InitializeComponent();
     private TrayIconService? _trayIconService;
 
     protected override void OnStartup(StartupEventArgs e)
