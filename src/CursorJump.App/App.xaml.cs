@@ -1,30 +1,71 @@
+using System;
 using System.Windows;
 
 namespace CursorJump.App;
 
 public partial class App : Application
 {
+    private TrayIconService? _trayIconService;
+    private MainWindow? _mainWindow;
+
     public App()
     {
-        // 日本語コメント: XAML 定義を読み込み、アプリケーションを初期化する
         InitializeComponent();
-    private TrayIconService? _trayIconService;
+    }
 
     protected override void OnStartup(StartupEventArgs e)
     {
         base.OnStartup(e);
 
-        // 日本語コメント: トレイアイコンを初期化して常駐させる
-        _trayIconService = new TrayIconService();
-        _trayIconService.Initialize();
+        try
+        {
+            EnsureWindowsFormsIsInitialized();
 
-        // 日本語コメント: アプリケーション終了時にトレイアイコンを確実に破棄する
+            _trayIconService = new TrayIconService();
+            _trayIconService.Initialize();
+
+            _mainWindow = new MainWindow();
+            MainWindow = _mainWindow;
+            // WPFアプリケーションが終了しないように参照だけ保持しておく。
+            // ウィンドウ自体は表示しない。
+        }
+        catch (Exception ex)
+        {
+            const string title = "CursorJump";
+            MessageBox.Show(ex.Message, title, MessageBoxButton.OK, MessageBoxImage.Error);
+            Shutdown(-1);
+            return;
+        }
+
         Exit += OnApplicationExit;
+    }
+
+    protected override void OnExit(ExitEventArgs e)
+    {
+        Exit -= OnApplicationExit;
+        DisposeTrayIcon();
+        base.OnExit(e);
     }
 
     private void OnApplicationExit(object? sender, ExitEventArgs e)
     {
-        _trayIconService?.Dispose();
         Exit -= OnApplicationExit;
+        DisposeTrayIcon();
+    }
+
+    private void DisposeTrayIcon()
+    {
+        _trayIconService?.Dispose();
+        _trayIconService = null;
+        _mainWindow = null;
+    }
+
+    private static void EnsureWindowsFormsIsInitialized()
+    {
+        if (!System.Windows.Forms.Application.MessageLoop)
+        {
+            System.Windows.Forms.Application.EnableVisualStyles();
+            System.Windows.Forms.Application.SetCompatibleTextRenderingDefault(false);
+        }
     }
 }
