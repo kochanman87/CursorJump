@@ -1,0 +1,18 @@
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.8.34330.188
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CursorJump.App", "src/CursorJump.App/CursorJump.App.csproj", "{F024A3F1-E823-42EF-B8E2-3A9B4EA8732F}"
+EndProject
+Global
+    GlobalSection(SolutionConfigurationPlatforms) = preSolution
+        Debug|Any CPU = Debug|Any CPU
+        Release|Any CPU = Release|Any CPU
+    EndGlobalSection
+    GlobalSection(ProjectConfigurationPlatforms) = postSolution
+        {F024A3F1-E823-42EF-B8E2-3A9B4EA8732F}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+        {F024A3F1-E823-42EF-B8E2-3A9B4EA8732F}.Debug|Any CPU.Build.0 = Debug|Any CPU
+        {F024A3F1-E823-42EF-B8E2-3A9B4EA8732F}.Release|Any CPU.ActiveCfg = Release|Any CPU
+        {F024A3F1-E823-42EF-B8E2-3A9B4EA8732F}.Release|Any CPU.Build.0 = Release|Any CPU
+    EndGlobalSection
+EndGlobal
