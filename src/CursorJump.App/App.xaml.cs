@@ -1,5 +1,6 @@
 using System;
 using System.Windows;
+using System.Windows.Interop;
 
 namespace CursorJump.App;
 
@@ -21,13 +22,17 @@ public partial class App : Application
         {
             EnsureWindowsFormsIsInitialized();
 
-            _trayIconService = new TrayIconService();
-            _trayIconService.Initialize();
-
             _mainWindow = new MainWindow();
             MainWindow = _mainWindow;
-            // WPFアプリケーションが終了しないように参照だけ保持しておく。
-            // ウィンドウ自体は表示しない。
+
+            // HWND を強制生成することで SourceInitialized（= HotkeyService の初期化）を同期的に発火させる
+            var helper = new WindowInteropHelper(_mainWindow);
+            helper.EnsureHandle();
+
+            string hotkeyDescription = _mainWindow.HotkeyService?.HotkeyDescription ?? "Ctrl+Alt+Home";
+
+            _trayIconService = new TrayIconService(hotkeyDescription);
+            _trayIconService.Initialize();
         }
         catch (Exception ex)
         {
