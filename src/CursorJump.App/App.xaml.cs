@@ -8,11 +8,14 @@ public partial class App : Application
 {
     private TrayIconService? _trayIconService;
     private MainWindow? _mainWindow;
+    private SettingsService? _settingsService;
 
     public App()
     {
         InitializeComponent();
     }
+
+    internal SettingsService? SettingsService => _settingsService;
 
     protected override void OnStartup(StartupEventArgs e)
     {
@@ -22,7 +25,10 @@ public partial class App : Application
         {
             EnsureWindowsFormsIsInitialized();
 
-            _mainWindow = new MainWindow();
+            _settingsService = new SettingsService();
+            _settingsService.Load();
+
+            _mainWindow = new MainWindow(_settingsService);
             MainWindow = _mainWindow;
 
             // HWND を強制生成することで SourceInitialized（= HotkeyService の初期化）を同期的に発火させる
@@ -31,8 +37,10 @@ public partial class App : Application
 
             string hotkeyDescription = _mainWindow.HotkeyService?.HotkeyDescription ?? "Ctrl+Alt+Home";
 
-            _trayIconService = new TrayIconService(hotkeyDescription);
+            _trayIconService = new TrayIconService(hotkeyDescription, _settingsService);
             _trayIconService.Initialize();
+
+            _settingsService.SettingsChanged += OnSettingsChanged;
         }
         catch (Exception ex)
         {
@@ -56,6 +64,23 @@ public partial class App : Application
     {
         Exit -= OnApplicationExit;
         DisposeTrayIcon();
+    }
+
+    private void OnSettingsChanged()
+    {
+        // ホットキーを新しい設定で再登録
+        try
+        {
+            _mainWindow?.HotkeyService?.Reregister();
+        }
+        catch (System.ComponentModel.Win32Exception ex)
+        {
+            MessageBox.Show(
+                $"ホットキーの再登録に失敗しました: {ex.Message}",
+                "CursorJump",
+                MessageBoxButton.OK,
+                MessageBoxImage.Warning);
+        }
     }
 
     private void DisposeTrayIcon()
