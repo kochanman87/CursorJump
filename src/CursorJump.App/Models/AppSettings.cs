@@ -40,7 +40,9 @@ public enum MouseButtonType
 {
     Left,
     Right,
-    Middle
+    Middle,
+    XButton1,  // 戻るボタン（サイドボタン1）
+    XButton2   // 進むボタン（サイドボタン2）
 }
 
 [Flags]

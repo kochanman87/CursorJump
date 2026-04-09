@@ -160,10 +160,20 @@ internal sealed class OverlayService
         overlay.Focusable = true;
         _markerOverlay = overlay;
 
+        DebugLog.Write($"ShowCoordinateMarkers: count={store.Count}");
         overlay.Show();
+        DebugLog.Write($"overlay.Show() done, IsActive={overlay.IsActive}");
         overlay.CoverVirtualScreen();
-        overlay.Activate();
-        overlay.Focus();
+        // Activate/FocusをDispatcher経由で遅延実行（フックコールバック内からのSetForegroundWindow制約を回避）
+        overlay.Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Input, () =>
+        {
+            overlay.Activate();
+            DebugLog.Write($"overlay.Activate() done, IsActive={overlay.IsActive}");
+            overlay.Focus();
+            System.Windows.Input.Keyboard.Focus(overlay);
+            var focusedElement = System.Windows.Input.Keyboard.FocusedElement;
+            DebugLog.Write($"overlay.Focus() done, IsFocused={overlay.IsFocused}, IsKeyboardFocusWithin={overlay.IsKeyboardFocusWithin}, FocusedElement={focusedElement?.GetType().Name}");
+        });
 
         // 半透明の背景でモード表示を分かりやすくする
         overlay.Background = new SolidColorBrush(Color.FromArgb(40, 0, 0, 0));
@@ -207,13 +217,16 @@ internal sealed class OverlayService
             overlay.OverlayCanvasElement.Children.Add(label);
 
             markers.Add((ellipse, i, canvasX, canvasY));
+            DebugLog.Write($"Marker[{i}]: physical=({coord.X},{coord.Y}), wpf=({pos.X:F1},{pos.Y:F1}), canvas=({canvasX:F1},{canvasY:F1}), overlayLeft={overlay.Left:F1}, overlayTop={overlay.Top:F1}");
         }
 
         // ESCキーで終了
         overlay.KeyDown += (_, e) =>
         {
+            DebugLog.Write($"KeyDown: Key={e.Key}");
             if (e.Key == Key.Escape)
             {
+                DebugLog.Write("ESC detected, closing overlay");
                 CloseMarkerOverlay();
                 onExitMode?.Invoke();
             }
@@ -261,6 +274,7 @@ internal sealed class OverlayService
         overlay.MouseLeftButtonDown += (_, e) =>
         {
             var mousePos = e.GetPosition(overlay.OverlayCanvasElement);
+            DebugLog.Write($"MouseLeftButtonDown: pos=({mousePos.X:F0},{mousePos.Y:F0})");
 
             // 吸いつき範囲内で最も近いマーカーを探す
             double closestDist = double.MaxValue;
@@ -281,8 +295,10 @@ internal sealed class OverlayService
                 }
             }
 
+            DebugLog.Write($"MouseLeftButtonDown: closestDist={closestDist:F1}, closestMarkerIdx={closestMarkerIdx}");
             if (closestMarkerIdx >= 0)
             {
+                DebugLog.Write($"Deleting marker index={closestListIdx}");
                 // ストアから削除
                 store.RemoveAt(closestListIdx);
 

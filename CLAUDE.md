@@ -57,6 +57,9 @@ src/CursorJump.App/
 
 ### 設定画面（トレイアイコン右クリック→設定）
 - 各アクションごとに独立した修飾キー+マウスボタンを設定可能
+- マウスボタンの選択肢: 左クリック/右クリック/ホイールクリック/戻るボタン(XButton1)/進むボタン(XButton2)
+- XButton（戻る/進む）は修飾キーなしで単体割り当て可能
+- 左/右/ホイールクリックは修飾キーが1つ以上必要（誤動作防止）
 - アニメーション色のカスタマイズ
 - 中央ジャンプのホットキー変更
 
@@ -65,5 +68,30 @@ src/CursorJump.App/
 - **ShutdownMode=OnExplicitShutdown**: ウィンドウクローズでアプリ終了しない
 - **マウスフックのデリゲート**: `_hookProc`をフィールドに保持必須（GC回収防止）
 - **UPイベント消費**: DOWNイベント消費時にフラグを立て、対応するUPイベントも消費する（右クリックメニュー抑止）
+- **XButtonのUP消費**: `WM_XBUTTONUP`はボタン種別が`mouseData >> 16`で判定が必要（L/R/Mと異なる）
 - **座標系**: マウスフック・SetCursorPosは物理ピクセル座標。WPFオーバーレイ描画時はTransformFromDeviceでDIP変換
 - **設定ファイル**: `%APPDATA%/CursorJump/settings.json`（System.Text.Json）
+- **MouseButtonType enum**: Left=0, Right=1, Middle=2, XButton1=3, XButton2=4（末尾追加で後方互換性維持）
+
+## 将来の拡張方針（未実装）
+
+### キーボードキートリガー対応（6ボタン目以降・Nape Pro等）
+Windows APIのXButtonはXButton1/XButton2のみ。追加ボタンはマウスドライバがキーボードキー（F13-F24等）として送信するため、別のフックが必要。
+
+#### 予定データモデル拡張
+```csharp
+public enum InputType { Mouse, Keyboard }
+public sealed class ActionShortcut
+{
+    public InputType InputType { get; set; } = InputType.Mouse;  // 追加
+    public ModifierKeyFlags Modifiers { get; set; } = ...;
+    public MouseButtonType MouseButton { get; set; } = ...;     // InputType==Mouse時
+    public int VirtualKeyCode { get; set; } = 0;                // InputType==Keyboard時（追加）
+}
+```
+
+#### 予定サービス構成
+- `MouseHookService`（WH_MOUSE_LL）: 現在のまま維持
+- `KeyboardHookService`（WH_KEYBOARD_LL）: 新規作成
+- 両サービスとも同じ `SaveRequested`/`NavigateRequested`/`DisplayDeleteRequested` を発火
+- `App.xaml.cs` で両サービスのイベントを同じハンドラに接続

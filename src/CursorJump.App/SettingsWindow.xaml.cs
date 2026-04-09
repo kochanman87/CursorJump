@@ -12,7 +12,7 @@ public partial class SettingsWindow : Window
 {
     private readonly SettingsService _settingsService;
 
-    private static readonly string[] ButtonNames = { "左クリック", "右クリック", "ホイールクリック" };
+    private static readonly string[] ButtonNames = { "左クリック", "右クリック", "ホイールクリック", "戻るボタン", "進むボタン" };
 
     private static readonly Dictionary<string, int> KeyMap = new()
     {
@@ -85,12 +85,14 @@ public partial class SettingsWindow : Window
         var navShortcut = ReadShortcutUI(ChkNavCtrl, ChkNavAlt, ChkNavShift, ChkNavWin, CmbNavBtn);
         var dispShortcut = ReadShortcutUI(ChkDispCtrl, ChkDispAlt, ChkDispShift, ChkDispWin, CmbDispBtn);
 
-        // バリデーション: 修飾キーが1つ以上
-        if (saveShortcut.Modifiers == ModifierKeyFlags.None ||
-            navShortcut.Modifiers == ModifierKeyFlags.None ||
-            dispShortcut.Modifiers == ModifierKeyFlags.None)
+        // バリデーション: Left/Right/Middle は修飾キーが1つ以上必要（XButtonは不要）
+        static bool NeedsModifier(ActionShortcut s) =>
+            s.Modifiers == ModifierKeyFlags.None
+            && s.MouseButton is not (MouseButtonType.XButton1 or MouseButtonType.XButton2);
+
+        if (NeedsModifier(saveShortcut) || NeedsModifier(navShortcut) || NeedsModifier(dispShortcut))
         {
-            MessageBox.Show("各アクションの修飾キーを1つ以上選択してください。", "CursorJump", MessageBoxButton.OK, MessageBoxImage.Warning);
+            MessageBox.Show("左/右/ホイールクリックの場合は修飾キーを1つ以上選択してください。", "CursorJump", MessageBoxButton.OK, MessageBoxImage.Warning);
             return;
         }
 
@@ -197,6 +199,8 @@ public partial class SettingsWindow : Window
         MouseButtonType.Left => "左クリック",
         MouseButtonType.Right => "右クリック",
         MouseButtonType.Middle => "ホイールクリック",
+        MouseButtonType.XButton1 => "戻るボタン",
+        MouseButtonType.XButton2 => "進むボタン",
         _ => "左クリック"
     };
 
@@ -204,6 +208,8 @@ public partial class SettingsWindow : Window
     {
         "右クリック" => MouseButtonType.Right,
         "ホイールクリック" => MouseButtonType.Middle,
+        "戻るボタン" => MouseButtonType.XButton1,
+        "進むボタン" => MouseButtonType.XButton2,
         _ => MouseButtonType.Left
     };
 }

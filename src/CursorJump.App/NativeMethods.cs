@@ -34,6 +34,12 @@ internal static class NativeMethods
     internal const int WM_RBUTTONUP   = 0x0205;
     internal const int WM_MBUTTONDOWN = 0x0207;
     internal const int WM_MBUTTONUP   = 0x0208;
+    internal const int WM_XBUTTONDOWN = 0x020B;
+    internal const int WM_XBUTTONUP   = 0x020C;
+
+    // WM_XBUTTONDOWN/UP の mouseData 上位ワードに格納されるボタンID
+    internal const int XBUTTON1 = 0x0001;
+    internal const int XBUTTON2 = 0x0002;
 
     // ── Low-level mouse hook ──
     internal const int WH_MOUSE_LL = 14;

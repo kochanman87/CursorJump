@@ -32,6 +32,7 @@ public partial class OverlayWindow : Window
         }
 
         NativeMethods.SetWindowLong(hwnd, NativeMethods.GWL_EXSTYLE, exStyle);
+        DebugLog.Write($"OverlayWindow: exStyle=0x{exStyle:X8}, clickThrough={_clickThrough}");
     }
 
     /// <summary>
