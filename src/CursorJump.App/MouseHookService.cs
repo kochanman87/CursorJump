@@ -27,6 +27,8 @@ internal sealed class MouseHookService : IDisposable
     private bool _swallowNextLeftUp;
     private bool _swallowNextRightUp;
     private bool _swallowNextMiddleUp;
+    private bool _swallowNextXButton1Up;
+    private bool _swallowNextXButton2Up;
 
     private readonly SettingsService _settingsService;
 
@@ -56,8 +58,23 @@ internal sealed class MouseHookService : IDisposable
             throw new System.ComponentModel.Win32Exception(Marshal.GetLastWin32Error());
     }
 
-    public void Suspend() => _suspended = true;
-    public void Resume() => _suspended = false;
+    public void Suspend()
+    {
+        DebugLog.Write("MouseHookService: Suspend()");
+        _suspended = true;
+        // Suspend中にUPイベントが来てもフラグがクリアされないため、ここで全クリア
+        _swallowNextLeftUp = false;
+        _swallowNextRightUp = false;
+        _swallowNextMiddleUp = false;
+        _swallowNextXButton1Up = false;
+        _swallowNextXButton2Up = false;
+    }
+
+    public void Resume()
+    {
+        DebugLog.Write("MouseHookService: Resume()");
+        _suspended = false;
+    }
 
     private IntPtr HookCallback(int nCode, IntPtr wParam, IntPtr lParam)
     {
@@ -81,44 +98,58 @@ internal sealed class MouseHookService : IDisposable
                 _swallowNextMiddleUp = false;
                 return (IntPtr)1;
             }
+            if (msg == NativeMethods.WM_XBUTTONUP)
+            {
+                var upStruct = Marshal.PtrToStructure<NativeMethods.MSLLHOOKSTRUCT>(lParam);
+                int upButtonId = (int)(upStruct.mouseData >> 16);
+                if (upButtonId == NativeMethods.XBUTTON1 && _swallowNextXButton1Up)
+                {
+                    _swallowNextXButton1Up = false;
+                    return (IntPtr)1;
+                }
+                if (upButtonId == NativeMethods.XBUTTON2 && _swallowNextXButton2Up)
+                {
+                    _swallowNextXButton2Up = false;
+                    return (IntPtr)1;
+                }
+            }
 
-            // DOWNイベントの処理
+            // DOWNイベントの処理（hookStructを先にデコードしてXButton判定でも再利用）
+            var hookStruct = Marshal.PtrToStructure<NativeMethods.MSLLHOOKSTRUCT>(lParam);
             MouseButtonType? pressedButton = msg switch
             {
                 NativeMethods.WM_LBUTTONDOWN => MouseButtonType.Left,
                 NativeMethods.WM_RBUTTONDOWN => MouseButtonType.Right,
                 NativeMethods.WM_MBUTTONDOWN => MouseButtonType.Middle,
+                NativeMethods.WM_XBUTTONDOWN => ResolveXButton(hookStruct.mouseData),
                 _ => null
             };
 
             if (pressedButton is not null)
             {
                 var settings = _settingsService.Current;
-                var hookStruct = Marshal.PtrToStructure<NativeMethods.MSLLHOOKSTRUCT>(lParam);
+                var args = new MouseHookEventArgs(hookStruct.pt.X, hookStruct.pt.Y);
 
                 // 各アクションのショートカットを個別にチェック
-                if (pressedButton == settings.SaveShortcut.MouseButton
-                    && AreModifiersHeld(settings.SaveShortcut.Modifiers))
+                if (IsShortcutMatch(pressedButton.Value, settings.SaveShortcut))
                 {
-                    var args = new MouseHookEventArgs(hookStruct.pt.X, hookStruct.pt.Y);
+                    DebugLog.Write($"HookCallback: SaveRequested matched (button={pressedButton.Value})");
                     SaveRequested?.Invoke(this, args);
                     SetSwallowUpFlag(pressedButton.Value);
                     return (IntPtr)1;
                 }
 
-                if (pressedButton == settings.NavigateShortcut.MouseButton
-                    && AreModifiersHeld(settings.NavigateShortcut.Modifiers))
+                if (IsShortcutMatch(pressedButton.Value, settings.NavigateShortcut))
                 {
-                    var args = new MouseHookEventArgs(hookStruct.pt.X, hookStruct.pt.Y);
+                    DebugLog.Write($"HookCallback: NavigateRequested matched (button={pressedButton.Value})");
                     NavigateRequested?.Invoke(this, args);
                     SetSwallowUpFlag(pressedButton.Value);
                     return (IntPtr)1;
                 }
 
-                if (pressedButton == settings.DisplayDeleteShortcut.MouseButton
-                    && AreModifiersHeld(settings.DisplayDeleteShortcut.Modifiers))
+                if (IsShortcutMatch(pressedButton.Value, settings.DisplayDeleteShortcut))
                 {
-                    var args = new MouseHookEventArgs(hookStruct.pt.X, hookStruct.pt.Y);
+                    DebugLog.Write($"HookCallback: DisplayDeleteRequested matched (button={pressedButton.Value})");
                     DisplayDeleteRequested?.Invoke(this, args);
                     SetSwallowUpFlag(pressedButton.Value);
                     return (IntPtr)1;
@@ -136,13 +167,42 @@ internal sealed class MouseHookService : IDisposable
             case MouseButtonType.Left: _swallowNextLeftUp = true; break;
             case MouseButtonType.Right: _swallowNextRightUp = true; break;
             case MouseButtonType.Middle: _swallowNextMiddleUp = true; break;
+            case MouseButtonType.XButton1: _swallowNextXButton1Up = true; break;
+            case MouseButtonType.XButton2: _swallowNextXButton2Up = true; break;
         }
+    }
+
+    // XButton か否かを判定するヘルパー
+    private static bool IsXButton(MouseButtonType button)
+        => button is MouseButtonType.XButton1 or MouseButtonType.XButton2;
+
+    // mouseData 上位ワードから XButton の種類を解決する
+    private static MouseButtonType? ResolveXButton(uint mouseData)
+    {
+        int xButtonId = (int)(mouseData >> 16);
+        return xButtonId switch
+        {
+            NativeMethods.XBUTTON1 => MouseButtonType.XButton1,
+            NativeMethods.XBUTTON2 => MouseButtonType.XButton2,
+            _ => null
+        };
+    }
+
+    // ショートカットがマッチするか判定する
+    // Left/Right/Middle は誤クリック防止のため修飾キー必須、XButton は修飾キー不要も可
+    private static bool IsShortcutMatch(MouseButtonType pressedButton, Models.ActionShortcut shortcut)
+    {
+        if (pressedButton != shortcut.MouseButton)
+            return false;
+        if (shortcut.Modifiers == ModifierKeyFlags.None && !IsXButton(shortcut.MouseButton))
+            return false;
+        return AreModifiersHeld(shortcut.Modifiers);
     }
 
     private static bool AreModifiersHeld(ModifierKeyFlags required)
     {
         if (required == ModifierKeyFlags.None)
-            return false;
+            return true; // 「修飾キー不要」を意味する（XButton用）
 
         if (required.HasFlag(ModifierKeyFlags.Control))
         {
