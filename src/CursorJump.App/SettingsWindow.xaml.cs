@@ -1,7 +1,7 @@
 using System;
-using System.Collections.Generic;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Shapes;
 using CursorJump.App.Models;
@@ -14,13 +14,9 @@ public partial class SettingsWindow : Window
 
     private static readonly string[] ButtonNames = { "左クリック", "右クリック", "ホイールクリック", "戻るボタン", "進むボタン" };
 
-    private static readonly Dictionary<string, int> KeyMap = new()
-    {
-        { "Home", 0x24 }, { "End", 0x23 }, { "Insert", 0x2D }, { "Delete", 0x2E },
-        { "F1", 0x70 }, { "F2", 0x71 }, { "F3", 0x72 }, { "F4", 0x73 },
-        { "F5", 0x74 }, { "F6", 0x75 }, { "F7", 0x76 }, { "F8", 0x77 },
-        { "F9", 0x78 }, { "F10", 0x79 }, { "F11", 0x7A }, { "F12", 0x7B }
-    };
+    private string _saveColor = "#FF0000";
+    private string _trailColor = "#00FF00";
+    private string _markerColor = "#0088FF";
 
     public SettingsWindow(SettingsService settingsService)
     {
@@ -35,7 +31,6 @@ public partial class SettingsWindow : Window
         CmbSaveBtn.ItemsSource = ButtonNames;
         CmbNavBtn.ItemsSource = ButtonNames;
         CmbDispBtn.ItemsSource = ButtonNames;
-        CmbHkKey.ItemsSource = KeyMap.Keys;
     }
 
     private void LoadCurrentSettings()
@@ -50,22 +45,12 @@ public partial class SettingsWindow : Window
         LoadShortcutUI(s.DisplayDeleteShortcut, ChkDispCtrl, ChkDispAlt, ChkDispShift, ChkDispWin, CmbDispBtn);
 
         // 色
-        TxtSaveColor.Text = s.SaveCircleColor;
-        TxtTrailColor.Text = s.TrailColor;
-        TxtMarkerColor.Text = s.MarkerColor;
-
-        // ホットキー
-        ChkHkCtrl.IsChecked = (s.CenterJumpModifiers & NativeMethods.MOD_CONTROL) != 0;
-        ChkHkAlt.IsChecked = (s.CenterJumpModifiers & NativeMethods.MOD_ALT) != 0;
-        ChkHkShift.IsChecked = (s.CenterJumpModifiers & NativeMethods.MOD_SHIFT) != 0;
-        ChkHkWin.IsChecked = (s.CenterJumpModifiers & NativeMethods.MOD_WIN) != 0;
-
-        string? keyName = null;
-        foreach (var kv in KeyMap)
-        {
-            if (kv.Value == s.CenterJumpKey) { keyName = kv.Key; break; }
-        }
-        CmbHkKey.SelectedItem = keyName ?? "Home";
+        _saveColor = s.SaveCircleColor;
+        _trailColor = s.TrailColor;
+        _markerColor = s.MarkerColor;
+        SetRectangleColor(RectSaveColor, _saveColor);
+        SetRectangleColor(RectTrailColor, _trailColor);
+        SetRectangleColor(RectMarkerColor, _markerColor);
     }
 
     private static void LoadShortcutUI(ActionShortcut shortcut,
@@ -106,35 +91,14 @@ public partial class SettingsWindow : Window
             return;
         }
 
-        // ホットキー修飾キー
-        int hkMod = 0;
-        if (ChkHkCtrl.IsChecked == true) hkMod |= NativeMethods.MOD_CONTROL;
-        if (ChkHkAlt.IsChecked == true) hkMod |= NativeMethods.MOD_ALT;
-        if (ChkHkShift.IsChecked == true) hkMod |= NativeMethods.MOD_SHIFT;
-        if (ChkHkWin.IsChecked == true) hkMod |= NativeMethods.MOD_WIN;
-
-        if (hkMod == 0)
-        {
-            MessageBox.Show("中央ジャンプの修飾キーを1つ以上選択してください。", "CursorJump", MessageBoxButton.OK, MessageBoxImage.Warning);
-            return;
-        }
-
-        int hkKey = 0x24;
-        if (CmbHkKey.SelectedItem is string selectedKey && KeyMap.TryGetValue(selectedKey, out int vk))
-        {
-            hkKey = vk;
-        }
-
         var settings = new AppSettings
         {
             SaveShortcut = saveShortcut,
             NavigateShortcut = navShortcut,
             DisplayDeleteShortcut = dispShortcut,
-            SaveCircleColor = TxtSaveColor.Text,
-            TrailColor = TxtTrailColor.Text,
-            MarkerColor = TxtMarkerColor.Text,
-            CenterJumpModifiers = hkMod,
-            CenterJumpKey = hkKey
+            SaveCircleColor = _saveColor,
+            TrailColor = _trailColor,
+            MarkerColor = _markerColor,
         };
 
         _settingsService.Save(settings);
@@ -148,29 +112,52 @@ public partial class SettingsWindow : Window
         Close();
     }
 
-    private void OnColorTextChanged(object sender, TextChangedEventArgs e)
+    private void OnColorRectangleClick(object sender, MouseButtonEventArgs e)
     {
-        if (sender is not TextBox textBox) return;
+        if (sender is not Rectangle rect) return;
 
-        Rectangle? preview = null;
-        if (textBox == TxtSaveColor) preview = RectSaveColor;
-        else if (textBox == TxtTrailColor) preview = RectTrailColor;
-        else if (textBox == TxtMarkerColor) preview = RectMarkerColor;
+        string currentHex;
+        if (rect == RectSaveColor) currentHex = _saveColor;
+        else if (rect == RectTrailColor) currentHex = _trailColor;
+        else if (rect == RectMarkerColor) currentHex = _markerColor;
+        else return;
 
-        if (preview is null) return;
+        using var dialog = new System.Windows.Forms.ColorDialog();
+        dialog.FullOpen = true;
 
         try
         {
-            var converted = ColorConverter.ConvertFromString(textBox.Text);
+            var wpfColor = (Color)ColorConverter.ConvertFromString(currentHex);
+            dialog.Color = System.Drawing.Color.FromArgb(wpfColor.R, wpfColor.G, wpfColor.B);
+        }
+        catch { }
+
+        if (dialog.ShowDialog() == System.Windows.Forms.DialogResult.OK)
+        {
+            var selected = dialog.Color;
+            string hex = $"#{selected.R:X2}{selected.G:X2}{selected.B:X2}";
+
+            if (rect == RectSaveColor) _saveColor = hex;
+            else if (rect == RectTrailColor) _trailColor = hex;
+            else if (rect == RectMarkerColor) _markerColor = hex;
+
+            rect.Fill = new SolidColorBrush(Color.FromRgb(selected.R, selected.G, selected.B));
+        }
+    }
+
+    private static void SetRectangleColor(Rectangle rect, string hex)
+    {
+        try
+        {
+            var converted = ColorConverter.ConvertFromString(hex);
             if (converted is Color c)
             {
-                preview.Fill = new SolidColorBrush(c);
+                rect.Fill = new SolidColorBrush(c);
                 return;
             }
         }
         catch { }
-
-        preview.Fill = Brushes.Transparent;
+        rect.Fill = Brushes.Transparent;
     }
 
     private static ActionShortcut ReadShortcutUI(

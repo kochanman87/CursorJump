@@ -5,17 +5,6 @@ namespace CursorJump.App;
 
 internal static class NativeMethods
 {
-    // ── Hotkey modifiers ──
-    internal const int MOD_ALT      = 0x0001;
-    internal const int MOD_CONTROL  = 0x0002;
-    internal const int MOD_SHIFT    = 0x0004;
-    internal const int MOD_WIN      = 0x0008;
-    internal const int MOD_NOREPEAT = 0x4000;
-
-    internal const int WM_HOTKEY = 0x0312;
-
-    internal const int VK_HOME = 0x24;
-
     // ── Virtual key codes ──
     internal const int VK_LCONTROL = 0xA2;
     internal const int VK_RCONTROL = 0xA3;
@@ -99,13 +88,7 @@ internal static class NativeMethods
     [DllImport("user32.dll")]
     internal static extern int SetWindowLong(IntPtr hWnd, int nIndex, int dwNewLong);
 
-    // ── Existing APIs ──
-    [DllImport("user32.dll", SetLastError = true)]
-    internal static extern bool RegisterHotKey(IntPtr hWnd, int id, int fsModifiers, int vk);
-
-    [DllImport("user32.dll", SetLastError = true)]
-    internal static extern bool UnregisterHotKey(IntPtr hWnd, int id);
-
+    // ── Cursor APIs ──
     [DllImport("user32.dll")]
     internal static extern bool SetCursorPos(int x, int y);
 

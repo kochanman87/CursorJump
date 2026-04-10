@@ -18,14 +18,13 @@ dotnet run --project src/CursorJump.App/CursorJump.App.csproj
 ```
 src/CursorJump.App/
 ├── App.xaml / App.xaml.cs          # エントリポイント、サービス初期化
-├── MainWindow.xaml / .cs           # 不可視ウィンドウ（ホットキー受信+フック管理）
+├── MainWindow.xaml / .cs           # 不可視ウィンドウ（フック管理）
 ├── Models/
 │   ├── AppSettings.cs              # 設定データモデル（ActionShortcut, ModifierKeyFlags等）
 │   └── SavedCoordinate.cs          # 保存座標 record
-├── NativeMethods.cs                # Win32 P/Invoke（ホットキー、マウス/キーボードフック、カーソル等）
-├── HotkeyService.cs                # RegisterHotKey APIでグローバルホットキー管理
-├── MouseHookService.cs             # WH_MOUSE_LL低レベルフック + 削除モード（WH_KEYBOARD_LL併用）
-├── CursorService.cs                # カーソル移動（中央ジャンプ、任意座標ジャンプ）
+├── NativeMethods.cs                # Win32 P/Invoke（マウス/キーボードフック、カーソル等）
+├── MouseHookService.cs             # WH_MOUSE_LL低レベルフック + 座標表示モード（WH_KEYBOARD_LL併用）
+├── CursorService.cs                # カーソル移動（任意座標ジャンプ）
 ├── CoordinateStore.cs              # 座標リスト管理（Add/GetNext循環/RemoveAt）
 ├── OverlayService.cs               # オーバーレイアニメーション（収縮円、軌跡、マーカー）
 ├── OverlayWindow.xaml / .cs        # 透明オーバーレイウィンドウ基盤
@@ -39,10 +38,6 @@ src/CursorJump.App/
 
 ## 機能一覧
 
-### 中央ジャンプ（デフォルト: Ctrl+Alt+Home）
-- カーソルを現在のモニター中央へ移動
-- RegisterHotKey APIで実装
-
 ### 座標保存（デフォルト: Ctrl+Win+左クリック）
 - クリック位置を座標リストに保存
 - 赤い収縮円アニメーション表示
@@ -51,19 +46,19 @@ src/CursorJump.App/
 - 保存した座標を順番に巡回ジャンプ
 - 移動元→移動先に軌跡アニメーション（500msフェード）
 
-### 座標表示/削除（デフォルト: Ctrl+Win+ホイールクリック）
+### 座標表示/編集（デフォルト: Ctrl+Win+ホイールクリック）
 - 全保存座標をマーカー表示（オーバーレイはclickThrough=true、表示専用）
 - クリック検知・ESC検知はすべて低レベルフック（WH_MOUSE_LL / WH_KEYBOARD_LL）で処理
-- マーカーをクリックで削除（物理ピクセル座標で吸いつき判定、snapDistance=40px）
-- Escで終了
+- 左クリック: マーカー近く(40px以内)→削除、それ以外→ポイント追加
+- 右クリック / Escで終了
+- 座標0個でもモードに入れる（追加専用で使える）
 
 ### 設定画面（トレイアイコン右クリック→設定）
 - 各アクションごとに独立した修飾キー+マウスボタンを設定可能
 - マウスボタンの選択肢: 左クリック/右クリック/ホイールクリック/戻るボタン(XButton1)/進むボタン(XButton2)
 - XButton（戻る/進む）は修飾キーなしで単体割り当て可能
 - 左/右/ホイールクリックは修飾キーが1つ以上必要（誤動作防止）
-- アニメーション色のカスタマイズ
-- 中央ジャンプのホットキー変更
+- アニメーション色のカスタマイズ（カラーピッカーダイアログで選択）
 
 ## アーキテクチャ上の注意点
 - **MainWindowは不可視**: Width=0, Height=0, Collapsed。HWNDメッセージ受信専用
@@ -76,9 +71,10 @@ src/CursorJump.App/
 - **ログファイル**: `%APPDATA%/CursorJump/debug.log`（起動時モニター情報、フックイベント、DPI変更を記録）
 - **MouseButtonType enum**: Left=0, Right=1, Middle=2, XButton1=3, XButton2=4（末尾追加で後方互換性維持）
 
-### 座標表示/削除モードのアーキテクチャ
+### 座標表示/編集モードのアーキテクチャ
 - **オーバーレイは表示専用**: clickThrough=true。フォーカス取得しない
-- **入力はすべて低レベルフックで処理**: MouseHookServiceの「削除モード」（`EnterDeleteMode`/`ExitDeleteMode`）が、マウスクリック・移動をDeleteModeClicked/DeleteModeMoved イベントとして発火。ESCはWH_KEYBOARD_LLフックで検知
+- **入力はすべて低レベルフックで処理**: MouseHookServiceの「削除モード」（`EnterDeleteMode`/`ExitDeleteMode`）が、マウスクリック・移動をDeleteModeClicked/DeleteModeMoved イベントとして発火。ESC・右クリックはそれぞれWH_KEYBOARD_LLフック・WH_MOUSE_LLフックで検知し、DeleteModeEscPressedを発火
+- **左クリックのハイブリッド動作**: マーカー近く(snapDistance=40px)→削除、それ以外→追加
 - **座標比較は物理ピクセル同士**: 保存座標もフック座標も物理ピクセルのため、DPI変換不要で正確
 
 ### WPFオーバーレイとフォーカスの既知の制約（重要）
