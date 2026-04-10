@@ -12,13 +12,8 @@ internal sealed class HotkeyService : IDisposable
     // アプリケーション固有のホットキー ID（0x0000〜0xBFFF の範囲）
     private const int HotkeyId = 0x3001;
 
-    // デフォルトホットキー: Ctrl+Alt+Home
-    private const int Modifiers = NativeMethods.MOD_CONTROL
-                                | NativeMethods.MOD_ALT
-                                | NativeMethods.MOD_NOREPEAT;
-    private const int VirtualKey = NativeMethods.VK_HOME;
-
     private readonly IntPtr _hwnd;
+    private readonly SettingsService _settingsService;
     private bool _registered;
     private bool _disposed;
 
@@ -26,11 +21,12 @@ internal sealed class HotkeyService : IDisposable
     public event EventHandler? HotkeyPressed;
 
     /// <summary>トレイアイコン等で表示するホットキーの説明文。</summary>
-    public string HotkeyDescription => "Ctrl+Alt+Home";
+    public string HotkeyDescription => BuildDescription();
 
-    public HotkeyService(IntPtr hwnd)
+    public HotkeyService(IntPtr hwnd, SettingsService settingsService)
     {
         _hwnd = hwnd;
+        _settingsService = settingsService;
     }
 
     /// <summary>
@@ -41,11 +37,25 @@ internal sealed class HotkeyService : IDisposable
         if (_disposed) throw new ObjectDisposedException(nameof(HotkeyService));
         if (_registered) return;
 
-        bool ok = NativeMethods.RegisterHotKey(_hwnd, HotkeyId, Modifiers, VirtualKey);
+        var settings = _settingsService.Current;
+        int modifiers = settings.CenterJumpModifiers | NativeMethods.MOD_NOREPEAT;
+        int vk = settings.CenterJumpKey;
+
+        bool ok = NativeMethods.RegisterHotKey(_hwnd, HotkeyId, modifiers, vk);
         if (!ok)
             throw new Win32Exception();
 
         _registered = true;
+    }
+
+    public void Reregister()
+    {
+        if (_registered)
+        {
+            NativeMethods.UnregisterHotKey(_hwnd, HotkeyId);
+            _registered = false;
+        }
+        Register();
     }
 
     /// <summary>
@@ -72,5 +82,26 @@ internal sealed class HotkeyService : IDisposable
             NativeMethods.UnregisterHotKey(_hwnd, HotkeyId);
             _registered = false;
         }
+    }
+
+    private string BuildDescription()
+    {
+        var settings = _settingsService.Current;
+        var parts = new System.Collections.Generic.List<string>();
+
+        int mod = settings.CenterJumpModifiers;
+        if ((mod & NativeMethods.MOD_CONTROL) != 0) parts.Add("Ctrl");
+        if ((mod & NativeMethods.MOD_ALT) != 0) parts.Add("Alt");
+        if ((mod & NativeMethods.MOD_SHIFT) != 0) parts.Add("Shift");
+        if ((mod & NativeMethods.MOD_WIN) != 0) parts.Add("Win");
+
+        string keyName = settings.CenterJumpKey switch
+        {
+            NativeMethods.VK_HOME => "Home",
+            _ => $"0x{settings.CenterJumpKey:X2}"
+        };
+        parts.Add(keyName);
+
+        return string.Join("+", parts);
     }
 }
