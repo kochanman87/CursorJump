@@ -57,6 +57,8 @@ public partial class MainWindow : Window
             _mouseHookService.NavigateRequested += OnNavigateRequested;
             _mouseHookService.DisplayDeleteRequested += OnDisplayDeleteRequested;
             _mouseHookService.Install();
+
+            _overlayService.SetMouseHookService(_mouseHookService);
         }
         catch (Win32Exception ex)
         {
@@ -95,8 +97,8 @@ public partial class MainWindow : Window
     {
         _overlayService.ShowCoordinateMarkers(
             _coordinateStore,
-            onEnterMode: () => _mouseHookService?.Suspend(),
-            onExitMode: () => _mouseHookService?.Resume());
+            onEnterMode: () => _mouseHookService?.EnterDeleteMode(),
+            onExitMode: () => _mouseHookService?.ExitDeleteMode());
     }
 
     private void OnClosed(object? sender, EventArgs e)

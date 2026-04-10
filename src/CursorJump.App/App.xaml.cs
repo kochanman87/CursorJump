@@ -25,6 +25,9 @@ public partial class App : Application
         {
             EnsureWindowsFormsIsInitialized();
 
+            DebugLog.Write("=== CursorJump starting ===");
+            DebugLog.WriteMonitorInfo();
+
             _settingsService = new SettingsService();
             _settingsService.Load();
 
