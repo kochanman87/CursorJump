@@ -161,8 +161,6 @@ internal sealed class OverlayService
         Action? onEnterMode,
         Action? onExitMode)
     {
-        if (store.Count == 0) return;
-
         // 既にマーカー表示中なら閉じる
         CloseMarkerOverlay();
 
@@ -230,23 +228,22 @@ internal sealed class OverlayService
         if (_deleteStore is null || _markerOverlay is null) return;
 
         int closestIdx = FindNearestMarker(e.X, e.Y);
-        if (closestIdx < 0) return;
-
-        int storeIdx = _markers[closestIdx].index;
-        DebugLog.Write($"Marker clicked via hook: storeIndex={storeIdx}, physical=({e.X},{e.Y})");
-        _deleteStore.RemoveAt(storeIdx);
-
-        if (_deleteStore.Count == 0)
+        if (closestIdx >= 0)
         {
-            var exitMode = _deleteOnExitMode;
-            CloseMarkerOverlay();
-            exitMode?.Invoke();
+            // マーカー上: 削除
+            int storeIdx = _markers[closestIdx].index;
+            DebugLog.Write($"Marker clicked via hook: storeIndex={storeIdx}, physical=({e.X},{e.Y}) - removing");
+            _deleteStore.RemoveAt(storeIdx);
         }
         else
         {
-            _lastHighlighted = null;
-            BuildMarkers(_markerOverlay);
+            // マーカー外: 追加
+            DebugLog.Write($"Empty area clicked via hook: physical=({e.X},{e.Y}) - adding");
+            _deleteStore.Add(e.X, e.Y);
         }
+
+        _lastHighlighted = null;
+        BuildMarkers(_markerOverlay);
     }
 
     private void OnDeleteModeMoved(object? sender, MouseHookEventArgs e)

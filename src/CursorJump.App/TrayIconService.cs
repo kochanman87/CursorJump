@@ -11,13 +11,11 @@ namespace CursorJump.App;
 public sealed class TrayIconService : IDisposable
 {
     private readonly NotifyIcon _notifyIcon;
-    private readonly string _hotkeyDescription;
     private readonly SettingsService _settingsService;
     private bool _disposed;
 
-    public TrayIconService(string hotkeyDescription, SettingsService settingsService)
+    public TrayIconService(SettingsService settingsService)
     {
-        _hotkeyDescription = hotkeyDescription;
         _settingsService = settingsService;
         _notifyIcon = new NotifyIcon();
     }
@@ -35,13 +33,9 @@ public sealed class TrayIconService : IDisposable
         var iconUri = new Uri("pack://application:,,,/Assets/icon.ico", UriKind.Absolute);
         var iconStream = System.Windows.Application.GetResourceStream(iconUri)?.Stream;
         _notifyIcon.Icon = iconStream is not null ? new Icon(iconStream) : SystemIcons.Application;
-        _notifyIcon.Text = $"CursorJump ({_hotkeyDescription})";
+        _notifyIcon.Text = "CursorJump";
 
         var contextMenu = new ContextMenuStrip();
-
-        var infoItem = new ToolStripMenuItem($"Jump: {_hotkeyDescription}") { Enabled = false };
-        contextMenu.Items.Add(infoItem);
-        contextMenu.Items.Add(new ToolStripSeparator());
 
         var settingsItem = new ToolStripMenuItem("設定");
         settingsItem.Click += HandleSettingsClick;

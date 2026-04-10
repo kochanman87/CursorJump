@@ -23,7 +23,6 @@
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
-            <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
             <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
@@ -76,7 +75,6 @@
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto"/>
                     <ColumnDefinition Width="*"/>
-                    <ColumnDefinition Width="30"/>
                 </Grid.ColumnDefinitions>
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto"/>
@@ -85,33 +83,24 @@
                 </Grid.RowDefinitions>
 
                 <TextBlock Grid.Row="0" Grid.Column="0" Text="保存エフェクト:" VerticalAlignment="Center" Margin="4"/>
-                <TextBox x:Name="TxtSaveColor" Grid.Row="0" Grid.Column="1" Margin="4" TextChanged="OnColorTextChanged"/>
-                <Rectangle x:Name="RectSaveColor" Grid.Row="0" Grid.Column="2" Width="24" Height="24" Margin="4" Stroke="Gray" StrokeThickness="1"/>
+                <Rectangle x:Name="RectSaveColor" Grid.Row="0" Grid.Column="1" Height="28" Margin="4"
+                           Stroke="Gray" StrokeThickness="1" Cursor="Hand"
+                           MouseLeftButtonDown="OnColorRectangleClick"/>
 
                 <TextBlock Grid.Row="1" Grid.Column="0" Text="軌跡:" VerticalAlignment="Center" Margin="4"/>
-                <TextBox x:Name="TxtTrailColor" Grid.Row="1" Grid.Column="1" Margin="4" TextChanged="OnColorTextChanged"/>
-                <Rectangle x:Name="RectTrailColor" Grid.Row="1" Grid.Column="2" Width="24" Height="24" Margin="4" Stroke="Gray" StrokeThickness="1"/>
+                <Rectangle x:Name="RectTrailColor" Grid.Row="1" Grid.Column="1" Height="28" Margin="4"
+                           Stroke="Gray" StrokeThickness="1" Cursor="Hand"
+                           MouseLeftButtonDown="OnColorRectangleClick"/>
 
                 <TextBlock Grid.Row="2" Grid.Column="0" Text="マーカー:" VerticalAlignment="Center" Margin="4"/>
-                <TextBox x:Name="TxtMarkerColor" Grid.Row="2" Grid.Column="1" Margin="4" TextChanged="OnColorTextChanged"/>
-                <Rectangle x:Name="RectMarkerColor" Grid.Row="2" Grid.Column="2" Width="24" Height="24" Margin="4" Stroke="Gray" StrokeThickness="1"/>
+                <Rectangle x:Name="RectMarkerColor" Grid.Row="2" Grid.Column="1" Height="28" Margin="4"
+                           Stroke="Gray" StrokeThickness="1" Cursor="Hand"
+                           MouseLeftButtonDown="OnColorRectangleClick"/>
             </Grid>
         </GroupBox>
 
-        <!-- 中央ジャンプホットキー -->
-        <GroupBox Grid.Row="4" Header="中央ジャンプ ホットキー">
-            <WrapPanel>
-                <CheckBox x:Name="ChkHkCtrl" Content="Ctrl" Margin="4,2"/>
-                <CheckBox x:Name="ChkHkAlt" Content="Alt" Margin="4,2"/>
-                <CheckBox x:Name="ChkHkShift" Content="Shift" Margin="4,2"/>
-                <CheckBox x:Name="ChkHkWin" Content="Win" Margin="4,2"/>
-                <TextBlock Text=" + " VerticalAlignment="Center"/>
-                <ComboBox x:Name="CmbHkKey" Width="80" Margin="4,2"/>
-            </WrapPanel>
-        </GroupBox>
-
         <!-- ボタン -->
-        <StackPanel Grid.Row="6" Orientation="Horizontal" HorizontalAlignment="Right" Margin="8">
+        <StackPanel Grid.Row="5" Orientation="Horizontal" HorizontalAlignment="Right" Margin="8">
             <Button Content="保存" Width="80" Margin="4" Click="OnSaveClick"/>
             <Button Content="キャンセル" Width="80" Margin="4" Click="OnCancelClick"/>
         </StackPanel>

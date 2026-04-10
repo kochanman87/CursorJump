@@ -96,6 +96,7 @@ internal sealed class MouseHookService : IDisposable
         DebugLog.Write("MouseHookService: EnterDeleteMode()");
         _deleteMode = true;
         _swallowNextLeftUp = false;
+        _swallowNextRightUp = false;
 
         // ESC検出用キーボードフックをインストール
         IntPtr moduleHandle = NativeMethods.GetModuleHandle(null);
@@ -115,6 +116,7 @@ internal sealed class MouseHookService : IDisposable
         DebugLog.Write("MouseHookService: ExitDeleteMode()");
         _deleteMode = false;
         _swallowNextLeftUp = false;
+        _swallowNextRightUp = false;
 
         // キーボードフックをアンインストール
         if (_keyboardHookHandle != IntPtr.Zero)
@@ -171,6 +173,20 @@ internal sealed class MouseHookService : IDisposable
             if (msg == NativeMethods.WM_LBUTTONUP && _swallowNextLeftUp)
             {
                 _swallowNextLeftUp = false;
+                return (IntPtr)1;
+            }
+
+            // 座標表示モード: 右クリック → 終了（ESCと同じ）
+            if (msg == NativeMethods.WM_RBUTTONDOWN)
+            {
+                DebugLog.Write("DeleteMode: RightClick - exiting");
+                DeleteModeEscPressed?.Invoke(this, EventArgs.Empty);
+                _swallowNextRightUp = true;
+                return (IntPtr)1;
+            }
+            if (msg == NativeMethods.WM_RBUTTONUP && _swallowNextRightUp)
+            {
+                _swallowNextRightUp = false;
                 return (IntPtr)1;
             }
 

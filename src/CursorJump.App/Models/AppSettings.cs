@@ -31,9 +31,6 @@ public sealed class AppSettings
     public string SaveCircleColor { get; set; } = "#FF0000";
     public string TrailColor { get; set; } = "#00FF00";
     public string MarkerColor { get; set; } = "#0088FF";
-
-    public int CenterJumpModifiers { get; set; } = 0x0002 | 0x0001; // Ctrl+Alt
-    public int CenterJumpKey { get; set; } = 0x24; // VK_HOME
 }
 
 public enum MouseButtonType
