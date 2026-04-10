@@ -15,6 +15,7 @@ public partial class OverlayWindow : Window
         InitializeComponent();
         _clickThrough = clickThrough;
         SourceInitialized += OnSourceInitialized;
+        DpiChanged += OnDpiChanged;
     }
 
     internal Canvas OverlayCanvasElement => (Canvas)FindName("OverlayCanvas");
@@ -35,6 +36,11 @@ public partial class OverlayWindow : Window
         DebugLog.Write($"OverlayWindow: exStyle=0x{exStyle:X8}, clickThrough={_clickThrough}");
     }
 
+    private static void OnDpiChanged(object sender, DpiChangedEventArgs e)
+    {
+        DebugLog.Write($"OverlayWindow.DpiChanged: old={e.OldDpi.PixelsPerInchX}x{e.OldDpi.PixelsPerInchY}, new={e.NewDpi.PixelsPerInchX}x{e.NewDpi.PixelsPerInchY}");
+    }
+
     /// <summary>
     /// 物理ピクセル座標をこのウィンドウのWPF DIP座標に変換する。
     /// </summary>
@@ -50,30 +56,13 @@ public partial class OverlayWindow : Window
 
     /// <summary>
     /// 仮想スクリーン全体をカバーするようにウィンドウを配置する。
+    /// SystemParameters.VirtualScreen* は既にDIP値のため、TransformFromDevice不要。
     /// </summary>
     internal void CoverVirtualScreen()
     {
-        var source = PresentationSource.FromVisual(this);
-        if (source?.CompositionTarget is null)
-        {
-            Left = SystemParameters.VirtualScreenLeft;
-            Top = SystemParameters.VirtualScreenTop;
-            Width = SystemParameters.VirtualScreenWidth;
-            Height = SystemParameters.VirtualScreenHeight;
-            return;
-        }
-
-        var transform = source.CompositionTarget.TransformFromDevice;
-        var topLeft = transform.Transform(new Point(
-            SystemParameters.VirtualScreenLeft,
-            SystemParameters.VirtualScreenTop));
-        var size = transform.Transform(new Point(
-            SystemParameters.VirtualScreenWidth,
-            SystemParameters.VirtualScreenHeight));
-
-        Left = topLeft.X;
-        Top = topLeft.Y;
-        Width = size.X;
-        Height = size.Y;
+        Left = SystemParameters.VirtualScreenLeft;
+        Top = SystemParameters.VirtualScreenTop;
+        Width = SystemParameters.VirtualScreenWidth;
+        Height = SystemParameters.VirtualScreenHeight;
     }
 }

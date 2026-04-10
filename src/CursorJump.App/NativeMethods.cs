@@ -28,6 +28,7 @@ internal static class NativeMethods
     internal const int VK_ESCAPE  = 0x1B;
 
     // ── Mouse messages ──
+    internal const int WM_MOUSEMOVE   = 0x0200;
     internal const int WM_LBUTTONDOWN = 0x0201;
     internal const int WM_LBUTTONUP   = 0x0202;
     internal const int WM_RBUTTONDOWN = 0x0204;
@@ -41,10 +42,19 @@ internal static class NativeMethods
     internal const int XBUTTON1 = 0x0001;
     internal const int XBUTTON2 = 0x0002;
 
-    // ── Low-level mouse hook ──
-    internal const int WH_MOUSE_LL = 14;
+    // ── Keyboard messages ──
+    internal const int WM_KEYDOWN    = 0x0100;
+    internal const int WM_SYSKEYDOWN = 0x0104;
+
+    // ── Low-level hooks ──
+    internal const int WH_KEYBOARD_LL = 13;
+    internal const int WH_MOUSE_LL    = 14;
 
     internal delegate IntPtr LowLevelMouseProc(int nCode, IntPtr wParam, IntPtr lParam);
+    internal delegate IntPtr LowLevelKeyboardProc(int nCode, IntPtr wParam, IntPtr lParam);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    internal static extern IntPtr SetWindowsHookEx(int idHook, LowLevelKeyboardProc lpfn, IntPtr hMod, uint dwThreadId);
 
     [StructLayout(LayoutKind.Sequential)]
     internal struct POINT
@@ -101,4 +111,20 @@ internal static class NativeMethods
 
     [DllImport("user32.dll")]
     internal static extern bool GetCursorPos(out POINT lpPoint);
+
+    // ── Foreground window activation ──
+    [DllImport("user32.dll")]
+    internal static extern bool SetForegroundWindow(IntPtr hWnd);
+
+    [DllImport("user32.dll")]
+    internal static extern IntPtr GetForegroundWindow();
+
+    [DllImport("user32.dll")]
+    internal static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint lpdwProcessId);
+
+    [DllImport("kernel32.dll")]
+    internal static extern uint GetCurrentThreadId();
+
+    [DllImport("user32.dll")]
+    internal static extern bool AttachThreadInput(uint idAttach, uint idAttachTo, bool fAttach);
 }

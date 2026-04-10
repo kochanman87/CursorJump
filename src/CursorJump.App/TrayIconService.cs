@@ -32,7 +32,9 @@ public sealed class TrayIconService : IDisposable
             throw new ObjectDisposedException(nameof(TrayIconService));
         }
 
-        _notifyIcon.Icon = SystemIcons.Application;
+        var iconUri = new Uri("pack://application:,,,/Assets/icon.ico", UriKind.Absolute);
+        var iconStream = System.Windows.Application.GetResourceStream(iconUri)?.Stream;
+        _notifyIcon.Icon = iconStream is not null ? new Icon(iconStream) : SystemIcons.Application;
         _notifyIcon.Text = $"CursorJump ({_hotkeyDescription})";
 
         var contextMenu = new ContextMenuStrip();

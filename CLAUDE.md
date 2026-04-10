@@ -22,13 +22,14 @@ src/CursorJump.App/
 ├── Models/
 │   ├── AppSettings.cs              # 設定データモデル（ActionShortcut, ModifierKeyFlags等）
 │   └── SavedCoordinate.cs          # 保存座標 record
-├── NativeMethods.cs                # Win32 P/Invoke（ホットキー、マウスフック、カーソル等）
+├── NativeMethods.cs                # Win32 P/Invoke（ホットキー、マウス/キーボードフック、カーソル等）
 ├── HotkeyService.cs                # RegisterHotKey APIでグローバルホットキー管理
-├── MouseHookService.cs             # WH_MOUSE_LL低レベルフック（修飾キー+マウスクリック検知）
+├── MouseHookService.cs             # WH_MOUSE_LL低レベルフック + 削除モード（WH_KEYBOARD_LL併用）
 ├── CursorService.cs                # カーソル移動（中央ジャンプ、任意座標ジャンプ）
 ├── CoordinateStore.cs              # 座標リスト管理（Add/GetNext循環/RemoveAt）
 ├── OverlayService.cs               # オーバーレイアニメーション（収縮円、軌跡、マーカー）
 ├── OverlayWindow.xaml / .cs        # 透明オーバーレイウィンドウ基盤
+├── DebugLog.cs                     # デバッグログ（%APPDATA%/CursorJump/debug.log）
 ├── SettingsService.cs              # 設定のJSON読み書き（%APPDATA%/CursorJump/settings.json）
 ├── SettingsWindow.xaml / .cs       # 設定画面UI
 ├── TrayIconService.cs              # タスクトレイアイコン管理
@@ -51,8 +52,9 @@ src/CursorJump.App/
 - 移動元→移動先に軌跡アニメーション（500msフェード）
 
 ### 座標表示/削除（デフォルト: Ctrl+Win+ホイールクリック）
-- 全保存座標をマーカー表示
-- マーカーをクリックで削除（吸いつき機能あり）
+- 全保存座標をマーカー表示（オーバーレイはclickThrough=true、表示専用）
+- クリック検知・ESC検知はすべて低レベルフック（WH_MOUSE_LL / WH_KEYBOARD_LL）で処理
+- マーカーをクリックで削除（物理ピクセル座標で吸いつき判定、snapDistance=40px）
 - Escで終了
 
 ### 設定画面（トレイアイコン右クリック→設定）
@@ -66,12 +68,26 @@ src/CursorJump.App/
 ## アーキテクチャ上の注意点
 - **MainWindowは不可視**: Width=0, Height=0, Collapsed。HWNDメッセージ受信専用
 - **ShutdownMode=OnExplicitShutdown**: ウィンドウクローズでアプリ終了しない
-- **マウスフックのデリゲート**: `_hookProc`をフィールドに保持必須（GC回収防止）
+- **マウスフックのデリゲート**: `_hookProc`/`_keyboardHookProc`をフィールドに保持必須（GC回収防止）
 - **UPイベント消費**: DOWNイベント消費時にフラグを立て、対応するUPイベントも消費する（右クリックメニュー抑止）
 - **XButtonのUP消費**: `WM_XBUTTONUP`はボタン種別が`mouseData >> 16`で判定が必要（L/R/Mと異なる）
 - **座標系**: マウスフック・SetCursorPosは物理ピクセル座標。WPFオーバーレイ描画時はTransformFromDeviceでDIP変換
 - **設定ファイル**: `%APPDATA%/CursorJump/settings.json`（System.Text.Json）
+- **ログファイル**: `%APPDATA%/CursorJump/debug.log`（起動時モニター情報、フックイベント、DPI変更を記録）
 - **MouseButtonType enum**: Left=0, Right=1, Middle=2, XButton1=3, XButton2=4（末尾追加で後方互換性維持）
+
+### 座標表示/削除モードのアーキテクチャ
+- **オーバーレイは表示専用**: clickThrough=true。フォーカス取得しない
+- **入力はすべて低レベルフックで処理**: MouseHookServiceの「削除モード」（`EnterDeleteMode`/`ExitDeleteMode`）が、マウスクリック・移動をDeleteModeClicked/DeleteModeMoved イベントとして発火。ESCはWH_KEYBOARD_LLフックで検知
+- **座標比較は物理ピクセル同士**: 保存座標もフック座標も物理ピクセルのため、DPI変換不要で正確
+
+### WPFオーバーレイとフォーカスの既知の制約（重要）
+- **WS_EX_LAYERED + WS_EX_TOOLWINDOW のWPFウィンドウは、マウスフックコールバック内から作成するとOSレベルの入力フォーカスを取得できない**。`Activate()`、`SetForegroundWindow`、`AttachThreadInput` いずれも効果なし
+- `Ctrl+Alt+Delete→Esc` でデスクトップが再構成されると動作する（=OS側の入力キュー再構築が必要）
+- **対策**: ユーザー入力が必要なオーバーレイでは、WPFイベント（MouseDown等）に依存せず、低レベルフック（WH_MOUSE_LL / WH_KEYBOARD_LL）で入力を処理する
+
+### CoverVirtualScreen の座標系
+- `SystemParameters.VirtualScreen*` は既にDIP値。`TransformFromDevice` で再変換してはいけない（二重変換バグになる）
 
 ## 将来の拡張方針（未実装）
 

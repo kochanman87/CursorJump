@@ -23,6 +23,11 @@ internal sealed class MouseHookService : IDisposable
     private bool _disposed;
     private bool _suspended;
 
+    // 削除モード関連
+    private bool _deleteMode;
+    private IntPtr _keyboardHookHandle;
+    private readonly NativeMethods.LowLevelKeyboardProc _keyboardHookProc;
+
     // DOWNイベントを消費した後、対応するUPイベントも消費するためのフラグ
     private bool _swallowNextLeftUp;
     private bool _swallowNextRightUp;
@@ -36,10 +41,16 @@ internal sealed class MouseHookService : IDisposable
     public event EventHandler<MouseHookEventArgs>? NavigateRequested;
     public event EventHandler<MouseHookEventArgs>? DisplayDeleteRequested;
 
+    // 削除モード用イベント
+    public event EventHandler<MouseHookEventArgs>? DeleteModeClicked;
+    public event EventHandler<MouseHookEventArgs>? DeleteModeMoved;
+    public event EventHandler? DeleteModeEscPressed;
+
     public MouseHookService(SettingsService settingsService)
     {
         _settingsService = settingsService;
         _hookProc = HookCallback;
+        _keyboardHookProc = KeyboardHookCallback;
     }
 
     public void Install()
@@ -76,8 +87,97 @@ internal sealed class MouseHookService : IDisposable
         _suspended = false;
     }
 
+    /// <summary>
+    /// 削除モードに入る。通常のジェスチャーマッチングを無効化し、
+    /// 左クリック・マウス移動・ESCキーを専用イベントとして発火する。
+    /// </summary>
+    public void EnterDeleteMode()
+    {
+        DebugLog.Write("MouseHookService: EnterDeleteMode()");
+        _deleteMode = true;
+        _swallowNextLeftUp = false;
+
+        // ESC検出用キーボードフックをインストール
+        IntPtr moduleHandle = NativeMethods.GetModuleHandle(null);
+        _keyboardHookHandle = NativeMethods.SetWindowsHookEx(
+            NativeMethods.WH_KEYBOARD_LL,
+            _keyboardHookProc,
+            moduleHandle,
+            0);
+        DebugLog.Write($"KeyboardHook installed: handle={_keyboardHookHandle}");
+    }
+
+    /// <summary>
+    /// 削除モードを終了し、通常モードに戻る。
+    /// </summary>
+    public void ExitDeleteMode()
+    {
+        DebugLog.Write("MouseHookService: ExitDeleteMode()");
+        _deleteMode = false;
+        _swallowNextLeftUp = false;
+
+        // キーボードフックをアンインストール
+        if (_keyboardHookHandle != IntPtr.Zero)
+        {
+            NativeMethods.UnhookWindowsHookEx(_keyboardHookHandle);
+            _keyboardHookHandle = IntPtr.Zero;
+            DebugLog.Write("KeyboardHook uninstalled");
+        }
+    }
+
+    private IntPtr KeyboardHookCallback(int nCode, IntPtr wParam, IntPtr lParam)
+    {
+        if (nCode >= 0 && _deleteMode)
+        {
+            int msg = wParam.ToInt32();
+            if (msg == NativeMethods.WM_KEYDOWN || msg == NativeMethods.WM_SYSKEYDOWN)
+            {
+                int vkCode = Marshal.ReadInt32(lParam);
+                if (vkCode == NativeMethods.VK_ESCAPE)
+                {
+                    DebugLog.Write("KeyboardHook: ESC detected in delete mode");
+                    DeleteModeEscPressed?.Invoke(this, EventArgs.Empty);
+                    return (IntPtr)1; // ESCを消費
+                }
+            }
+        }
+        return NativeMethods.CallNextHookEx(_keyboardHookHandle, nCode, wParam, lParam);
+    }
+
     private IntPtr HookCallback(int nCode, IntPtr wParam, IntPtr lParam)
     {
+        if (nCode >= 0 && _deleteMode)
+        {
+            int msg = wParam.ToInt32();
+            var hookStruct = Marshal.PtrToStructure<NativeMethods.MSLLHOOKSTRUCT>(lParam);
+
+            // 削除モード: マウス移動 → ハイライト用イベント（消費しない）
+            if (msg == NativeMethods.WM_MOUSEMOVE)
+            {
+                DeleteModeMoved?.Invoke(this, new MouseHookEventArgs(hookStruct.pt.X, hookStruct.pt.Y));
+                return NativeMethods.CallNextHookEx(_hookHandle, nCode, wParam, lParam);
+            }
+
+            // 削除モード: 左クリック → 削除イベント（消費する）
+            if (msg == NativeMethods.WM_LBUTTONDOWN)
+            {
+                DebugLog.Write($"DeleteMode: LeftClick at ({hookStruct.pt.X},{hookStruct.pt.Y})");
+                DeleteModeClicked?.Invoke(this, new MouseHookEventArgs(hookStruct.pt.X, hookStruct.pt.Y));
+                _swallowNextLeftUp = true;
+                return (IntPtr)1;
+            }
+
+            // 削除モード: 左ボタンUP消費
+            if (msg == NativeMethods.WM_LBUTTONUP && _swallowNextLeftUp)
+            {
+                _swallowNextLeftUp = false;
+                return (IntPtr)1;
+            }
+
+            // 削除モード: その他のイベントはパススルー
+            return NativeMethods.CallNextHookEx(_hookHandle, nCode, wParam, lParam);
+        }
+
         if (nCode >= 0 && !_suspended)
         {
             int msg = wParam.ToInt32();
@@ -240,6 +340,12 @@ internal sealed class MouseHookService : IDisposable
     {
         if (_disposed) return;
         _disposed = true;
+
+        if (_keyboardHookHandle != IntPtr.Zero)
+        {
+            NativeMethods.UnhookWindowsHookEx(_keyboardHookHandle);
+            _keyboardHookHandle = IntPtr.Zero;
+        }
 
         if (_hookHandle != IntPtr.Zero)
         {

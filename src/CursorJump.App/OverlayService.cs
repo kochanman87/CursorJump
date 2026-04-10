@@ -2,22 +2,38 @@ using System;
 using System.Collections.Generic;
 using System.Windows;
 using System.Windows.Controls;
-using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
 using System.Windows.Shapes;
-using CursorJump.App.Models;
 
 namespace CursorJump.App;
 
 internal sealed class OverlayService
 {
     private readonly SettingsService _settingsService;
+    private MouseHookService? _mouseHookService;
     private OverlayWindow? _markerOverlay;
+
+    // 削除モード用状態
+    private CoordinateStore? _deleteStore;
+    private Action? _deleteOnExitMode;
+    private List<(Ellipse ellipse, int index, int physX, int physY)> _markers = new();
+    private Ellipse? _lastHighlighted;
+    private Color _markerColor;
+    private const double MarkerRadius = 15;
+    private const double SnapDistancePhysical = 40; // 物理ピクセル
 
     public OverlayService(SettingsService settingsService)
     {
         _settingsService = settingsService;
+    }
+
+    /// <summary>
+    /// MouseHookServiceの参照を設定する。削除モードのフックイベント購読に必要。
+    /// </summary>
+    public void SetMouseHookService(MouseHookService hookService)
+    {
+        _mouseHookService = hookService;
     }
 
     /// <summary>
@@ -137,6 +153,8 @@ internal sealed class OverlayService
 
     /// <summary>
     /// 座標マーカーを表示し、クリックで削除可能にする。
+    /// オーバーレイは表示専用（clickThrough=true）。入力はすべて低レベルマウスフック+
+    /// キーボードフックで処理するため、ウィンドウフォーカスに依存しない。
     /// </summary>
     public void ShowCoordinateMarkers(
         CoordinateStore store,
@@ -148,170 +166,33 @@ internal sealed class OverlayService
         // 既にマーカー表示中なら閉じる
         CloseMarkerOverlay();
 
+        _deleteStore = store;
+        _deleteOnExitMode = onExitMode;
+        _markerColor = ParseColor(_settingsService.Current.MarkerColor, Colors.DodgerBlue);
+        _lastHighlighted = null;
+
+        // フックイベント購読
+        if (_mouseHookService is not null)
+        {
+            _mouseHookService.DeleteModeClicked += OnDeleteModeClicked;
+            _mouseHookService.DeleteModeMoved += OnDeleteModeMoved;
+            _mouseHookService.DeleteModeEscPressed += OnDeleteModeEscPressed;
+        }
+
         onEnterMode?.Invoke();
 
-        var color = ParseColor(_settingsService.Current.MarkerColor, Colors.DodgerBlue);
-        const double markerRadius = 15;
-        const double snapDistance = 40;
-
-        var overlay = new OverlayWindow(clickThrough: false);
-        // クリック受信のためShowActivatedをtrueに
-        overlay.ShowActivated = true;
-        overlay.Focusable = true;
+        // 表示専用オーバーレイ（clickThrough=true、フォーカス不要）
+        var overlay = new OverlayWindow(clickThrough: true);
         _markerOverlay = overlay;
 
         DebugLog.Write($"ShowCoordinateMarkers: count={store.Count}");
         overlay.Show();
-        DebugLog.Write($"overlay.Show() done, IsActive={overlay.IsActive}");
         overlay.CoverVirtualScreen();
-        // Activate/FocusをDispatcher経由で遅延実行（フックコールバック内からのSetForegroundWindow制約を回避）
-        overlay.Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Input, () =>
-        {
-            overlay.Activate();
-            DebugLog.Write($"overlay.Activate() done, IsActive={overlay.IsActive}");
-            overlay.Focus();
-            System.Windows.Input.Keyboard.Focus(overlay);
-            var focusedElement = System.Windows.Input.Keyboard.FocusedElement;
-            DebugLog.Write($"overlay.Focus() done, IsFocused={overlay.IsFocused}, IsKeyboardFocusWithin={overlay.IsKeyboardFocusWithin}, FocusedElement={focusedElement?.GetType().Name}");
-        });
 
         // 半透明の背景でモード表示を分かりやすくする
         overlay.Background = new SolidColorBrush(Color.FromArgb(40, 0, 0, 0));
 
-        var markers = new List<(Ellipse ellipse, int index, double canvasX, double canvasY)>();
-
-        var coordinates = store.GetAll();
-        for (int i = 0; i < coordinates.Count; i++)
-        {
-            var coord = coordinates[i];
-            var pos = overlay.PhysicalToWpf(coord.X, coord.Y);
-            double canvasX = pos.X - overlay.Left;
-            double canvasY = pos.Y - overlay.Top;
-
-            var ellipse = new Ellipse
-            {
-                Width = markerRadius * 2,
-                Height = markerRadius * 2,
-                Fill = new SolidColorBrush(Color.FromArgb(180, color.R, color.G, color.B)),
-                Stroke = new SolidColorBrush(Colors.White),
-                StrokeThickness = 2,
-                Cursor = Cursors.Hand
-            };
-
-            Canvas.SetLeft(ellipse, canvasX - markerRadius);
-            Canvas.SetTop(ellipse, canvasY - markerRadius);
-            overlay.OverlayCanvasElement.Children.Add(ellipse);
-
-            // 番号ラベル
-            var label = new TextBlock
-            {
-                Text = (i + 1).ToString(),
-                Foreground = Brushes.White,
-                FontSize = 12,
-                FontWeight = FontWeights.Bold,
-                IsHitTestVisible = false
-            };
-            label.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
-            Canvas.SetLeft(label, canvasX - label.DesiredSize.Width / 2);
-            Canvas.SetTop(label, canvasY - label.DesiredSize.Height / 2);
-            overlay.OverlayCanvasElement.Children.Add(label);
-
-            markers.Add((ellipse, i, canvasX, canvasY));
-            DebugLog.Write($"Marker[{i}]: physical=({coord.X},{coord.Y}), wpf=({pos.X:F1},{pos.Y:F1}), canvas=({canvasX:F1},{canvasY:F1}), overlayLeft={overlay.Left:F1}, overlayTop={overlay.Top:F1}");
-        }
-
-        // ESCキーで終了
-        overlay.KeyDown += (_, e) =>
-        {
-            DebugLog.Write($"KeyDown: Key={e.Key}");
-            if (e.Key == Key.Escape)
-            {
-                DebugLog.Write("ESC detected, closing overlay");
-                CloseMarkerOverlay();
-                onExitMode?.Invoke();
-            }
-        };
-
-        // マウス移動時の吸いつき効果
-        Ellipse? lastHighlighted = null;
-        overlay.MouseMove += (_, e) =>
-        {
-            var mousePos = e.GetPosition(overlay.OverlayCanvasElement);
-
-            // 前のハイライトをリセット
-            if (lastHighlighted is not null)
-            {
-                lastHighlighted.StrokeThickness = 2;
-                lastHighlighted.Stroke = new SolidColorBrush(Colors.White);
-                lastHighlighted = null;
-            }
-
-            // 最も近いマーカーを探す
-            double closestDist = double.MaxValue;
-            Ellipse? closestEllipse = null;
-
-            foreach (var (ellipse, _, cx, cy) in markers)
-            {
-                double dx = mousePos.X - cx;
-                double dy = mousePos.Y - cy;
-                double dist = Math.Sqrt(dx * dx + dy * dy);
-                if (dist < snapDistance && dist < closestDist)
-                {
-                    closestDist = dist;
-                    closestEllipse = ellipse;
-                }
-            }
-
-            if (closestEllipse is not null)
-            {
-                closestEllipse.StrokeThickness = 4;
-                closestEllipse.Stroke = new SolidColorBrush(Colors.Yellow);
-                lastHighlighted = closestEllipse;
-            }
-        };
-
-        // クリックで削除
-        overlay.MouseLeftButtonDown += (_, e) =>
-        {
-            var mousePos = e.GetPosition(overlay.OverlayCanvasElement);
-            DebugLog.Write($"MouseLeftButtonDown: pos=({mousePos.X:F0},{mousePos.Y:F0})");
-
-            // 吸いつき範囲内で最も近いマーカーを探す
-            double closestDist = double.MaxValue;
-            int closestMarkerIdx = -1;
-            int closestListIdx = -1;
-
-            for (int mi = 0; mi < markers.Count; mi++)
-            {
-                var (_, storeIdx, cx, cy) = markers[mi];
-                double dx = mousePos.X - cx;
-                double dy = mousePos.Y - cy;
-                double dist = Math.Sqrt(dx * dx + dy * dy);
-                if (dist < snapDistance && dist < closestDist)
-                {
-                    closestDist = dist;
-                    closestMarkerIdx = mi;
-                    closestListIdx = storeIdx;
-                }
-            }
-
-            DebugLog.Write($"MouseLeftButtonDown: closestDist={closestDist:F1}, closestMarkerIdx={closestMarkerIdx}");
-            if (closestMarkerIdx >= 0)
-            {
-                DebugLog.Write($"Deleting marker index={closestListIdx}");
-                // ストアから削除
-                store.RemoveAt(closestListIdx);
-
-                // マーカーの表示をリフレッシュ
-                RefreshMarkers(overlay, store, markers, color, markerRadius);
-
-                if (store.Count == 0)
-                {
-                    CloseMarkerOverlay();
-                    onExitMode?.Invoke();
-                }
-            }
-        };
+        BuildMarkers(overlay);
 
         // ウィンドウが閉じられたときのクリーンアップ
         overlay.Closed += (_, _) =>
@@ -323,6 +204,18 @@ internal sealed class OverlayService
 
     public void CloseMarkerOverlay()
     {
+        // フックイベント購読解除
+        if (_mouseHookService is not null)
+        {
+            _mouseHookService.DeleteModeClicked -= OnDeleteModeClicked;
+            _mouseHookService.DeleteModeMoved -= OnDeleteModeMoved;
+            _mouseHookService.DeleteModeEscPressed -= OnDeleteModeEscPressed;
+        }
+
+        _deleteStore = null;
+        _lastHighlighted = null;
+        _markers.Clear();
+
         if (_markerOverlay is not null)
         {
             _markerOverlay.Close();
@@ -330,17 +223,98 @@ internal sealed class OverlayService
         }
     }
 
-    private static void RefreshMarkers(
-        OverlayWindow overlay,
-        CoordinateStore store,
-        List<(Ellipse ellipse, int index, double canvasX, double canvasY)> markers,
-        Color color,
-        double markerRadius)
+    // ── 削除モードのフックイベントハンドラ ──
+
+    private void OnDeleteModeClicked(object? sender, MouseHookEventArgs e)
+    {
+        if (_deleteStore is null || _markerOverlay is null) return;
+
+        int closestIdx = FindNearestMarker(e.X, e.Y);
+        if (closestIdx < 0) return;
+
+        int storeIdx = _markers[closestIdx].index;
+        DebugLog.Write($"Marker clicked via hook: storeIndex={storeIdx}, physical=({e.X},{e.Y})");
+        _deleteStore.RemoveAt(storeIdx);
+
+        if (_deleteStore.Count == 0)
+        {
+            var exitMode = _deleteOnExitMode;
+            CloseMarkerOverlay();
+            exitMode?.Invoke();
+        }
+        else
+        {
+            _lastHighlighted = null;
+            BuildMarkers(_markerOverlay);
+        }
+    }
+
+    private void OnDeleteModeMoved(object? sender, MouseHookEventArgs e)
+    {
+        if (_markers.Count == 0) return;
+
+        // 前のハイライトをリセット
+        if (_lastHighlighted is not null)
+        {
+            _lastHighlighted.StrokeThickness = 2;
+            _lastHighlighted.Stroke = new SolidColorBrush(Colors.White);
+            _lastHighlighted = null;
+        }
+
+        int closestIdx = FindNearestMarker(e.X, e.Y);
+        if (closestIdx >= 0)
+        {
+            var ellipse = _markers[closestIdx].ellipse;
+            ellipse.StrokeThickness = 4;
+            ellipse.Stroke = new SolidColorBrush(Colors.Yellow);
+            _lastHighlighted = ellipse;
+        }
+    }
+
+    private void OnDeleteModeEscPressed(object? sender, EventArgs e)
+    {
+        DebugLog.Write("ESC detected via keyboard hook, closing overlay");
+        var exitMode = _deleteOnExitMode;
+        CloseMarkerOverlay();
+        exitMode?.Invoke();
+    }
+
+    /// <summary>
+    /// 物理ピクセル座標で最も近いマーカーを検索する。snapDistance内でなければ-1を返す。
+    /// </summary>
+    private int FindNearestMarker(int physX, int physY)
+    {
+        double closestDist = double.MaxValue;
+        int closestIdx = -1;
+
+        for (int i = 0; i < _markers.Count; i++)
+        {
+            var (_, _, mx, my) = _markers[i];
+            double dx = physX - mx;
+            double dy = physY - my;
+            double dist = Math.Sqrt(dx * dx + dy * dy);
+            if (dist < SnapDistancePhysical && dist < closestDist)
+            {
+                closestDist = dist;
+                closestIdx = i;
+            }
+        }
+
+        return closestIdx;
+    }
+
+    /// <summary>
+    /// マーカー要素を構築してCanvasに配置する（表示専用）。
+    /// 入力処理は低レベルフックで行うため、WPFイベントハンドラは不要。
+    /// </summary>
+    private void BuildMarkers(OverlayWindow overlay)
     {
         overlay.OverlayCanvasElement.Children.Clear();
-        markers.Clear();
+        _markers.Clear();
 
-        var coordinates = store.GetAll();
+        if (_deleteStore is null) return;
+
+        var coordinates = _deleteStore.GetAll();
         for (int i = 0; i < coordinates.Count; i++)
         {
             var coord = coordinates[i];
@@ -350,16 +324,15 @@ internal sealed class OverlayService
 
             var ellipse = new Ellipse
             {
-                Width = markerRadius * 2,
-                Height = markerRadius * 2,
-                Fill = new SolidColorBrush(Color.FromArgb(180, color.R, color.G, color.B)),
+                Width = MarkerRadius * 2,
+                Height = MarkerRadius * 2,
+                Fill = new SolidColorBrush(Color.FromArgb(180, _markerColor.R, _markerColor.G, _markerColor.B)),
                 Stroke = new SolidColorBrush(Colors.White),
                 StrokeThickness = 2,
-                Cursor = Cursors.Hand
+                IsHitTestVisible = false
             };
-
-            Canvas.SetLeft(ellipse, canvasX - markerRadius);
-            Canvas.SetTop(ellipse, canvasY - markerRadius);
+            Canvas.SetLeft(ellipse, canvasX - MarkerRadius);
+            Canvas.SetTop(ellipse, canvasY - MarkerRadius);
             overlay.OverlayCanvasElement.Children.Add(ellipse);
 
             var label = new TextBlock
@@ -375,7 +348,8 @@ internal sealed class OverlayService
             Canvas.SetTop(label, canvasY - label.DesiredSize.Height / 2);
             overlay.OverlayCanvasElement.Children.Add(label);
 
-            markers.Add((ellipse, i, canvasX, canvasY));
+            _markers.Add((ellipse, i, coord.X, coord.Y));
+            DebugLog.Write($"Marker[{i}]: physical=({coord.X},{coord.Y}), canvas=({canvasX:F1},{canvasY:F1})");
         }
     }
 
