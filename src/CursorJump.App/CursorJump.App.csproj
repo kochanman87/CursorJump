@@ -6,9 +6,11 @@
     <UseWPF>true</UseWPF>
     <UseWindowsForms>true</UseWindowsForms>
     <ApplicationManifest>app.manifest</ApplicationManifest>
+    <ApplicationIcon>Assets\icon.ico</ApplicationIcon>
   </PropertyGroup>
   <ItemGroup>
     <None Include="app.manifest" />
+    <Resource Include="Assets\icon.ico" />
     <None Update="runtimeconfig.template.json">
       <CopyToOutputDirectory>Never</CopyToOutputDirectory>
     </None>
