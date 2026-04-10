@@ -1,18 +1,11 @@
-# CursorJump
+# CursorJump - 開発ガイド
 
-## 概要
-Windowsのカーソル操作ユーティリティ。タスクトレイに常駐し、グローバルショートカットでカーソルを操作する。
+> ユーザー向けの概要・機能一覧・ビルド手順は [README.md](README.md) を参照。
 
 ## 技術スタック
 - .NET 8.0 (WPF + WinForms)
 - C#, WinExe, PerMonitorV2 DPI対応
 - 外部NuGetパッケージなし
-
-## ビルド・実行
-```bash
-dotnet build src/CursorJump.App/CursorJump.App.csproj
-dotnet run --project src/CursorJump.App/CursorJump.App.csproj
-```
 
 ## プロジェクト構成
 ```
@@ -35,30 +28,6 @@ src/CursorJump.App/
 ├── app.manifest                    # DPI設定、実行レベル
 └── CursorJump.App.csproj
 ```
-
-## 機能一覧
-
-### 座標保存（デフォルト: Ctrl+Win+左クリック）
-- クリック位置を座標リストに保存
-- 赤い収縮円アニメーション表示
-
-### 座標ナビゲーション（デフォルト: Ctrl+Win+右クリック）
-- 保存した座標を順番に巡回ジャンプ
-- 移動元→移動先に軌跡アニメーション（500msフェード）
-
-### 座標表示/編集（デフォルト: Ctrl+Win+ホイールクリック）
-- 全保存座標をマーカー表示（オーバーレイはclickThrough=true、表示専用）
-- クリック検知・ESC検知はすべて低レベルフック（WH_MOUSE_LL / WH_KEYBOARD_LL）で処理
-- 左クリック: マーカー近く(40px以内)→削除、それ以外→ポイント追加
-- 右クリック / Escで終了
-- 座標0個でもモードに入れる（追加専用で使える）
-
-### 設定画面（トレイアイコン右クリック→設定）
-- 各アクションごとに独立した修飾キー+マウスボタンを設定可能
-- マウスボタンの選択肢: 左クリック/右クリック/ホイールクリック/戻るボタン(XButton1)/進むボタン(XButton2)
-- XButton（戻る/進む）は修飾キーなしで単体割り当て可能
-- 左/右/ホイールクリックは修飾キーが1つ以上必要（誤動作防止）
-- アニメーション色のカスタマイズ（カラーピッカーダイアログで選択）
 
 ## アーキテクチャ上の注意点
 - **MainWindowは不可視**: Width=0, Height=0, Collapsed。HWNDメッセージ受信専用
