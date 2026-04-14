@@ -16,6 +16,20 @@ internal static class NativeMethods
     internal const int VK_RWIN    = 0x5C;
     internal const int VK_ESCAPE  = 0x1B;
 
+    // F13-F24（VIAキーボードマクロ等で使用される拡張ファンクションキー）
+    internal const int VK_F13 = 0x7C;
+    internal const int VK_F14 = 0x7D;
+    internal const int VK_F15 = 0x7E;
+    internal const int VK_F16 = 0x7F;
+    internal const int VK_F17 = 0x80;
+    internal const int VK_F18 = 0x81;
+    internal const int VK_F19 = 0x82;
+    internal const int VK_F20 = 0x83;
+    internal const int VK_F21 = 0x84;
+    internal const int VK_F22 = 0x85;
+    internal const int VK_F23 = 0x86;
+    internal const int VK_F24 = 0x87;
+
     // ── Mouse messages ──
     internal const int WM_MOUSEMOVE   = 0x0200;
     internal const int WM_LBUTTONDOWN = 0x0201;
@@ -33,7 +47,9 @@ internal static class NativeMethods
 
     // ── Keyboard messages ──
     internal const int WM_KEYDOWN    = 0x0100;
+    internal const int WM_KEYUP      = 0x0101;
     internal const int WM_SYSKEYDOWN = 0x0104;
+    internal const int WM_SYSKEYUP   = 0x0105;
 
     // ── Low-level hooks ──
     internal const int WH_KEYBOARD_LL = 13;
