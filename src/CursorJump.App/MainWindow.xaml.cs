@@ -10,6 +10,7 @@ namespace CursorJump.App;
 public partial class MainWindow : Window
 {
     private MouseHookService? _mouseHookService;
+    private KeyboardHookService? _keyboardHookService;
     private readonly SettingsService _settingsService;
     private readonly CoordinateStore _coordinateStore = new();
     private readonly OverlayService _overlayService;
@@ -44,6 +45,23 @@ public partial class MainWindow : Window
                 MessageBoxButton.OK,
                 MessageBoxImage.Warning);
         }
+
+        try
+        {
+            _keyboardHookService = new KeyboardHookService(_settingsService);
+            _keyboardHookService.SaveRequested += OnSaveRequested;
+            _keyboardHookService.NavigateRequested += OnNavigateRequested;
+            _keyboardHookService.DisplayDeleteRequested += OnDisplayDeleteRequested;
+            _keyboardHookService.Install();
+        }
+        catch (Win32Exception ex)
+        {
+            MessageBox.Show(
+                $"キーボードフックの登録に失敗しました: {ex.Message}",
+                "CursorJump",
+                MessageBoxButton.OK,
+                MessageBoxImage.Warning);
+        }
     }
 
     private void OnSaveRequested(object? sender, MouseHookEventArgs e)
@@ -68,8 +86,16 @@ public partial class MainWindow : Window
     {
         _overlayService.ShowCoordinateMarkers(
             _coordinateStore,
-            onEnterMode: () => _mouseHookService?.EnterDeleteMode(),
-            onExitMode: () => _mouseHookService?.ExitDeleteMode());
+            onEnterMode: () =>
+            {
+                _mouseHookService?.EnterDeleteMode();
+                _keyboardHookService?.EnterDeleteMode();
+            },
+            onExitMode: () =>
+            {
+                _mouseHookService?.ExitDeleteMode();
+                _keyboardHookService?.ExitDeleteMode();
+            });
     }
 
     private void OnClosed(object? sender, EventArgs e)
@@ -81,6 +107,15 @@ public partial class MainWindow : Window
             _mouseHookService.DisplayDeleteRequested -= OnDisplayDeleteRequested;
             _mouseHookService.Dispose();
             _mouseHookService = null;
+        }
+
+        if (_keyboardHookService is not null)
+        {
+            _keyboardHookService.SaveRequested -= OnSaveRequested;
+            _keyboardHookService.NavigateRequested -= OnNavigateRequested;
+            _keyboardHookService.DisplayDeleteRequested -= OnDisplayDeleteRequested;
+            _keyboardHookService.Dispose();
+            _keyboardHookService = null;
         }
     }
 }

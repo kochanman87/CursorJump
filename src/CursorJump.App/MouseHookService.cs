@@ -308,6 +308,8 @@ internal sealed class MouseHookService : IDisposable
     // Left/Right/Middle は誤クリック防止のため修飾キー必須、XButton は修飾キー不要も可
     private static bool IsShortcutMatch(MouseButtonType pressedButton, Models.ActionShortcut shortcut)
     {
+        if (!shortcut.EnabledTriggers.HasFlag(Models.TriggerType.Mouse))
+            return false; // マウストリガー無効時は KeyboardHookService 側のみで処理
         if (pressedButton != shortcut.MouseButton)
             return false;
         if (shortcut.Modifiers == ModifierKeyFlags.None && !IsXButton(shortcut.MouseButton))
