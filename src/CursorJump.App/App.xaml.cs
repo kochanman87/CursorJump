@@ -31,6 +31,9 @@ public partial class App : Application
             _settingsService = new SettingsService();
             _settingsService.Load();
 
+            // 起動時にユーザーが保存したテーマを適用
+            ThemeManager.Apply(_settingsService.Current.UiTheme);
+
             _mainWindow = new MainWindow(_settingsService);
             MainWindow = _mainWindow;
 

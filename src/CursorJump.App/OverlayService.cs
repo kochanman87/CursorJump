@@ -41,6 +41,7 @@ internal sealed class OverlayService
     /// </summary>
     public void ShowShrinkCircle(int physicalX, int physicalY)
     {
+        if (!_settingsService.Current.SaveEffectEnabled) return;
         var color = ParseColor(_settingsService.Current.SaveCircleColor, Colors.Red);
         const double initialRadius = 30;
         const double duration = 400; // ms
@@ -95,6 +96,7 @@ internal sealed class OverlayService
     /// </summary>
     public void ShowTrail(int fromX, int fromY, int toX, int toY)
     {
+        if (!_settingsService.Current.TrailEffectEnabled) return;
         var color = ParseColor(_settingsService.Current.TrailColor, Colors.LimeGreen);
         const double duration = 500; // ms
 
@@ -310,6 +312,8 @@ internal sealed class OverlayService
         _markers.Clear();
 
         if (_deleteStore is null) return;
+        // マーカーエフェクトが無効なら描画をスキップ（モード自体は継続 = ESC/クリック追加は動作）
+        if (!_settingsService.Current.MarkerEffectEnabled) return;
 
         var coordinates = _deleteStore.GetAll();
         for (int i = 0; i < coordinates.Count; i++)

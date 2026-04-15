@@ -14,7 +14,6 @@ public partial class SettingsWindow : Window
 
     private static readonly string[] ButtonNames = { "左クリック", "右クリック", "ホイールクリック", "戻るボタン", "進むボタン" };
 
-    // F13-F24 の表示名と対応する仮想キーコード
     private static readonly string[] FKeyNames =
     {
         "F13", "F14", "F15", "F16", "F17", "F18",
@@ -30,6 +29,9 @@ public partial class SettingsWindow : Window
     private string _saveColor = "#FF0000";
     private string _trailColor = "#00FF00";
     private string _markerColor = "#0088FF";
+    private UiTheme _currentTheme = UiTheme.Light;
+
+    private bool _initialized;
 
     public SettingsWindow(SettingsService settingsService)
     {
@@ -37,6 +39,7 @@ public partial class SettingsWindow : Window
         InitializeComponent();
         PopulateComboBoxes();
         LoadCurrentSettings();
+        _initialized = true;
     }
 
     private void PopulateComboBoxes()
@@ -80,9 +83,28 @@ public partial class SettingsWindow : Window
         _saveColor = s.SaveCircleColor;
         _trailColor = s.TrailColor;
         _markerColor = s.MarkerColor;
-        SetRectangleColor(RectSaveColor, _saveColor);
-        SetRectangleColor(RectTrailColor, _trailColor);
-        SetRectangleColor(RectMarkerColor, _markerColor);
+        SetSwatchColor(RectSaveColor, _saveColor);
+        SetSwatchColor(RectTrailColor, _trailColor);
+        SetSwatchColor(RectMarkerColor, _markerColor);
+        TxtSaveColorHex.Text = _saveColor.ToUpperInvariant();
+        TxtTrailColorHex.Text = _trailColor.ToUpperInvariant();
+        TxtMarkerColorHex.Text = _markerColor.ToUpperInvariant();
+
+        // エフェクト ON/OFF
+        ChkSaveEffectEnabled.IsChecked = s.SaveEffectEnabled;
+        ChkTrailEffectEnabled.IsChecked = s.TrailEffectEnabled;
+        ChkMarkerEffectEnabled.IsChecked = s.MarkerEffectEnabled;
+
+        // テーマ
+        _currentTheme = s.UiTheme;
+        if (_currentTheme == UiTheme.Dark)
+        {
+            ThemeDark.IsChecked = true;
+        }
+        else
+        {
+            ThemeLight.IsChecked = true;
+        }
     }
 
     private static void LoadShortcutUI(ActionShortcut shortcut,
@@ -93,7 +115,6 @@ public partial class SettingsWindow : Window
         bool mouseOn    = shortcut.EnabledTriggers.HasFlag(TriggerType.Mouse);
         bool keyboardOn = shortcut.EnabledTriggers.HasFlag(TriggerType.Keyboard);
 
-        // マウスセクション
         chkMouseEnabled.IsChecked = mouseOn;
         pnlMouse.Visibility = mouseOn ? Visibility.Visible : Visibility.Collapsed;
         chkCtrl.IsChecked = shortcut.Modifiers.HasFlag(ModifierKeyFlags.Control);
@@ -102,7 +123,6 @@ public partial class SettingsWindow : Window
         chkWin.IsChecked = shortcut.Modifiers.HasFlag(ModifierKeyFlags.Windows);
         cmbBtn.SelectedItem = ButtonTypeToName(shortcut.MouseButton);
 
-        // キーボードセクション
         chkKeyboardEnabled.IsChecked = keyboardOn;
         pnlKeyboard.Visibility = keyboardOn ? Visibility.Visible : Visibility.Collapsed;
         int idx = Array.IndexOf(FKeyCodes, shortcut.VirtualKeyCode);
@@ -111,8 +131,6 @@ public partial class SettingsWindow : Window
 
     private void OnTriggerEnabledChanged(object sender, RoutedEventArgs e)
     {
-        // CheckBox の Checked/Unchecked イベントで配下パネルの表示を切り替える
-        // LoadCurrentSettings 中はまだ UI 要素が初期化されていないため null チェック
         if (PnlSaveMouse is null) return;
 
         UpdateTriggerPanel(ChkSaveMouseEnabled, PnlSaveMouse);
@@ -130,6 +148,36 @@ public partial class SettingsWindow : Window
         pnl.Visibility = chk.IsChecked == true ? Visibility.Visible : Visibility.Collapsed;
     }
 
+    // ==== ページ切替 ====
+    private void OnTabSettingsChecked(object sender, RoutedEventArgs e)
+    {
+        if (PageSettings is null) return;
+        PageSettings.Visibility = Visibility.Visible;
+        PageUsage.Visibility = Visibility.Collapsed;
+    }
+
+    private void OnTabUsageChecked(object sender, RoutedEventArgs e)
+    {
+        if (PageSettings is null) return;
+        PageSettings.Visibility = Visibility.Collapsed;
+        PageUsage.Visibility = Visibility.Visible;
+    }
+
+    // ==== テーマ切替 ====
+    private void OnThemeLightChecked(object sender, RoutedEventArgs e)
+    {
+        if (!_initialized) return;
+        _currentTheme = UiTheme.Light;
+        ThemeManager.Apply(UiTheme.Light);
+    }
+
+    private void OnThemeDarkChecked(object sender, RoutedEventArgs e)
+    {
+        if (!_initialized) return;
+        _currentTheme = UiTheme.Dark;
+        ThemeManager.Apply(UiTheme.Dark);
+    }
+
     private void OnSaveClick(object sender, RoutedEventArgs e)
     {
         var saveShortcut = ReadShortcutUI(
@@ -145,7 +193,6 @@ public partial class SettingsWindow : Window
             ChkDispMouseEnabled, ChkDispCtrl, ChkDispAlt, ChkDispShift, ChkDispWin, CmbDispBtn,
             ChkDispKeyboardEnabled, CmbDispKey);
 
-        // バリデーション: 少なくとも1つのトリガーが有効であること（モニタ内ナビはオプションなのでチェック外）
         if (saveShortcut.EnabledTriggers == TriggerType.None ||
             navShortcut.EnabledTriggers == TriggerType.None ||
             dispShortcut.EnabledTriggers == TriggerType.None)
@@ -155,7 +202,6 @@ public partial class SettingsWindow : Window
             return;
         }
 
-        // バリデーション: マウスモードで Left/Right/Middle は修飾キーが1つ以上必要
         static bool NeedsModifier(ActionShortcut s) =>
             s.EnabledTriggers.HasFlag(TriggerType.Mouse)
             && s.Modifiers == ModifierKeyFlags.None
@@ -169,7 +215,6 @@ public partial class SettingsWindow : Window
             return;
         }
 
-        // バリデーション: ショートカットの重複チェック
         if (ShortcutsConflict(saveShortcut, navShortcut) ||
             ShortcutsConflict(saveShortcut, monNavShortcut) ||
             ShortcutsConflict(saveShortcut, dispShortcut) ||
@@ -191,6 +236,10 @@ public partial class SettingsWindow : Window
             SaveCircleColor = _saveColor,
             TrailColor = _trailColor,
             MarkerColor = _markerColor,
+            SaveEffectEnabled = ChkSaveEffectEnabled.IsChecked == true,
+            TrailEffectEnabled = ChkTrailEffectEnabled.IsChecked == true,
+            MarkerEffectEnabled = ChkMarkerEffectEnabled.IsChecked == true,
+            UiTheme = _currentTheme,
         };
 
         _settingsService.Save(settings);
@@ -200,18 +249,20 @@ public partial class SettingsWindow : Window
 
     private void OnCancelClick(object sender, RoutedEventArgs e)
     {
+        // キャンセル時はテーマも元に戻す
+        ThemeManager.Apply(_settingsService.Current.UiTheme);
         DialogResult = false;
         Close();
     }
 
     private void OnColorRectangleClick(object sender, MouseButtonEventArgs e)
     {
-        if (sender is not Rectangle rect) return;
+        if (sender is not Shape shape) return;
 
         string currentHex;
-        if (rect == RectSaveColor) currentHex = _saveColor;
-        else if (rect == RectTrailColor) currentHex = _trailColor;
-        else if (rect == RectMarkerColor) currentHex = _markerColor;
+        if (shape == RectSaveColor) currentHex = _saveColor;
+        else if (shape == RectTrailColor) currentHex = _trailColor;
+        else if (shape == RectMarkerColor) currentHex = _markerColor;
         else return;
 
         using var dialog = new System.Windows.Forms.ColorDialog();
@@ -229,27 +280,39 @@ public partial class SettingsWindow : Window
             var selected = dialog.Color;
             string hex = $"#{selected.R:X2}{selected.G:X2}{selected.B:X2}";
 
-            if (rect == RectSaveColor) _saveColor = hex;
-            else if (rect == RectTrailColor) _trailColor = hex;
-            else if (rect == RectMarkerColor) _markerColor = hex;
+            if (shape == RectSaveColor)
+            {
+                _saveColor = hex;
+                TxtSaveColorHex.Text = hex;
+            }
+            else if (shape == RectTrailColor)
+            {
+                _trailColor = hex;
+                TxtTrailColorHex.Text = hex;
+            }
+            else if (shape == RectMarkerColor)
+            {
+                _markerColor = hex;
+                TxtMarkerColorHex.Text = hex;
+            }
 
-            rect.Fill = new SolidColorBrush(Color.FromRgb(selected.R, selected.G, selected.B));
+            shape.Fill = new SolidColorBrush(Color.FromRgb(selected.R, selected.G, selected.B));
         }
     }
 
-    private static void SetRectangleColor(Rectangle rect, string hex)
+    private static void SetSwatchColor(Shape shape, string hex)
     {
         try
         {
             var converted = ColorConverter.ConvertFromString(hex);
             if (converted is Color c)
             {
-                rect.Fill = new SolidColorBrush(c);
+                shape.Fill = new SolidColorBrush(c);
                 return;
             }
         }
         catch { }
-        rect.Fill = Brushes.Transparent;
+        shape.Fill = Brushes.Transparent;
     }
 
     private static ActionShortcut ReadShortcutUI(
@@ -257,19 +320,16 @@ public partial class SettingsWindow : Window
         CheckBox chkCtrl, CheckBox chkAlt, CheckBox chkShift, CheckBox chkWin, ComboBox cmbBtn,
         CheckBox chkKeyboardEnabled, ComboBox cmbKey)
     {
-        // 有効トリガーを組み立て
         var triggers = TriggerType.None;
         if (chkMouseEnabled.IsChecked == true) triggers |= TriggerType.Mouse;
         if (chkKeyboardEnabled.IsChecked == true) triggers |= TriggerType.Keyboard;
 
-        // マウス修飾キー
         var mod = ModifierKeyFlags.None;
         if (chkCtrl.IsChecked == true) mod |= ModifierKeyFlags.Control;
         if (chkAlt.IsChecked == true) mod |= ModifierKeyFlags.Alt;
         if (chkShift.IsChecked == true) mod |= ModifierKeyFlags.Shift;
         if (chkWin.IsChecked == true) mod |= ModifierKeyFlags.Windows;
 
-        // キーボードキー
         int idx = cmbKey.SelectedIndex;
         int vkCode = idx >= 0 && idx < FKeyCodes.Length ? FKeyCodes[idx] : NativeMethods.VK_F13;
 
@@ -282,15 +342,12 @@ public partial class SettingsWindow : Window
         };
     }
 
-    /// <summary>2つのショートカット間で、同じトリガーが重複していないか確認する。</summary>
     private static bool ShortcutsConflict(ActionShortcut a, ActionShortcut b)
     {
-        // マウストリガーが両方有効で、かつ同じ組み合わせ
         if (a.EnabledTriggers.HasFlag(TriggerType.Mouse) && b.EnabledTriggers.HasFlag(TriggerType.Mouse)
             && a.Modifiers == b.Modifiers && a.MouseButton == b.MouseButton)
             return true;
 
-        // キーボードトリガーが両方有効で、かつ同じキー
         if (a.EnabledTriggers.HasFlag(TriggerType.Keyboard) && b.EnabledTriggers.HasFlag(TriggerType.Keyboard)
             && a.VirtualKeyCode == b.VirtualKeyCode)
             return true;
