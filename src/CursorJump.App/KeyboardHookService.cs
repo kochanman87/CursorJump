@@ -28,6 +28,7 @@ internal sealed class KeyboardHookService : IDisposable
 
     public event EventHandler<MouseHookEventArgs>? SaveRequested;
     public event EventHandler<MouseHookEventArgs>? NavigateRequested;
+    public event EventHandler<MouseHookEventArgs>? NavigateCurrentMonitorRequested;
     public event EventHandler<MouseHookEventArgs>? DisplayDeleteRequested;
 
     public KeyboardHookService(SettingsService settingsService)
@@ -121,6 +122,15 @@ internal sealed class KeyboardHookService : IDisposable
                 DebugLog.Write($"KeyboardHookService: NavigateRequested (vk=0x{vkCode:X2})");
                 var args = GetCurrentCursorArgs();
                 NavigateRequested?.Invoke(this, args);
+                _swallowNextKeyUp.Add(vkCode);
+                return (IntPtr)1;
+            }
+
+            if (IsKeyboardShortcutMatch(vkCode, settings.NavigateCurrentMonitorShortcut))
+            {
+                DebugLog.Write($"KeyboardHookService: NavigateCurrentMonitorRequested (vk=0x{vkCode:X2})");
+                var args = GetCurrentCursorArgs();
+                NavigateCurrentMonitorRequested?.Invoke(this, args);
                 _swallowNextKeyUp.Add(vkCode);
                 return (IntPtr)1;
             }
