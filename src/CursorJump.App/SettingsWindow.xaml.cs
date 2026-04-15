@@ -43,10 +43,12 @@ public partial class SettingsWindow : Window
     {
         CmbSaveBtn.ItemsSource = ButtonNames;
         CmbNavBtn.ItemsSource = ButtonNames;
+        CmbMonNavBtn.ItemsSource = ButtonNames;
         CmbDispBtn.ItemsSource = ButtonNames;
 
         CmbSaveKey.ItemsSource = FKeyNames;
         CmbNavKey.ItemsSource = FKeyNames;
+        CmbMonNavKey.ItemsSource = FKeyNames;
         CmbDispKey.ItemsSource = FKeyNames;
     }
 
@@ -63,6 +65,11 @@ public partial class SettingsWindow : Window
             ChkNavMouseEnabled, PnlNavMouse,
             ChkNavCtrl, ChkNavAlt, ChkNavShift, ChkNavWin, CmbNavBtn,
             ChkNavKeyboardEnabled, PnlNavKeyboard, CmbNavKey);
+
+        LoadShortcutUI(s.NavigateCurrentMonitorShortcut,
+            ChkMonNavMouseEnabled, PnlMonNavMouse,
+            ChkMonNavCtrl, ChkMonNavAlt, ChkMonNavShift, ChkMonNavWin, CmbMonNavBtn,
+            ChkMonNavKeyboardEnabled, PnlMonNavKeyboard, CmbMonNavKey);
 
         LoadShortcutUI(s.DisplayDeleteShortcut,
             ChkDispMouseEnabled, PnlDispMouse,
@@ -112,6 +119,8 @@ public partial class SettingsWindow : Window
         UpdateTriggerPanel(ChkSaveKeyboardEnabled, PnlSaveKeyboard);
         UpdateTriggerPanel(ChkNavMouseEnabled, PnlNavMouse);
         UpdateTriggerPanel(ChkNavKeyboardEnabled, PnlNavKeyboard);
+        UpdateTriggerPanel(ChkMonNavMouseEnabled, PnlMonNavMouse);
+        UpdateTriggerPanel(ChkMonNavKeyboardEnabled, PnlMonNavKeyboard);
         UpdateTriggerPanel(ChkDispMouseEnabled, PnlDispMouse);
         UpdateTriggerPanel(ChkDispKeyboardEnabled, PnlDispKeyboard);
     }
@@ -129,16 +138,19 @@ public partial class SettingsWindow : Window
         var navShortcut = ReadShortcutUI(
             ChkNavMouseEnabled, ChkNavCtrl, ChkNavAlt, ChkNavShift, ChkNavWin, CmbNavBtn,
             ChkNavKeyboardEnabled, CmbNavKey);
+        var monNavShortcut = ReadShortcutUI(
+            ChkMonNavMouseEnabled, ChkMonNavCtrl, ChkMonNavAlt, ChkMonNavShift, ChkMonNavWin, CmbMonNavBtn,
+            ChkMonNavKeyboardEnabled, CmbMonNavKey);
         var dispShortcut = ReadShortcutUI(
             ChkDispMouseEnabled, ChkDispCtrl, ChkDispAlt, ChkDispShift, ChkDispWin, CmbDispBtn,
             ChkDispKeyboardEnabled, CmbDispKey);
 
-        // バリデーション: 少なくとも1つのトリガーが有効であること
+        // バリデーション: 少なくとも1つのトリガーが有効であること（モニタ内ナビはオプションなのでチェック外）
         if (saveShortcut.EnabledTriggers == TriggerType.None ||
             navShortcut.EnabledTriggers == TriggerType.None ||
             dispShortcut.EnabledTriggers == TriggerType.None)
         {
-            MessageBox.Show("各アクションにつき、マウスボタンまたはキーボードキーを少なくとも1つ有効にしてください。",
+            MessageBox.Show("座標保存・ナビゲーション・座標表示/削除の各アクションにつき、マウスボタンまたはキーボードキーを少なくとも1つ有効にしてください。",
                 "CursorJump", MessageBoxButton.OK, MessageBoxImage.Warning);
             return;
         }
@@ -149,7 +161,8 @@ public partial class SettingsWindow : Window
             && s.Modifiers == ModifierKeyFlags.None
             && s.MouseButton is not (MouseButtonType.XButton1 or MouseButtonType.XButton2);
 
-        if (NeedsModifier(saveShortcut) || NeedsModifier(navShortcut) || NeedsModifier(dispShortcut))
+        if (NeedsModifier(saveShortcut) || NeedsModifier(navShortcut) ||
+            NeedsModifier(monNavShortcut) || NeedsModifier(dispShortcut))
         {
             MessageBox.Show("左/右/ホイールクリックの場合は修飾キーを1つ以上選択してください。",
                 "CursorJump", MessageBoxButton.OK, MessageBoxImage.Warning);
@@ -158,8 +171,11 @@ public partial class SettingsWindow : Window
 
         // バリデーション: ショートカットの重複チェック
         if (ShortcutsConflict(saveShortcut, navShortcut) ||
+            ShortcutsConflict(saveShortcut, monNavShortcut) ||
             ShortcutsConflict(saveShortcut, dispShortcut) ||
-            ShortcutsConflict(navShortcut, dispShortcut))
+            ShortcutsConflict(navShortcut, monNavShortcut) ||
+            ShortcutsConflict(navShortcut, dispShortcut) ||
+            ShortcutsConflict(monNavShortcut, dispShortcut))
         {
             MessageBox.Show("ショートカットの組み合わせが重複しています。",
                 "CursorJump", MessageBoxButton.OK, MessageBoxImage.Warning);
@@ -170,6 +186,7 @@ public partial class SettingsWindow : Window
         {
             SaveShortcut = saveShortcut,
             NavigateShortcut = navShortcut,
+            NavigateCurrentMonitorShortcut = monNavShortcut,
             DisplayDeleteShortcut = dispShortcut,
             SaveCircleColor = _saveColor,
             TrailColor = _trailColor,

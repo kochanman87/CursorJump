@@ -19,7 +19,7 @@ src/CursorJump.App/
 ├── MouseHookService.cs             # WH_MOUSE_LL低レベルフック + 座標表示モード（WH_KEYBOARD_LL併用）
 ├── KeyboardHookService.cs          # WH_KEYBOARD_LL常時フック（F13-F24キーボードトリガー）
 ├── CursorService.cs                # カーソル移動（任意座標ジャンプ）
-├── CoordinateStore.cs              # 座標リスト管理（Add/GetNext循環/RemoveAt）
+├── CoordinateStore.cs              # 座標リスト管理（Add/GetNext循環/GetNextInMonitor/RemoveAt）
 ├── OverlayService.cs               # オーバーレイアニメーション（収縮円、軌跡、マーカー）
 ├── OverlayWindow.xaml / .cs        # 透明オーバーレイウィンドウ基盤
 ├── DebugLog.cs                     # デバッグログ（%APPDATA%/CursorJump/debug.log）
@@ -41,6 +41,7 @@ src/CursorJump.App/
 - **ログファイル**: `%APPDATA%/CursorJump/debug.log`（起動時モニター情報、フックイベント、DPI変更を記録）
 - **MouseButtonType enum**: Left=0, Right=1, Middle=2, XButton1=3, XButton2=4（末尾追加で後方互換性維持）
 - **TriggerType [Flags] enum**: `Mouse=1, Keyboard=2`。`EnabledTriggers` に複数フラグをセットすることでOR動作。旧settings.jsonは `EnabledTriggers` 不在 → デフォルト `Mouse` として扱われ後方互換。JSONはJsonStringEnumConverterで文字列保存（例: `"Mouse, Keyboard"`）
+- **SavedCoordinate**: `record SavedCoordinate(int X, int Y, string MonitorDeviceName = "")`。保存時に `Screen.FromPoint` でモニタ名を記録。`""` は旧settings.jsonとの後方互換のデフォルト値
 
 ### 座標表示/編集モードのアーキテクチャ
 - **オーバーレイは表示専用**: clickThrough=true。フォーカス取得しない
@@ -77,6 +78,13 @@ public sealed class ActionShortcut
 ### サービス構成
 - `MouseHookService`（WH_MOUSE_LL）: マウスボタントリガー処理
 - `KeyboardHookService`（WH_KEYBOARD_LL）: キーボードトリガー処理（常時インストール）
-- 両サービスとも同じ `SaveRequested`/`NavigateRequested`/`DisplayDeleteRequested` を発火
+- 両サービスとも `SaveRequested`/`NavigateRequested`/`NavigateCurrentMonitorRequested`/`DisplayDeleteRequested` を発火
 - キーボードトリガー時は `GetCursorPos()` で現在のカーソル座標を取得して `MouseHookEventArgs` に格納
 - 削除モード中は `KeyboardHookService` のトリガーを無効化（`EnterDeleteMode`/`ExitDeleteMode`）
+
+### モニタ内ナビゲーション
+- `NavigateCurrentMonitorShortcut`（デフォルト `TriggerType.None`＝無効）: ナビゲート時に現在カーソルのモニタ内の座標のみ循環
+- `AppSettings.NavigateCurrentMonitorShortcut` を設定画面で有効化してショートカットを割り当てる
+- 既存の `NavigateShortcut`（全座標循環）と独立して動作
+- `CoordinateStore.GetNextInMonitor(deviceName)`: モニタ別インデックス（`Dictionary<string,int>`）で循環管理。該当モニタ座標が0個の場合 `null` を返す（フォールバックなし）
+- `Screen.FromPoint` / `Screen.DeviceName` は物理ピクセル座標ベースで安全に使用可能（DPI変換不要）

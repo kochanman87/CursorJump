@@ -39,6 +39,7 @@ internal sealed class MouseHookService : IDisposable
 
     public event EventHandler<MouseHookEventArgs>? SaveRequested;
     public event EventHandler<MouseHookEventArgs>? NavigateRequested;
+    public event EventHandler<MouseHookEventArgs>? NavigateCurrentMonitorRequested;
     public event EventHandler<MouseHookEventArgs>? DisplayDeleteRequested;
 
     // 削除モード用イベント
@@ -259,6 +260,14 @@ internal sealed class MouseHookService : IDisposable
                 {
                     DebugLog.Write($"HookCallback: NavigateRequested matched (button={pressedButton.Value})");
                     NavigateRequested?.Invoke(this, args);
+                    SetSwallowUpFlag(pressedButton.Value);
+                    return (IntPtr)1;
+                }
+
+                if (IsShortcutMatch(pressedButton.Value, settings.NavigateCurrentMonitorShortcut))
+                {
+                    DebugLog.Write($"HookCallback: NavigateCurrentMonitorRequested matched (button={pressedButton.Value})");
+                    NavigateCurrentMonitorRequested?.Invoke(this, args);
                     SetSwallowUpFlag(pressedButton.Value);
                     return (IntPtr)1;
                 }

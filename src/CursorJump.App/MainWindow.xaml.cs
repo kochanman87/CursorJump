@@ -32,6 +32,7 @@ public partial class MainWindow : Window
             _mouseHookService = new MouseHookService(_settingsService);
             _mouseHookService.SaveRequested += OnSaveRequested;
             _mouseHookService.NavigateRequested += OnNavigateRequested;
+            _mouseHookService.NavigateCurrentMonitorRequested += OnNavigateCurrentMonitorRequested;
             _mouseHookService.DisplayDeleteRequested += OnDisplayDeleteRequested;
             _mouseHookService.Install();
 
@@ -51,6 +52,7 @@ public partial class MainWindow : Window
             _keyboardHookService = new KeyboardHookService(_settingsService);
             _keyboardHookService.SaveRequested += OnSaveRequested;
             _keyboardHookService.NavigateRequested += OnNavigateRequested;
+            _keyboardHookService.NavigateCurrentMonitorRequested += OnNavigateCurrentMonitorRequested;
             _keyboardHookService.DisplayDeleteRequested += OnDisplayDeleteRequested;
             _keyboardHookService.Install();
         }
@@ -82,6 +84,16 @@ public partial class MainWindow : Window
         _overlayService.ShowTrail(fromX, fromY, target.X, target.Y);
     }
 
+    private void OnNavigateCurrentMonitorRequested(object? sender, MouseHookEventArgs e)
+    {
+        var screen = System.Windows.Forms.Screen.FromPoint(new System.Drawing.Point(e.X, e.Y));
+        var target = _coordinateStore.GetNextInMonitor(screen.DeviceName);
+        if (target is null) return;
+
+        CursorService.JumpTo(target.X, target.Y);
+        _overlayService.ShowTrail(e.X, e.Y, target.X, target.Y);
+    }
+
     private void OnDisplayDeleteRequested(object? sender, MouseHookEventArgs e)
     {
         _overlayService.ShowCoordinateMarkers(
@@ -104,6 +116,7 @@ public partial class MainWindow : Window
         {
             _mouseHookService.SaveRequested -= OnSaveRequested;
             _mouseHookService.NavigateRequested -= OnNavigateRequested;
+            _mouseHookService.NavigateCurrentMonitorRequested -= OnNavigateCurrentMonitorRequested;
             _mouseHookService.DisplayDeleteRequested -= OnDisplayDeleteRequested;
             _mouseHookService.Dispose();
             _mouseHookService = null;
@@ -113,6 +126,7 @@ public partial class MainWindow : Window
         {
             _keyboardHookService.SaveRequested -= OnSaveRequested;
             _keyboardHookService.NavigateRequested -= OnNavigateRequested;
+            _keyboardHookService.NavigateCurrentMonitorRequested -= OnNavigateCurrentMonitorRequested;
             _keyboardHookService.DisplayDeleteRequested -= OnDisplayDeleteRequested;
             _keyboardHookService.Dispose();
             _keyboardHookService = null;

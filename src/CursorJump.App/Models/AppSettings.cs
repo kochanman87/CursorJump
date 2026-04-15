@@ -40,6 +40,14 @@ public sealed class AppSettings
         MouseButton = MouseButtonType.Middle
     };
 
+    public ActionShortcut NavigateCurrentMonitorShortcut { get; set; } = new()
+    {
+        EnabledTriggers = TriggerType.None,
+        Modifiers = ModifierKeyFlags.Control | ModifierKeyFlags.Windows | ModifierKeyFlags.Shift,
+        MouseButton = MouseButtonType.Right,
+        VirtualKeyCode = 0
+    };
+
     public string SaveCircleColor { get; set; } = "#FF0000";
     public string TrailColor { get; set; } = "#00FF00";
     public string MarkerColor { get; set; } = "#0088FF";
