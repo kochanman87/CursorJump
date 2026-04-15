@@ -51,6 +51,22 @@ public sealed class AppSettings
     public string SaveCircleColor { get; set; } = "#FF0000";
     public string TrailColor { get; set; } = "#00FF00";
     public string MarkerColor { get; set; } = "#0088FF";
+
+    /// <summary>座標保存時の収縮円エフェクトを表示するか。false なら視覚効果のみスキップ（保存自体は動作）。</summary>
+    public bool SaveEffectEnabled { get; set; } = true;
+    /// <summary>ナビゲーション時の軌跡ラインを表示するか。false ならカーソル移動は通常通り。</summary>
+    public bool TrailEffectEnabled { get; set; } = true;
+    /// <summary>座標表示モード時の保存座標マーカーを描画するか。false なら表示モード中でも視覚マーカーなし。</summary>
+    public bool MarkerEffectEnabled { get; set; } = true;
+
+    /// <summary>UI テーマ（Light / Dark）。旧 settings.json には存在しないため Light をデフォルトにし後方互換維持。</summary>
+    public UiTheme UiTheme { get; set; } = UiTheme.Light;
+}
+
+public enum UiTheme
+{
+    Light,
+    Dark
 }
 
 public enum MouseButtonType

@@ -10,10 +10,16 @@
 ## プロジェクト構成
 ```
 src/CursorJump.App/
-├── App.xaml / App.xaml.cs          # エントリポイント、サービス初期化
+├── App.xaml / App.xaml.cs          # エントリポイント、テーマ適用、サービス初期化
+├── Themes/
+│   ├── LightTheme.xaml             # ライトテーマのカラーリソース
+│   └── DarkTheme.xaml              # ダークテーマのカラーリソース
+├── Styles/
+│   └── ModernTheme.xaml            # Fluent風共通スタイル（カード、チップ、トグルスイッチ、ボタン等）
+├── ThemeManager.cs                 # Light/Dark テーマの ResourceDictionary 差し替え
 ├── MainWindow.xaml / .cs           # 不可視ウィンドウ（フック管理）
 ├── Models/
-│   ├── AppSettings.cs              # 設定データモデル（ActionShortcut, TriggerType, ModifierKeyFlags等）
+│   ├── AppSettings.cs              # 設定データモデル（ActionShortcut, TriggerType, ModifierKeyFlags, UiTheme等）
 │   └── SavedCoordinate.cs          # 保存座標 record
 ├── NativeMethods.cs                # Win32 P/Invoke（マウス/キーボードフック、カーソル等）
 ├── MouseHookService.cs             # WH_MOUSE_LL低レベルフック + 座標表示モード（WH_KEYBOARD_LL併用）
@@ -42,6 +48,15 @@ src/CursorJump.App/
 - **MouseButtonType enum**: Left=0, Right=1, Middle=2, XButton1=3, XButton2=4（末尾追加で後方互換性維持）
 - **TriggerType [Flags] enum**: `Mouse=1, Keyboard=2`。`EnabledTriggers` に複数フラグをセットすることでOR動作。旧settings.jsonは `EnabledTriggers` 不在 → デフォルト `Mouse` として扱われ後方互換。JSONはJsonStringEnumConverterで文字列保存（例: `"Mouse, Keyboard"`）
 - **SavedCoordinate**: `record SavedCoordinate(int X, int Y, string MonitorDeviceName = "")`。保存時に `Screen.FromPoint` でモニタ名を記録。`""` は旧settings.jsonとの後方互換のデフォルト値
+
+### テーマシステム（Light/Dark）
+- **App.xaml の MergedDictionaries 先頭（index 0）がテーマ辞書**。`ThemeManager.Apply(UiTheme)` が `Themes/LightTheme.xaml` / `Themes/DarkTheme.xaml` を差し替える
+- **全UI要素は `DynamicResource` でテーマリソースを参照**（StaticResource だと実行時切替が効かない）。カラーキー例: `BgPrimaryBrush`, `BgCardBrush`, `TextPrimaryBrush`, `AccentBrush`, `BorderSubtleBrush`
+- **共通スタイルは `Styles/ModernTheme.xaml`**: `CardBorder`, `ToggleSwitchStyle`, `ModifierChipStyle`, `PillTabStyle`, `PrimaryButtonStyle`, `SecondaryButtonStyle`, `ColorSwatchStyle`, `FluentIcon` 等
+- **アイコンは Segoe Fluent Icons フォント**（Win11標準）+ MDL2 Assetsをフォールバック
+- **SettingsWindow のタブ切替**: `RadioButton` + `GroupName` で排他制御。`Checked` イベントで `ScrollViewer` の `Visibility` を切替
+- **起動時テーマ適用**: `App.OnStartup` → `SettingsService.Load()` → `ThemeManager.Apply(Current.UiTheme)` の順
+- **キャンセル時のテーマロールバック**: SettingsWindow で Dark に切替 → キャンセルすると元のテーマに戻すため、`OnCancelClick` で `ThemeManager.Apply(_settingsService.Current.UiTheme)` を呼ぶ
 
 ### 座標表示/編集モードのアーキテクチャ
 - **オーバーレイは表示専用**: clickThrough=true。フォーカス取得しない
