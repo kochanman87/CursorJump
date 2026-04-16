@@ -30,6 +30,10 @@ internal sealed class KeyboardHookService : IDisposable
     public event EventHandler<MouseHookEventArgs>? NavigateRequested;
     public event EventHandler<MouseHookEventArgs>? NavigateCurrentMonitorRequested;
     public event EventHandler<MouseHookEventArgs>? DisplayDeleteRequested;
+    /// <summary>削除モード中に DisplayDeleteShortcut がマッチしたとき発火（全削除2段階確認に使用）。</summary>
+    public event EventHandler<MouseHookEventArgs>? DeleteAllConfirmRequested;
+    /// <summary>削除モード中に SaveShortcut がマッチしたとき発火（追加/削除ハイブリッド）。</summary>
+    public event EventHandler<MouseHookEventArgs>? DeleteModeClicked;
 
     public KeyboardHookService(SettingsService settingsService)
     {
@@ -99,8 +103,8 @@ internal sealed class KeyboardHookService : IDisposable
             return NativeMethods.CallNextHookEx(_hookHandle, nCode, wParam, lParam);
         }
 
-        // サスペンド中・削除モード中はスルー
-        if (_suspended || _deleteMode)
+        // サスペンド中はスルー
+        if (_suspended)
             return NativeMethods.CallNextHookEx(_hookHandle, nCode, wParam, lParam);
 
         // KEYDOWN イベント: ショートカットマッチング
@@ -108,6 +112,34 @@ internal sealed class KeyboardHookService : IDisposable
         {
             var settings = _settingsService.Current;
 
+            // 削除モード中は DisplayDeleteShortcut / SaveShortcut のみ処理
+            if (_deleteMode)
+            {
+                // 優先1: DisplayDeleteShortcut キーボード側マッチ → 全削除確認リクエスト
+                if (IsKeyboardShortcutMatch(vkCode, settings.DisplayDeleteShortcut))
+                {
+                    DebugLog.Write($"KeyboardHookService: DeleteAllConfirmRequested (vk=0x{vkCode:X2})");
+                    var args = GetCurrentCursorArgs();
+                    DeleteAllConfirmRequested?.Invoke(this, args);
+                    _swallowNextKeyUp.Add(vkCode);
+                    return (IntPtr)1;
+                }
+
+                // 優先2: SaveShortcut キーボード側マッチ → 追加/削除（ハイブリッド）
+                if (IsKeyboardShortcutMatch(vkCode, settings.SaveShortcut))
+                {
+                    DebugLog.Write($"KeyboardHookService: DeleteModeClicked (vk=0x{vkCode:X2})");
+                    var args = GetCurrentCursorArgs();
+                    DeleteModeClicked?.Invoke(this, args);
+                    _swallowNextKeyUp.Add(vkCode);
+                    return (IntPtr)1;
+                }
+
+                // それ以外はパススルー（ESCはMouseHookService側のキーボードフックで処理）
+                return NativeMethods.CallNextHookEx(_hookHandle, nCode, wParam, lParam);
+            }
+
+            // 通常モード: 全ショートカットマッチング
             if (IsKeyboardShortcutMatch(vkCode, settings.SaveShortcut))
             {
                 DebugLog.Write($"KeyboardHookService: SaveRequested (vk=0x{vkCode:X2})");

@@ -55,6 +55,8 @@ public partial class MainWindow : Window
             _keyboardHookService.NavigateCurrentMonitorRequested += OnNavigateCurrentMonitorRequested;
             _keyboardHookService.DisplayDeleteRequested += OnDisplayDeleteRequested;
             _keyboardHookService.Install();
+
+            _overlayService.SetKeyboardHookService(_keyboardHookService);
         }
         catch (Win32Exception ex)
         {

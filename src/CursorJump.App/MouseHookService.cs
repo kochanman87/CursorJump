@@ -46,6 +46,8 @@ internal sealed class MouseHookService : IDisposable
     public event EventHandler<MouseHookEventArgs>? DeleteModeClicked;
     public event EventHandler<MouseHookEventArgs>? DeleteModeMoved;
     public event EventHandler? DeleteModeEscPressed;
+    /// <summary>削除モード中に DisplayDeleteShortcut がマッチしたとき発火（全削除2段階確認に使用）。</summary>
+    public event EventHandler<MouseHookEventArgs>? DeleteAllConfirmRequested;
 
     public MouseHookService(SettingsService settingsService)
     {
@@ -161,28 +163,10 @@ internal sealed class MouseHookService : IDisposable
                 return NativeMethods.CallNextHookEx(_hookHandle, nCode, wParam, lParam);
             }
 
-            // 削除モード: 左クリック → 削除イベント（消費する）
-            if (msg == NativeMethods.WM_LBUTTONDOWN)
-            {
-                DebugLog.Write($"DeleteMode: LeftClick at ({hookStruct.pt.X},{hookStruct.pt.Y})");
-                DeleteModeClicked?.Invoke(this, new MouseHookEventArgs(hookStruct.pt.X, hookStruct.pt.Y));
-                _swallowNextLeftUp = true;
-                return (IntPtr)1;
-            }
-
-            // 削除モード: 左ボタンUP消費
+            // 削除モード: UPイベントの消費チェック（DOWNを消費済みの場合）
             if (msg == NativeMethods.WM_LBUTTONUP && _swallowNextLeftUp)
             {
                 _swallowNextLeftUp = false;
-                return (IntPtr)1;
-            }
-
-            // 座標表示モード: 右クリック → 終了（ESCと同じ）
-            if (msg == NativeMethods.WM_RBUTTONDOWN)
-            {
-                DebugLog.Write("DeleteMode: RightClick - exiting");
-                DeleteModeEscPressed?.Invoke(this, EventArgs.Empty);
-                _swallowNextRightUp = true;
                 return (IntPtr)1;
             }
             if (msg == NativeMethods.WM_RBUTTONUP && _swallowNextRightUp)
@@ -190,8 +174,63 @@ internal sealed class MouseHookService : IDisposable
                 _swallowNextRightUp = false;
                 return (IntPtr)1;
             }
+            if (msg == NativeMethods.WM_MBUTTONUP && _swallowNextMiddleUp)
+            {
+                _swallowNextMiddleUp = false;
+                return (IntPtr)1;
+            }
+            if (msg == NativeMethods.WM_XBUTTONUP)
+            {
+                var upStruct = Marshal.PtrToStructure<NativeMethods.MSLLHOOKSTRUCT>(lParam);
+                int upButtonId = (int)(upStruct.mouseData >> 16);
+                if (upButtonId == NativeMethods.XBUTTON1 && _swallowNextXButton1Up)
+                {
+                    _swallowNextXButton1Up = false;
+                    return (IntPtr)1;
+                }
+                if (upButtonId == NativeMethods.XBUTTON2 && _swallowNextXButton2Up)
+                {
+                    _swallowNextXButton2Up = false;
+                    return (IntPtr)1;
+                }
+            }
 
-            // 削除モード: その他のイベントはパススルー
+            // 削除モード: ボタン DOWNイベント → DisplayDeleteShortcut / SaveShortcut に従って処理
+            MouseButtonType? pressedButton = msg switch
+            {
+                NativeMethods.WM_LBUTTONDOWN => MouseButtonType.Left,
+                NativeMethods.WM_RBUTTONDOWN => MouseButtonType.Right,
+                NativeMethods.WM_MBUTTONDOWN => MouseButtonType.Middle,
+                NativeMethods.WM_XBUTTONDOWN => ResolveXButton(hookStruct.mouseData),
+                _ => null
+            };
+
+            if (pressedButton is not null)
+            {
+                var settings = _settingsService.Current;
+                var args = new MouseHookEventArgs(hookStruct.pt.X, hookStruct.pt.Y);
+
+                // 優先1: DisplayDeleteShortcut マッチ → 全削除確認リクエスト
+                if (IsShortcutMatch(pressedButton.Value, settings.DisplayDeleteShortcut))
+                {
+                    DebugLog.Write($"DeleteMode: DisplayDeleteShortcut matched at ({hookStruct.pt.X},{hookStruct.pt.Y})");
+                    DeleteAllConfirmRequested?.Invoke(this, args);
+                    SetSwallowUpFlag(pressedButton.Value);
+                    return (IntPtr)1;
+                }
+
+                // 優先2: SaveShortcut マッチ → 追加/削除（ハイブリッド）
+                if (IsShortcutMatch(pressedButton.Value, settings.SaveShortcut))
+                {
+                    DebugLog.Write($"DeleteMode: SaveShortcut matched at ({hookStruct.pt.X},{hookStruct.pt.Y})");
+                    DeleteModeClicked?.Invoke(this, args);
+                    SetSwallowUpFlag(pressedButton.Value);
+                    return (IntPtr)1;
+                }
+
+                // それ以外はパススルー（右クリックも含む）
+            }
+
             return NativeMethods.CallNextHookEx(_hookHandle, nCode, wParam, lParam);
         }
 

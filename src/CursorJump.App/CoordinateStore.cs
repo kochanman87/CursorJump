@@ -78,4 +78,12 @@ internal sealed class CoordinateStore
 
         return true;
     }
+
+    /// <summary>全座標を削除し、インデックスをリセットする。</summary>
+    public void Clear()
+    {
+        _coordinates.Clear();
+        _currentIndex = -1;
+        _monitorIndices.Clear();
+    }
 }
