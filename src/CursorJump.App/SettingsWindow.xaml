@@ -432,6 +432,32 @@
                                 </Grid>
                                 <Border Height="1" Background="{DynamicResource BorderSubtleBrush}" Margin="0,2"/>
 
+                                <!-- 削除モードヘルプパネル -->
+                                <Grid Margin="0,6">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <Border Grid.Column="0" Style="{StaticResource CardIconBox}" Width="24" Height="24">
+                                        <TextBlock Style="{StaticResource FluentIcon}" Text="&#xE897;" FontSize="14"/>
+                                    </Border>
+                                    <StackPanel Grid.Column="1" Margin="12,0,8,0" VerticalAlignment="Center">
+                                        <TextBlock Text="削除モードヘルプ" FontSize="13" FontWeight="Medium"
+                                                   Foreground="{DynamicResource TextPrimaryBrush}"/>
+                                        <TextBlock Text="削除モード中に操作ガイドを画面隅に表示"
+                                                   Style="{StaticResource HintText}"/>
+                                    </StackPanel>
+                                    <Border Grid.Column="2" Style="{StaticResource StatusBadgeEnabledStyle}">
+                                        <TextBlock Text="有効" FontSize="10" FontWeight="SemiBold" Foreground="#34C759"/>
+                                    </Border>
+                                    <CheckBox x:Name="ChkShowDeleteModeHelp" Grid.Column="3"
+                                              Style="{StaticResource ToggleSwitchStyle}"
+                                              VerticalAlignment="Center"/>
+                                </Grid>
+                                <Border Height="1" Background="{DynamicResource BorderSubtleBrush}" Margin="0,2"/>
+
                                 <!-- マウス移動エフェクト（未実装プレースホルダ） -->
                                 <Grid Margin="0,6" IsEnabled="False" Opacity="0.5">
                                     <Grid.ColumnDefinitions>

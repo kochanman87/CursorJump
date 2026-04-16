@@ -5,6 +5,7 @@ using System.Windows.Controls;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
 using System.Windows.Shapes;
+using System.Windows.Threading;
 
 namespace CursorJump.App;
 
@@ -12,6 +13,7 @@ internal sealed class OverlayService
 {
     private readonly SettingsService _settingsService;
     private MouseHookService? _mouseHookService;
+    private KeyboardHookService? _keyboardHookService;
     private OverlayWindow? _markerOverlay;
 
     // 削除モード用状態
@@ -22,6 +24,18 @@ internal sealed class OverlayService
     private Color _markerColor;
     private const double MarkerRadius = 15;
     private const double SnapDistancePhysical = 40; // 物理ピクセル
+
+    // ヘルプパネル関連
+    private Border? _helpPanel;
+    private TextBlock? _helpClearLabel;
+    private string _currentMonitorDeviceName = string.Empty;
+
+    // 全削除2段階確認関連
+    private bool _clearConfirmPending;
+    private int _clearConfirmCountdown;
+    private DispatcherTimer? _clearConfirmTimer;
+    private OverlayWindow? _clearConfirmBanner;
+    private TextBlock? _clearConfirmBannerText;
 
     public OverlayService(SettingsService settingsService)
     {
@@ -34,6 +48,14 @@ internal sealed class OverlayService
     public void SetMouseHookService(MouseHookService hookService)
     {
         _mouseHookService = hookService;
+    }
+
+    /// <summary>
+    /// KeyboardHookServiceの参照を設定する。削除モード中のキーボードトリガー購読に必要。
+    /// </summary>
+    public void SetKeyboardHookService(KeyboardHookService keyboardHookService)
+    {
+        _keyboardHookService = keyboardHookService;
     }
 
     /// <summary>
@@ -171,12 +193,20 @@ internal sealed class OverlayService
         _markerColor = ParseColor(_settingsService.Current.MarkerColor, Colors.DodgerBlue);
         _lastHighlighted = null;
 
-        // フックイベント購読
+        // マウスフックイベント購読
         if (_mouseHookService is not null)
         {
             _mouseHookService.DeleteModeClicked += OnDeleteModeClicked;
             _mouseHookService.DeleteModeMoved += OnDeleteModeMoved;
             _mouseHookService.DeleteModeEscPressed += OnDeleteModeEscPressed;
+            _mouseHookService.DeleteAllConfirmRequested += OnDeleteAllConfirmRequested;
+        }
+
+        // キーボードフックイベント購読
+        if (_keyboardHookService is not null)
+        {
+            _keyboardHookService.DeleteModeClicked += OnDeleteModeClicked;
+            _keyboardHookService.DeleteAllConfirmRequested += OnDeleteAllConfirmRequested;
         }
 
         onEnterMode?.Invoke();
@@ -193,6 +223,7 @@ internal sealed class OverlayService
         overlay.Background = new SolidColorBrush(Color.FromArgb(40, 0, 0, 0));
 
         BuildMarkers(overlay);
+        BuildHelpPanel(overlay);
 
         // ウィンドウが閉じられたときのクリーンアップ
         overlay.Closed += (_, _) =>
@@ -204,12 +235,33 @@ internal sealed class OverlayService
 
     public void CloseMarkerOverlay()
     {
-        // フックイベント購読解除
+        // タイマー停止
+        StopConfirmTimer();
+
+        // 確認バナーを閉じる
+        CloseClearConfirmBanner();
+
+        // 確認状態リセット
+        _clearConfirmPending = false;
+        _clearConfirmCountdown = 0;
+        _helpPanel = null;
+        _helpClearLabel = null;
+        _currentMonitorDeviceName = string.Empty;
+
+        // マウスフックイベント購読解除
         if (_mouseHookService is not null)
         {
             _mouseHookService.DeleteModeClicked -= OnDeleteModeClicked;
             _mouseHookService.DeleteModeMoved -= OnDeleteModeMoved;
             _mouseHookService.DeleteModeEscPressed -= OnDeleteModeEscPressed;
+            _mouseHookService.DeleteAllConfirmRequested -= OnDeleteAllConfirmRequested;
+        }
+
+        // キーボードフックイベント購読解除
+        if (_keyboardHookService is not null)
+        {
+            _keyboardHookService.DeleteModeClicked -= OnDeleteModeClicked;
+            _keyboardHookService.DeleteAllConfirmRequested -= OnDeleteAllConfirmRequested;
         }
 
         _deleteStore = null;
@@ -250,23 +302,31 @@ internal sealed class OverlayService
 
     private void OnDeleteModeMoved(object? sender, MouseHookEventArgs e)
     {
-        if (_markers.Count == 0) return;
-
-        // 前のハイライトをリセット
-        if (_lastHighlighted is not null)
+        // マーカーのハイライト処理
+        if (_markers.Count > 0)
         {
-            _lastHighlighted.StrokeThickness = 2;
-            _lastHighlighted.Stroke = new SolidColorBrush(Colors.White);
-            _lastHighlighted = null;
+            // 前のハイライトをリセット
+            if (_lastHighlighted is not null)
+            {
+                _lastHighlighted.StrokeThickness = 2;
+                _lastHighlighted.Stroke = new SolidColorBrush(Colors.White);
+                _lastHighlighted = null;
+            }
+
+            int closestIdx = FindNearestMarker(e.X, e.Y);
+            if (closestIdx >= 0)
+            {
+                var ellipse = _markers[closestIdx].ellipse;
+                ellipse.StrokeThickness = 4;
+                ellipse.Stroke = new SolidColorBrush(Colors.Yellow);
+                _lastHighlighted = ellipse;
+            }
         }
 
-        int closestIdx = FindNearestMarker(e.X, e.Y);
-        if (closestIdx >= 0)
+        // ヘルプパネルのモニタ追従
+        if (_helpPanel is not null && _markerOverlay is not null)
         {
-            var ellipse = _markers[closestIdx].ellipse;
-            ellipse.StrokeThickness = 4;
-            ellipse.Stroke = new SolidColorBrush(Colors.Yellow);
-            _lastHighlighted = ellipse;
+            RepositionHelpPanelIfMonitorChanged(e.X, e.Y);
         }
     }
 
@@ -277,6 +337,424 @@ internal sealed class OverlayService
         CloseMarkerOverlay();
         exitMode?.Invoke();
     }
+
+    private void OnDeleteAllConfirmRequested(object? sender, MouseHookEventArgs e)
+    {
+        if (!_clearConfirmPending)
+        {
+            // 1回目: 確認状態へ
+            DebugLog.Write("DeleteAllConfirmRequested: entering confirm state");
+            _clearConfirmPending = true;
+            _clearConfirmCountdown = 2;
+            ShowConfirmState();
+            StartConfirmTimer();
+        }
+        else
+        {
+            // 2回目: 全削除実行
+            DebugLog.Write("DeleteAllConfirmRequested: confirmed - executing clear all");
+            StopConfirmTimer();
+            ExecuteClearAll();
+        }
+    }
+
+    // ── ヘルプパネル構築・配置 ──
+
+    private void BuildHelpPanel(OverlayWindow overlay)
+    {
+        if (!_settingsService.Current.ShowDeleteModeHelp) return;
+
+        var settings = _settingsService.Current;
+
+        var stack = new StackPanel { Margin = new Thickness(4) };
+
+        // タイトル
+        stack.Children.Add(new TextBlock
+        {
+            Text = "保存座標削除モード",
+            Foreground = Brushes.White,
+            FontSize = 13,
+            FontWeight = FontWeights.Bold,
+            IsHitTestVisible = false
+        });
+
+        // セパレータ
+        stack.Children.Add(new Border
+        {
+            Height = 1,
+            Background = new SolidColorBrush(Color.FromArgb(100, 255, 255, 255)),
+            Margin = new Thickness(0, 6, 0, 6),
+            IsHitTestVisible = false
+        });
+
+        // Save ショートカット行
+        stack.Children.Add(BuildHelpLine(
+            $"[{ShortcutFormatter.Format(settings.SaveShortcut)}]",
+            "追加/削除"));
+
+        // DisplayDelete ショートカット行
+        stack.Children.Add(BuildHelpLine(
+            $"[{ShortcutFormatter.Format(settings.DisplayDeleteShortcut)}]",
+            "2回連続: 全削除"));
+
+        // ESC 行
+        stack.Children.Add(BuildHelpLine("[ESC]", "終了"));
+
+        // 確認ラベル（デフォルトは非表示）
+        _helpClearLabel = new TextBlock
+        {
+            Text = "",
+            Visibility = Visibility.Collapsed,
+            Foreground = new SolidColorBrush(Colors.White),
+            FontSize = 13,
+            FontWeight = FontWeights.Bold,
+            Margin = new Thickness(0, 8, 0, 0),
+            TextWrapping = TextWrapping.Wrap,
+            IsHitTestVisible = false
+        };
+        stack.Children.Add(_helpClearLabel);
+
+        _helpPanel = new Border
+        {
+            Background = new SolidColorBrush(Color.FromArgb(0xCC, 0x1A, 0x1A, 0x1A)),
+            CornerRadius = new CornerRadius(8),
+            Padding = new Thickness(12),
+            IsHitTestVisible = false,
+            Child = stack
+        };
+
+        overlay.OverlayCanvasElement.Children.Add(_helpPanel);
+        overlay.UpdateLayout();
+
+        // カーソル位置から最遠の隅にパネルを配置
+        NativeMethods.GetCursorPos(out var pt);
+        _currentMonitorDeviceName = System.Windows.Forms.Screen
+            .FromPoint(new System.Drawing.Point(pt.X, pt.Y)).DeviceName;
+        PositionHelpPanel(overlay, _helpPanel, pt.X, pt.Y);
+    }
+
+    private static UIElement BuildHelpLine(string key, string description)
+    {
+        var panel = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            Margin = new Thickness(0, 2, 0, 2),
+            IsHitTestVisible = false
+        };
+        panel.Children.Add(new TextBlock
+        {
+            Text = key,
+            Foreground = new SolidColorBrush(Color.FromRgb(0xFF, 0xCC, 0x44)),
+            FontSize = 12,
+            FontFamily = new FontFamily("Consolas, Courier New"),
+            VerticalAlignment = VerticalAlignment.Center,
+            IsHitTestVisible = false
+        });
+        panel.Children.Add(new TextBlock
+        {
+            Text = $"  {description}",
+            Foreground = new SolidColorBrush(Colors.LightGray),
+            FontSize = 12,
+            VerticalAlignment = VerticalAlignment.Center,
+            IsHitTestVisible = false
+        });
+        return panel;
+    }
+
+    private void RepositionHelpPanelIfMonitorChanged(int physX, int physY)
+    {
+        if (_helpPanel is null || _markerOverlay is null) return;
+
+        var screen = System.Windows.Forms.Screen
+            .FromPoint(new System.Drawing.Point(physX, physY));
+        if (screen.DeviceName == _currentMonitorDeviceName) return;
+
+        _currentMonitorDeviceName = screen.DeviceName;
+        DebugLog.Write($"HelpPanel: monitor changed to {screen.DeviceName}, repositioning");
+        PositionHelpPanel(_markerOverlay, _helpPanel, physX, physY);
+    }
+
+    private static void PositionHelpPanel(OverlayWindow overlay, Border panel, int physX, int physY)
+    {
+        var screen = System.Windows.Forms.Screen
+            .FromPoint(new System.Drawing.Point(physX, physY));
+        var wa = screen.WorkingArea; // 物理ピクセル
+
+        // 4隅（物理ピクセル）
+        (int x, int y)[] corners =
+        {
+            (wa.Left, wa.Top),
+            (wa.Right, wa.Top),
+            (wa.Left, wa.Bottom),
+            (wa.Right, wa.Bottom)
+        };
+
+        // カーソルから最遠の隅を選択
+        int farthestIdx = 0;
+        double maxDistSq = -1;
+        for (int i = 0; i < corners.Length; i++)
+        {
+            double dx = physX - corners[i].x;
+            double dy = physY - corners[i].y;
+            double distSq = dx * dx + dy * dy;
+            if (distSq > maxDistSq)
+            {
+                maxDistSq = distSq;
+                farthestIdx = i;
+            }
+        }
+
+        var (cx, cy) = corners[farthestIdx];
+        bool isRight  = cx == wa.Right;
+        bool isBottom = cy == wa.Bottom;
+
+        const double padding = 24;
+        var cornerDip = overlay.PhysicalToWpf(cx, cy);
+
+        double panelW = panel.ActualWidth  > 0 ? panel.ActualWidth  : 200;
+        double panelH = panel.ActualHeight > 0 ? panel.ActualHeight : 100;
+
+        double left = isRight
+            ? (cornerDip.X - overlay.Left) - panelW - padding
+            : (cornerDip.X - overlay.Left) + padding;
+
+        double top = isBottom
+            ? (cornerDip.Y - overlay.Top) - panelH - padding
+            : (cornerDip.Y - overlay.Top) + padding;
+
+        Canvas.SetLeft(panel, left);
+        Canvas.SetTop(panel, top);
+    }
+
+    // ── 全削除2段階確認 ──
+
+    private void ShowConfirmState()
+    {
+        UpdateConfirmLabel();
+
+        if (_settingsService.Current.ShowDeleteModeHelp && _helpPanel is not null)
+        {
+            _helpPanel.Background = new SolidColorBrush(Color.FromArgb(0xCC, 0x99, 0x00, 0x00));
+            if (_helpClearLabel is not null)
+                _helpClearLabel.Visibility = Visibility.Visible;
+        }
+        else
+        {
+            // ヘルプOFF: 画面中央に独立バナーを表示
+            ShowClearConfirmBanner();
+        }
+    }
+
+    private void UpdateConfirmLabel()
+    {
+        string text = $"もう一度押すと全削除（残り {_clearConfirmCountdown}秒）";
+        if (_helpClearLabel is not null)
+            _helpClearLabel.Text = text;
+        if (_clearConfirmBannerText is not null)
+            _clearConfirmBannerText.Text = text;
+    }
+
+    private void ShowClearConfirmBanner()
+    {
+        CloseClearConfirmBanner();
+
+        var banner = new OverlayWindow(clickThrough: true);
+        _clearConfirmBanner = banner;
+        banner.Show();
+        banner.CoverVirtualScreen();
+
+        NativeMethods.GetCursorPos(out var pt);
+        var screen = System.Windows.Forms.Screen
+            .FromPoint(new System.Drawing.Point(pt.X, pt.Y));
+        var centerPhys = new System.Drawing.Point(
+            screen.WorkingArea.Left + screen.WorkingArea.Width / 2,
+            screen.WorkingArea.Top  + screen.WorkingArea.Height / 2);
+        var centerDip = banner.PhysicalToWpf(centerPhys.X, centerPhys.Y);
+
+        var text = new TextBlock
+        {
+            Text = $"もう一度押すと全削除（残り {_clearConfirmCountdown}秒）",
+            FontSize = 18,
+            FontWeight = FontWeights.Bold,
+            Foreground = Brushes.White,
+            Background = new SolidColorBrush(Color.FromArgb(220, 180, 0, 0)),
+            Padding = new Thickness(20, 10, 20, 10),
+            IsHitTestVisible = false
+        };
+
+        _clearConfirmBannerText = text;
+        banner.OverlayCanvasElement.Children.Add(text);
+        banner.UpdateLayout();
+
+        double w = text.ActualWidth;
+        double h = text.ActualHeight;
+        Canvas.SetLeft(text, centerDip.X - banner.Left - w / 2);
+        Canvas.SetTop(text, centerDip.Y - banner.Top - h / 2);
+    }
+
+    private void CloseClearConfirmBanner()
+    {
+        _clearConfirmBannerText = null;
+        if (_clearConfirmBanner is not null)
+        {
+            _clearConfirmBanner.Close();
+            _clearConfirmBanner = null;
+        }
+    }
+
+    private void StartConfirmTimer()
+    {
+        StopConfirmTimer();
+        _clearConfirmTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
+        _clearConfirmTimer.Tick += OnConfirmTimerTick;
+        _clearConfirmTimer.Start();
+    }
+
+    private void StopConfirmTimer()
+    {
+        if (_clearConfirmTimer is not null)
+        {
+            _clearConfirmTimer.Stop();
+            _clearConfirmTimer.Tick -= OnConfirmTimerTick;
+            _clearConfirmTimer = null;
+        }
+    }
+
+    private void OnConfirmTimerTick(object? sender, EventArgs e)
+    {
+        _clearConfirmCountdown--;
+        if (_clearConfirmCountdown <= 0)
+        {
+            // タイムアウト: 確認状態をキャンセル
+            DebugLog.Write("DeleteAll confirm: timed out");
+            StopConfirmTimer();
+            ResetConfirmState();
+        }
+        else
+        {
+            UpdateConfirmLabel();
+        }
+    }
+
+    private void ResetConfirmState()
+    {
+        _clearConfirmPending = false;
+        _clearConfirmCountdown = 0;
+
+        // バナーを閉じる
+        CloseClearConfirmBanner();
+
+        // ヘルプパネルを通常状態に戻す
+        if (_helpPanel is not null)
+        {
+            _helpPanel.Background = new SolidColorBrush(Color.FromArgb(0xCC, 0x1A, 0x1A, 0x1A));
+            if (_helpClearLabel is not null)
+            {
+                _helpClearLabel.Visibility = Visibility.Collapsed;
+                _helpClearLabel.Text = "";
+            }
+        }
+    }
+
+    private void ExecuteClearAll()
+    {
+        if (_deleteStore is null || _markerOverlay is null) return;
+
+        DebugLog.Write($"ExecuteClearAll: clearing {_deleteStore.Count} coordinates");
+
+        // 削除前の座標リストを保存（収縮円アニメ用）
+        var positions = new List<(int X, int Y)>();
+        foreach (var coord in _deleteStore.GetAll())
+            positions.Add((coord.X, coord.Y));
+
+        // 全削除
+        _deleteStore.Clear();
+
+        // マーカー再描画（全消去）
+        _lastHighlighted = null;
+        BuildMarkers(_markerOverlay);
+
+        // 確認状態リセット
+        ResetConfirmState();
+
+        // 全座標の収縮円アニメーションを一括表示
+        if (positions.Count > 0)
+            ShowClearAllShrinkCircles(positions);
+    }
+
+    /// <summary>
+    /// 複数座標の収縮円アニメーションを1枚のOverlayWindowに集約して表示する（GC負荷回避）。
+    /// </summary>
+    private void ShowClearAllShrinkCircles(List<(int X, int Y)> positions)
+    {
+        if (!_settingsService.Current.SaveEffectEnabled) return;
+
+        var color = ParseColor(_settingsService.Current.SaveCircleColor, Colors.Red);
+        const double initialRadius = 30;
+        const double duration = 500; // ms
+
+        var overlay = new OverlayWindow(clickThrough: true);
+        overlay.Show();
+        overlay.CoverVirtualScreen();
+
+        int remaining = positions.Count;
+
+        for (int i = 0; i < positions.Count; i++)
+        {
+            var (physX, physY) = positions[i];
+            var pos = overlay.PhysicalToWpf(physX, physY);
+            double canvasX = pos.X - overlay.Left;
+            double canvasY = pos.Y - overlay.Top;
+
+            var ellipse = new Ellipse
+            {
+                Width = initialRadius * 2,
+                Height = initialRadius * 2,
+                Fill = new SolidColorBrush(color),
+                Opacity = 1.0,
+                RenderTransformOrigin = new Point(0.5, 0.5),
+                RenderTransform = new ScaleTransform(1, 1)
+            };
+
+            Canvas.SetLeft(ellipse, canvasX - initialRadius);
+            Canvas.SetTop(ellipse, canvasY - initialRadius);
+            overlay.OverlayCanvasElement.Children.Add(ellipse);
+
+            var scaleTransform = (ScaleTransform)ellipse.RenderTransform;
+
+            // 各アニメに少しずつ遅延を付ける（視覚的な広がり感）
+            double delayMs = i * 20.0;
+            var scaleXAnim = new DoubleAnimation(1.0, 0.0, TimeSpan.FromMilliseconds(duration))
+            {
+                BeginTime = TimeSpan.FromMilliseconds(delayMs),
+                EasingFunction = new QuadraticEase { EasingMode = EasingMode.EaseIn }
+            };
+            var scaleYAnim = new DoubleAnimation(1.0, 0.0, TimeSpan.FromMilliseconds(duration))
+            {
+                BeginTime = TimeSpan.FromMilliseconds(delayMs),
+                EasingFunction = new QuadraticEase { EasingMode = EasingMode.EaseIn }
+            };
+            var opacityAnim = new DoubleAnimation(1.0, 0.0, TimeSpan.FromMilliseconds(duration))
+            {
+                BeginTime = TimeSpan.FromMilliseconds(delayMs),
+                EasingFunction = new QuadraticEase { EasingMode = EasingMode.EaseIn }
+            };
+
+            // 最後のアニメが完了したらウィンドウを閉じる
+            opacityAnim.Completed += (_, _) =>
+            {
+                remaining--;
+                if (remaining <= 0)
+                    overlay.Close();
+            };
+
+            scaleTransform.BeginAnimation(ScaleTransform.ScaleXProperty, scaleXAnim);
+            scaleTransform.BeginAnimation(ScaleTransform.ScaleYProperty, scaleYAnim);
+            ellipse.BeginAnimation(UIElement.OpacityProperty, opacityAnim);
+        }
+    }
+
+    // ── マーカー構築 ──
 
     /// <summary>
     /// 物理ピクセル座標で最も近いマーカーを検索する。snapDistance内でなければ-1を返す。
@@ -304,54 +782,69 @@ internal sealed class OverlayService
 
     /// <summary>
     /// マーカー要素を構築してCanvasに配置する（表示専用）。
+    /// ヘルプパネルは Children.Clear() 後に再追加して保持する。
     /// 入力処理は低レベルフックで行うため、WPFイベントハンドラは不要。
     /// </summary>
     private void BuildMarkers(OverlayWindow overlay)
     {
+        // ヘルプパネルを退避（Children.Clear() で消えるため）
+        var savedHelpPanel = _helpPanel;
+
         overlay.OverlayCanvasElement.Children.Clear();
         _markers.Clear();
 
-        if (_deleteStore is null) return;
-        // マーカーエフェクトが無効なら描画をスキップ（モード自体は継続 = ESC/クリック追加は動作）
-        if (!_settingsService.Current.MarkerEffectEnabled) return;
-
-        var coordinates = _deleteStore.GetAll();
-        for (int i = 0; i < coordinates.Count; i++)
+        if (_deleteStore is null)
         {
-            var coord = coordinates[i];
-            var pos = overlay.PhysicalToWpf(coord.X, coord.Y);
-            double canvasX = pos.X - overlay.Left;
-            double canvasY = pos.Y - overlay.Top;
-
-            var ellipse = new Ellipse
-            {
-                Width = MarkerRadius * 2,
-                Height = MarkerRadius * 2,
-                Fill = new SolidColorBrush(Color.FromArgb(180, _markerColor.R, _markerColor.G, _markerColor.B)),
-                Stroke = new SolidColorBrush(Colors.White),
-                StrokeThickness = 2,
-                IsHitTestVisible = false
-            };
-            Canvas.SetLeft(ellipse, canvasX - MarkerRadius);
-            Canvas.SetTop(ellipse, canvasY - MarkerRadius);
-            overlay.OverlayCanvasElement.Children.Add(ellipse);
-
-            var label = new TextBlock
-            {
-                Text = (i + 1).ToString(),
-                Foreground = Brushes.White,
-                FontSize = 12,
-                FontWeight = FontWeights.Bold,
-                IsHitTestVisible = false
-            };
-            label.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
-            Canvas.SetLeft(label, canvasX - label.DesiredSize.Width / 2);
-            Canvas.SetTop(label, canvasY - label.DesiredSize.Height / 2);
-            overlay.OverlayCanvasElement.Children.Add(label);
-
-            _markers.Add((ellipse, i, coord.X, coord.Y));
-            DebugLog.Write($"Marker[{i}]: physical=({coord.X},{coord.Y}), canvas=({canvasX:F1},{canvasY:F1})");
+            if (savedHelpPanel is not null)
+                overlay.OverlayCanvasElement.Children.Add(savedHelpPanel);
+            return;
         }
+
+        // マーカーエフェクトが無効なら描画をスキップ（モード自体は継続 = ESC/クリック追加は動作）
+        if (_settingsService.Current.MarkerEffectEnabled)
+        {
+            var coordinates = _deleteStore.GetAll();
+            for (int i = 0; i < coordinates.Count; i++)
+            {
+                var coord = coordinates[i];
+                var pos = overlay.PhysicalToWpf(coord.X, coord.Y);
+                double canvasX = pos.X - overlay.Left;
+                double canvasY = pos.Y - overlay.Top;
+
+                var ellipse = new Ellipse
+                {
+                    Width = MarkerRadius * 2,
+                    Height = MarkerRadius * 2,
+                    Fill = new SolidColorBrush(Color.FromArgb(180, _markerColor.R, _markerColor.G, _markerColor.B)),
+                    Stroke = new SolidColorBrush(Colors.White),
+                    StrokeThickness = 2,
+                    IsHitTestVisible = false
+                };
+                Canvas.SetLeft(ellipse, canvasX - MarkerRadius);
+                Canvas.SetTop(ellipse, canvasY - MarkerRadius);
+                overlay.OverlayCanvasElement.Children.Add(ellipse);
+
+                var label = new TextBlock
+                {
+                    Text = (i + 1).ToString(),
+                    Foreground = Brushes.White,
+                    FontSize = 12,
+                    FontWeight = FontWeights.Bold,
+                    IsHitTestVisible = false
+                };
+                label.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
+                Canvas.SetLeft(label, canvasX - label.DesiredSize.Width / 2);
+                Canvas.SetTop(label, canvasY - label.DesiredSize.Height / 2);
+                overlay.OverlayCanvasElement.Children.Add(label);
+
+                _markers.Add((ellipse, i, coord.X, coord.Y));
+                DebugLog.Write($"Marker[{i}]: physical=({coord.X},{coord.Y}), canvas=({canvasX:F1},{canvasY:F1})");
+            }
+        }
+
+        // ヘルプパネルをCanvasの最前面に再追加
+        if (savedHelpPanel is not null)
+            overlay.OverlayCanvasElement.Children.Add(savedHelpPanel);
     }
 
     private static Color ParseColor(string hex, Color fallback)

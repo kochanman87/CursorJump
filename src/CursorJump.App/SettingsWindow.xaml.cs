@@ -94,6 +94,7 @@ public partial class SettingsWindow : Window
         ChkSaveEffectEnabled.IsChecked = s.SaveEffectEnabled;
         ChkTrailEffectEnabled.IsChecked = s.TrailEffectEnabled;
         ChkMarkerEffectEnabled.IsChecked = s.MarkerEffectEnabled;
+        ChkShowDeleteModeHelp.IsChecked = s.ShowDeleteModeHelp;
 
         // テーマ
         _currentTheme = s.UiTheme;
@@ -239,6 +240,7 @@ public partial class SettingsWindow : Window
             SaveEffectEnabled = ChkSaveEffectEnabled.IsChecked == true,
             TrailEffectEnabled = ChkTrailEffectEnabled.IsChecked == true,
             MarkerEffectEnabled = ChkMarkerEffectEnabled.IsChecked == true,
+            ShowDeleteModeHelp = ChkShowDeleteModeHelp.IsChecked == true,
             UiTheme = _currentTheme,
         };
 
