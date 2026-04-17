@@ -61,8 +61,8 @@ public sealed class AppSettings
     /// <summary>座標表示/削除モード中にヘルプパネルを表示するか。false でも全削除確認バナーは表示される。旧 settings.json では不在 → true 扱い。</summary>
     public bool ShowDeleteModeHelp { get; set; } = true;
 
-    /// <summary>UI テーマ（Light / Dark）。旧 settings.json には存在しないため Light をデフォルトにし後方互換維持。</summary>
-    public UiTheme UiTheme { get; set; } = UiTheme.Light;
+    /// <summary>UI テーマ（Light / Dark）。デフォルトは Dark。</summary>
+    public UiTheme UiTheme { get; set; } = UiTheme.Dark;
 }
 
 public enum UiTheme

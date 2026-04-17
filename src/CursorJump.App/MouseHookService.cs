@@ -210,8 +210,9 @@ internal sealed class MouseHookService : IDisposable
                 var settings = _settingsService.Current;
                 var args = new MouseHookEventArgs(hookStruct.pt.X, hookStruct.pt.Y);
 
+                // 削除モード中は修飾キー不要で対応ボタン単押しでOK
                 // 優先1: DisplayDeleteShortcut マッチ → 全削除確認リクエスト
-                if (IsShortcutMatch(pressedButton.Value, settings.DisplayDeleteShortcut))
+                if (IsShortcutMatchForDeleteMode(pressedButton.Value, settings.DisplayDeleteShortcut))
                 {
                     DebugLog.Write($"DeleteMode: DisplayDeleteShortcut matched at ({hookStruct.pt.X},{hookStruct.pt.Y})");
                     DeleteAllConfirmRequested?.Invoke(this, args);
@@ -220,7 +221,7 @@ internal sealed class MouseHookService : IDisposable
                 }
 
                 // 優先2: SaveShortcut マッチ → 追加/削除（ハイブリッド）
-                if (IsShortcutMatch(pressedButton.Value, settings.SaveShortcut))
+                if (IsShortcutMatchForDeleteMode(pressedButton.Value, settings.SaveShortcut))
                 {
                     DebugLog.Write($"DeleteMode: SaveShortcut matched at ({hookStruct.pt.X},{hookStruct.pt.Y})");
                     DeleteModeClicked?.Invoke(this, args);
@@ -229,7 +230,7 @@ internal sealed class MouseHookService : IDisposable
                 }
 
                 // 優先3: NavigateShortcut マッチ → ESC扱い（削除モード終了）
-                if (IsShortcutMatch(pressedButton.Value, settings.NavigateShortcut))
+                if (IsShortcutMatchForDeleteMode(pressedButton.Value, settings.NavigateShortcut))
                 {
                     DebugLog.Write($"DeleteMode: NavigateShortcut matched → ESC");
                     DeleteModeEscPressed?.Invoke(this, EventArgs.Empty);
@@ -359,6 +360,14 @@ internal sealed class MouseHookService : IDisposable
             NativeMethods.XBUTTON2 => MouseButtonType.XButton2,
             _ => null
         };
+    }
+
+    // 削除モード中専用: 対応ボタンの単押しだけでマッチ（修飾キー不問）
+    private static bool IsShortcutMatchForDeleteMode(MouseButtonType pressedButton, Models.ActionShortcut shortcut)
+    {
+        if (!shortcut.EnabledTriggers.HasFlag(Models.TriggerType.Mouse))
+            return false;
+        return pressedButton == shortcut.MouseButton;
     }
 
     // ショートカットがマッチするか判定する

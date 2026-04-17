@@ -7,6 +7,19 @@
 - C#, WinExe, PerMonitorV2 DPI対応
 - 外部NuGetパッケージなし
 
+## 実装時の工数（思考レベル・モデル）選択ガイド
+
+本プロジェクトは小規模 WPF アプリで、変更の大半は「1〜2ファイル・定型的な Win32/WPF パターン」。グローバル基準より軽めに倒してよい。
+
+### 思考レベル（think キーワード）
+- **指定なし（デフォルト）で十分**: 定型パターンの追加（Mutex、P/Invoke 1関数追加、設定項目追加、トレイメニュー項目追加、UI 要素追加など）
+- **`think` / `think hard` を推奨**: 既存フック処理への条件分岐追加で副作用検討が必要なとき、座標系/DPI に関わる修正
+- **`think harder` / `ultrathink` を推奨**: フックアーキテクチャの再設計、WPFオーバーレイとフックの協調に関わる新機能、マルチモニタ×DPI×座標系の新設計、後方互換を伴う設定スキーマ再設計
+
+### モデル
+- **Sonnet で十分**: フック処理の分岐追加・設定項目追加・UI 要素追加・定型パターン（Mutex、P/Invoke、JSON プロパティ、トレイ項目）・既存サービスへの機能追加
+- **Opus を推奨**: フックアーキテクチャの再設計、低レベルフック × WPF 協調の新機能、複数モニタ/DPI/座標系に関わる新しい仕組みの設計、後方互換を伴う設定スキーマ大改修
+
 ## プロジェクト構成
 ```
 src/CursorJump.App/
@@ -39,6 +52,7 @@ src/CursorJump.App/
 ## アーキテクチャ上の注意点
 - **MainWindowは不可視**: Width=0, Height=0, Collapsed。HWNDメッセージ受信専用
 - **ShutdownMode=OnExplicitShutdown**: ウィンドウクローズでアプリ終了しない
+- **単一インスタンス制約**: `App.OnStartup` 冒頭で名前付き Mutex (`Local\CursorJump.App.SingleInstance.{GUID}`) による二重起動防止。`Local\` プレフィックスでユーザーセッション単位に限定（RDPマルチセッション可）。2個目起動時は MessageBox 通知後 `Shutdown(0)` で即終了。Mutex は `App` のフィールドとして保持（GC 防止）、`OnExit` で `ReleaseMutex` + `Dispose`。理由: フックの二重発火・settings.jsonの上書き競合・削除モードの不整合を防ぐため
 - **フックのデリゲート**: `_hookProc`/`_keyboardHookProc`をフィールドに保持必須（GC回収防止）
 - **UPイベント消費**: DOWNイベント消費時にフラグを立て、対応するUPイベントも消費する（右クリックメニュー抑止）
 - **XButtonのUP消費**: `WM_XBUTTONUP`はボタン種別が`mouseData >> 16`で判定が必要（L/R/Mと異なる）

@@ -1,4 +1,5 @@
 using System;
+using System.Reflection;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
@@ -37,6 +38,11 @@ public partial class SettingsWindow : Window
     {
         _settingsService = settingsService;
         InitializeComponent();
+        var v = Assembly.GetExecutingAssembly().GetName().Version;
+        if (v is not null)
+        {
+            Title = $"CursorJump 設定  v{v.Major}.{v.Minor}.{v.Build}";
+        }
         PopulateComboBoxes();
         LoadCurrentSettings();
         _initialized = true;
