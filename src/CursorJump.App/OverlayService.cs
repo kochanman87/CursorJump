@@ -5,7 +5,6 @@ using System.Windows.Controls;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
 using System.Windows.Shapes;
-using System.Windows.Threading;
 
 namespace CursorJump.App;
 
@@ -27,15 +26,7 @@ internal sealed class OverlayService
 
     // ヘルプパネル関連
     private Border? _helpPanel;
-    private TextBlock? _helpClearLabel;
     private string _currentMonitorDeviceName = string.Empty;
-
-    // 全削除2段階確認関連
-    private bool _clearConfirmPending;
-    private int _clearConfirmCountdown;
-    private DispatcherTimer? _clearConfirmTimer;
-    private OverlayWindow? _clearConfirmBanner;
-    private TextBlock? _clearConfirmBannerText;
 
     public OverlayService(SettingsService settingsService)
     {
@@ -207,6 +198,7 @@ internal sealed class OverlayService
         {
             _keyboardHookService.DeleteModeClicked += OnDeleteModeClicked;
             _keyboardHookService.DeleteAllConfirmRequested += OnDeleteAllConfirmRequested;
+            _keyboardHookService.DeleteModeEscPressed += OnDeleteModeEscPressed;
         }
 
         onEnterMode?.Invoke();
@@ -235,17 +227,7 @@ internal sealed class OverlayService
 
     public void CloseMarkerOverlay()
     {
-        // タイマー停止
-        StopConfirmTimer();
-
-        // 確認バナーを閉じる
-        CloseClearConfirmBanner();
-
-        // 確認状態リセット
-        _clearConfirmPending = false;
-        _clearConfirmCountdown = 0;
         _helpPanel = null;
-        _helpClearLabel = null;
         _currentMonitorDeviceName = string.Empty;
 
         // マウスフックイベント購読解除
@@ -262,6 +244,7 @@ internal sealed class OverlayService
         {
             _keyboardHookService.DeleteModeClicked -= OnDeleteModeClicked;
             _keyboardHookService.DeleteAllConfirmRequested -= OnDeleteAllConfirmRequested;
+            _keyboardHookService.DeleteModeEscPressed -= OnDeleteModeEscPressed;
         }
 
         _deleteStore = null;
@@ -340,22 +323,8 @@ internal sealed class OverlayService
 
     private void OnDeleteAllConfirmRequested(object? sender, MouseHookEventArgs e)
     {
-        if (!_clearConfirmPending)
-        {
-            // 1回目: 確認状態へ
-            DebugLog.Write("DeleteAllConfirmRequested: entering confirm state");
-            _clearConfirmPending = true;
-            _clearConfirmCountdown = 2;
-            ShowConfirmState();
-            StartConfirmTimer();
-        }
-        else
-        {
-            // 2回目: 全削除実行
-            DebugLog.Write("DeleteAllConfirmRequested: confirmed - executing clear all");
-            StopConfirmTimer();
-            ExecuteClearAll();
-        }
+        DebugLog.Write("DeleteAllConfirmRequested: executing clear all immediately");
+        ExecuteClearAll();
     }
 
     // ── ヘルプパネル構築・配置 ──
@@ -395,24 +364,15 @@ internal sealed class OverlayService
         // DisplayDelete ショートカット行
         stack.Children.Add(BuildHelpLine(
             $"[{ShortcutFormatter.Format(settings.DisplayDeleteShortcut)}]",
-            "2回連続: 全削除"));
+            "全削除"));
+
+        // Navigate ショートカット行
+        stack.Children.Add(BuildHelpLine(
+            $"[{ShortcutFormatter.Format(settings.NavigateShortcut)}]",
+            "終了"));
 
         // ESC 行
         stack.Children.Add(BuildHelpLine("[ESC]", "終了"));
-
-        // 確認ラベル（デフォルトは非表示）
-        _helpClearLabel = new TextBlock
-        {
-            Text = "",
-            Visibility = Visibility.Collapsed,
-            Foreground = new SolidColorBrush(Colors.White),
-            FontSize = 13,
-            FontWeight = FontWeights.Bold,
-            Margin = new Thickness(0, 8, 0, 0),
-            TextWrapping = TextWrapping.Wrap,
-            IsHitTestVisible = false
-        };
-        stack.Children.Add(_helpClearLabel);
 
         _helpPanel = new Border
         {
@@ -526,136 +486,6 @@ internal sealed class OverlayService
         Canvas.SetTop(panel, top);
     }
 
-    // ── 全削除2段階確認 ──
-
-    private void ShowConfirmState()
-    {
-        UpdateConfirmLabel();
-
-        if (_settingsService.Current.ShowDeleteModeHelp && _helpPanel is not null)
-        {
-            _helpPanel.Background = new SolidColorBrush(Color.FromArgb(0xCC, 0x99, 0x00, 0x00));
-            if (_helpClearLabel is not null)
-                _helpClearLabel.Visibility = Visibility.Visible;
-        }
-        else
-        {
-            // ヘルプOFF: 画面中央に独立バナーを表示
-            ShowClearConfirmBanner();
-        }
-    }
-
-    private void UpdateConfirmLabel()
-    {
-        string text = $"もう一度押すと全削除（残り {_clearConfirmCountdown}秒）";
-        if (_helpClearLabel is not null)
-            _helpClearLabel.Text = text;
-        if (_clearConfirmBannerText is not null)
-            _clearConfirmBannerText.Text = text;
-    }
-
-    private void ShowClearConfirmBanner()
-    {
-        CloseClearConfirmBanner();
-
-        var banner = new OverlayWindow(clickThrough: true);
-        _clearConfirmBanner = banner;
-        banner.Show();
-        banner.CoverVirtualScreen();
-
-        NativeMethods.GetCursorPos(out var pt);
-        var screen = System.Windows.Forms.Screen
-            .FromPoint(new System.Drawing.Point(pt.X, pt.Y));
-        var centerPhys = new System.Drawing.Point(
-            screen.WorkingArea.Left + screen.WorkingArea.Width / 2,
-            screen.WorkingArea.Top  + screen.WorkingArea.Height / 2);
-        var centerDip = banner.PhysicalToWpf(centerPhys.X, centerPhys.Y);
-
-        var text = new TextBlock
-        {
-            Text = $"もう一度押すと全削除（残り {_clearConfirmCountdown}秒）",
-            FontSize = 18,
-            FontWeight = FontWeights.Bold,
-            Foreground = Brushes.White,
-            Background = new SolidColorBrush(Color.FromArgb(220, 180, 0, 0)),
-            Padding = new Thickness(20, 10, 20, 10),
-            IsHitTestVisible = false
-        };
-
-        _clearConfirmBannerText = text;
-        banner.OverlayCanvasElement.Children.Add(text);
-        banner.UpdateLayout();
-
-        double w = text.ActualWidth;
-        double h = text.ActualHeight;
-        Canvas.SetLeft(text, centerDip.X - banner.Left - w / 2);
-        Canvas.SetTop(text, centerDip.Y - banner.Top - h / 2);
-    }
-
-    private void CloseClearConfirmBanner()
-    {
-        _clearConfirmBannerText = null;
-        if (_clearConfirmBanner is not null)
-        {
-            _clearConfirmBanner.Close();
-            _clearConfirmBanner = null;
-        }
-    }
-
-    private void StartConfirmTimer()
-    {
-        StopConfirmTimer();
-        _clearConfirmTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
-        _clearConfirmTimer.Tick += OnConfirmTimerTick;
-        _clearConfirmTimer.Start();
-    }
-
-    private void StopConfirmTimer()
-    {
-        if (_clearConfirmTimer is not null)
-        {
-            _clearConfirmTimer.Stop();
-            _clearConfirmTimer.Tick -= OnConfirmTimerTick;
-            _clearConfirmTimer = null;
-        }
-    }
-
-    private void OnConfirmTimerTick(object? sender, EventArgs e)
-    {
-        _clearConfirmCountdown--;
-        if (_clearConfirmCountdown <= 0)
-        {
-            // タイムアウト: 確認状態をキャンセル
-            DebugLog.Write("DeleteAll confirm: timed out");
-            StopConfirmTimer();
-            ResetConfirmState();
-        }
-        else
-        {
-            UpdateConfirmLabel();
-        }
-    }
-
-    private void ResetConfirmState()
-    {
-        _clearConfirmPending = false;
-        _clearConfirmCountdown = 0;
-
-        // バナーを閉じる
-        CloseClearConfirmBanner();
-
-        // ヘルプパネルを通常状態に戻す
-        if (_helpPanel is not null)
-        {
-            _helpPanel.Background = new SolidColorBrush(Color.FromArgb(0xCC, 0x1A, 0x1A, 0x1A));
-            if (_helpClearLabel is not null)
-            {
-                _helpClearLabel.Visibility = Visibility.Collapsed;
-                _helpClearLabel.Text = "";
-            }
-        }
-    }
-
     private void ExecuteClearAll()
     {
         if (_deleteStore is null || _markerOverlay is null) return;
@@ -673,9 +503,6 @@ internal sealed class OverlayService
         // マーカー再描画（全消去）
         _lastHighlighted = null;
         BuildMarkers(_markerOverlay);
-
-        // 確認状態リセット
-        ResetConfirmState();
 
         // 全座標の収縮円アニメーションを一括表示
         if (positions.Count > 0)

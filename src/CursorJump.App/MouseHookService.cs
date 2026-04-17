@@ -228,6 +228,15 @@ internal sealed class MouseHookService : IDisposable
                     return (IntPtr)1;
                 }
 
+                // 優先3: NavigateShortcut マッチ → ESC扱い（削除モード終了）
+                if (IsShortcutMatch(pressedButton.Value, settings.NavigateShortcut))
+                {
+                    DebugLog.Write($"DeleteMode: NavigateShortcut matched → ESC");
+                    DeleteModeEscPressed?.Invoke(this, EventArgs.Empty);
+                    SetSwallowUpFlag(pressedButton.Value);
+                    return (IntPtr)1;
+                }
+
                 // それ以外はパススルー（右クリックも含む）
             }
 
