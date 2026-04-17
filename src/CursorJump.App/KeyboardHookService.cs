@@ -30,10 +30,12 @@ internal sealed class KeyboardHookService : IDisposable
     public event EventHandler<MouseHookEventArgs>? NavigateRequested;
     public event EventHandler<MouseHookEventArgs>? NavigateCurrentMonitorRequested;
     public event EventHandler<MouseHookEventArgs>? DisplayDeleteRequested;
-    /// <summary>削除モード中に DisplayDeleteShortcut がマッチしたとき発火（全削除2段階確認に使用）。</summary>
+    /// <summary>削除モード中に DisplayDeleteShortcut がマッチしたとき発火（全削除に使用）。</summary>
     public event EventHandler<MouseHookEventArgs>? DeleteAllConfirmRequested;
     /// <summary>削除モード中に SaveShortcut がマッチしたとき発火（追加/削除ハイブリッド）。</summary>
     public event EventHandler<MouseHookEventArgs>? DeleteModeClicked;
+    /// <summary>削除モード中に NavigateShortcut がマッチしたとき発火（ESC扱い＝削除モード終了）。</summary>
+    public event EventHandler? DeleteModeEscPressed;
 
     public KeyboardHookService(SettingsService settingsService)
     {
@@ -131,6 +133,15 @@ internal sealed class KeyboardHookService : IDisposable
                     DebugLog.Write($"KeyboardHookService: DeleteModeClicked (vk=0x{vkCode:X2})");
                     var args = GetCurrentCursorArgs();
                     DeleteModeClicked?.Invoke(this, args);
+                    _swallowNextKeyUp.Add(vkCode);
+                    return (IntPtr)1;
+                }
+
+                // 優先3: NavigateShortcut キーボード側マッチ → ESC扱い（削除モード終了）
+                if (IsKeyboardShortcutMatch(vkCode, settings.NavigateShortcut))
+                {
+                    DebugLog.Write($"KeyboardHookService: DeleteMode NavigateShortcut → ESC (vk=0x{vkCode:X2})");
+                    DeleteModeEscPressed?.Invoke(this, EventArgs.Empty);
                     _swallowNextKeyUp.Add(vkCode);
                     return (IntPtr)1;
                 }
