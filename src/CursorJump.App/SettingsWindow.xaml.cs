@@ -13,7 +13,11 @@ public partial class SettingsWindow : Window
 {
     private readonly SettingsService _settingsService;
 
-    private static readonly string[] ButtonNames = { "左クリック", "右クリック", "ホイールクリック", "戻るボタン", "進むボタン" };
+    private static readonly string[] ButtonNames =
+    {
+        "左クリック", "右クリック", "ホイールクリック", "戻るボタン", "進むボタン",
+        "ホイール＋左クリック", "ホイール＋右クリック", "ホイール2連打", "ホイール3連打"
+    };
 
     private static readonly string[] FKeyNames =
     {
@@ -212,12 +216,18 @@ public partial class SettingsWindow : Window
         static bool NeedsModifier(ActionShortcut s) =>
             s.EnabledTriggers.HasFlag(TriggerType.Mouse)
             && s.Modifiers == ModifierKeyFlags.None
-            && s.MouseButton is not (MouseButtonType.XButton1 or MouseButtonType.XButton2);
+            && s.MouseButton is not (
+                MouseButtonType.XButton1 or
+                MouseButtonType.XButton2 or
+                MouseButtonType.MiddleLeftChord or
+                MouseButtonType.MiddleRightChord or
+                MouseButtonType.MiddleDoubleClick or
+                MouseButtonType.MiddleTripleClick);
 
         if (NeedsModifier(saveShortcut) || NeedsModifier(navShortcut) ||
             NeedsModifier(monNavShortcut) || NeedsModifier(dispShortcut))
         {
-            MessageBox.Show("左/右/ホイールクリックの場合は修飾キーを1つ以上選択してください。",
+            MessageBox.Show("左/右/ホイールクリック（単押し）の場合は修飾キーを1つ以上選択してください。ホイール＋L/R、ホイール連打、戻る/進むボタンは修飾キー不要で使用できます。",
                 "CursorJump", MessageBoxButton.OK, MessageBoxImage.Warning);
             return;
         }
@@ -370,6 +380,10 @@ public partial class SettingsWindow : Window
         MouseButtonType.Middle => "ホイールクリック",
         MouseButtonType.XButton1 => "戻るボタン",
         MouseButtonType.XButton2 => "進むボタン",
+        MouseButtonType.MiddleLeftChord => "ホイール＋左クリック",
+        MouseButtonType.MiddleRightChord => "ホイール＋右クリック",
+        MouseButtonType.MiddleDoubleClick => "ホイール2連打",
+        MouseButtonType.MiddleTripleClick => "ホイール3連打",
         _ => "左クリック"
     };
 
@@ -379,6 +393,10 @@ public partial class SettingsWindow : Window
         "ホイールクリック" => MouseButtonType.Middle,
         "戻るボタン" => MouseButtonType.XButton1,
         "進むボタン" => MouseButtonType.XButton2,
+        "ホイール＋左クリック" => MouseButtonType.MiddleLeftChord,
+        "ホイール＋右クリック" => MouseButtonType.MiddleRightChord,
+        "ホイール2連打" => MouseButtonType.MiddleDoubleClick,
+        "ホイール3連打" => MouseButtonType.MiddleTripleClick,
         _ => MouseButtonType.Left
     };
 }

@@ -76,8 +76,12 @@ public enum MouseButtonType
     Left,
     Right,
     Middle,
-    XButton1,  // 戻るボタン（サイドボタン1）
-    XButton2   // 進むボタン（サイドボタン2）
+    XButton1,           // 戻るボタン（サイドボタン1）
+    XButton2,           // 進むボタン（サイドボタン2）
+    MiddleLeftChord,    // ホイール押下 + 左クリック
+    MiddleRightChord,   // ホイール押下 + 右クリック
+    MiddleDoubleClick,  // ホイール2連打
+    MiddleTripleClick   // ホイール3連打
 }
 
 [Flags]

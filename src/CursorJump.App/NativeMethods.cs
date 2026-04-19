@@ -15,6 +15,7 @@ internal static class NativeMethods
     internal const int VK_LWIN    = 0x5B;
     internal const int VK_RWIN    = 0x5C;
     internal const int VK_ESCAPE  = 0x1B;
+    internal const int VK_MBUTTON = 0x04;
 
     // F13-F24（VIAキーボードマクロ等で使用される拡張ファンクションキー）
     internal const int VK_F13 = 0x7C;
