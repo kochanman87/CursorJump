@@ -33,8 +33,9 @@ public sealed class SettingsService
                 Current = JsonSerializer.Deserialize<AppSettings>(json, JsonOptions) ?? new AppSettings();
             }
         }
-        catch
+        catch (Exception ex)
         {
+            DebugLog.Write($"SettingsService.Load failed: {ex.GetType().Name}: {ex.Message}");
             Current = new AppSettings();
         }
     }
@@ -50,10 +51,11 @@ public sealed class SettingsService
             string tempPath = SettingsPath + ".tmp";
             File.WriteAllText(tempPath, json);
             File.Move(tempPath, SettingsPath, overwrite: true);
+            DebugLog.Write($"SettingsService.Save: OK → {SettingsPath}");
         }
-        catch
+        catch (Exception ex)
         {
-            // 保存失敗時はメモリ上の設定は更新済みなのでそのまま続行
+            DebugLog.Write($"SettingsService.Save failed: {ex.GetType().Name}: {ex.Message}");
         }
 
         SettingsChanged?.Invoke();

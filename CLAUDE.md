@@ -61,6 +61,7 @@ src/CursorJump.App/
 - **ログファイル**: `%APPDATA%/CursorJump/debug.log`（起動時モニター情報、フックイベント、DPI変更を記録）
 - **MouseButtonType enum**: Left=0, Right=1, Middle=2, XButton1=3, XButton2=4, MiddleLeftChord=5, MiddleRightChord=6, MiddleDoubleClick=7, MiddleTripleClick=8（末尾追加で後方互換性維持）。後方4値は「マウスのみで完結するトリガー」用で、修飾キー不要でも割当可
 - **中ボタン拡張トリガー（Chord / 多重クリック）**: `MouseHookService` がタイマー遅延で判定する。拡張ボタン（MiddleLeftChord/MiddleRightChord/MiddleDoubleClick/MiddleTripleClick）が**どれか1つでも割り当てられている場合のみ** WM_MBUTTONDOWN を消費して `ChordWindowMs`(200ms) タイマー起動。その間に L/R DOWN が来れば該当 Chord を発火し Middle/L/R の UP を全消費、来なければタイマー満了時にクリック数（`MultiClickWindowMs`=350ms 以内の連続 MDOWN 数）に応じて Triple→Double→Single の順に優先発火。タイマーは ThreadPool スレッドなので `Application.Current.Dispatcher.BeginInvoke` で UI スレッドに復帰してから WPF 側のイベントハンドラを呼ぶ。拡張ボタン未割当時は従来通りの Middle 単押しパスが走り遅延なし。削除モード中は拡張判定に入らず、従来の単押し優先（DisplayDelete=全削除）が動作する
+- **Chord 判定で `GetAsyncKeyState(VK_MBUTTON)` は使用禁止**: フックで WM_MBUTTONDOWN を消費（`return (IntPtr)1`）すると OS の非同期キー状態に反映されず、直後の L/R DOWN 時に `GetAsyncKeyState(VK_MBUTTON)` が 0 を返してしまい Chord が発火しない。中ボタン押下状態の判定は `_middleChordHeld` フラグのみで行う（MDOWN 遅延時に true、MUP / Chord 発火 / タイマー満了でクリア）
 - **TriggerType [Flags] enum**: `Mouse=1, Keyboard=2`。`EnabledTriggers` に複数フラグをセットすることでOR動作。旧settings.jsonは `EnabledTriggers` 不在 → デフォルト `Mouse` として扱われ後方互換。JSONはJsonStringEnumConverterで文字列保存（例: `"Mouse, Keyboard"`）
 - **SavedCoordinate**: `record SavedCoordinate(int X, int Y, string MonitorDeviceName = "")`。保存時に `Screen.FromPoint` でモニタ名を記録。`""` は旧settings.jsonとの後方互換のデフォルト値
 
@@ -118,3 +119,7 @@ public sealed class ActionShortcut
 - 既存の `NavigateShortcut`（全座標循環）と独立して動作
 - `CoordinateStore.GetNextInMonitor(deviceName)`: モニタ別インデックス（`Dictionary<string,int>`）で循環管理。該当モニタ座標が0個の場合 `null` を返す（フォールバックなし）
 - `Screen.FromPoint` / `Screen.DeviceName` は物理ピクセル座標ベースで安全に使用可能（DPI変換不要）
+
+## 既知の問題（未対応）
+
+- **MiddleRightChord（ホイール+右クリック）発火時にコンテキストメニューが表示される**: Chord 成立時に `_swallowNextRightUp = true` を立てて RUP を消費しているが、実際にはメニューが出てしまう。WM_RBUTTONDOWN 自体の消費タイミングや、Chord 判定経路と通常の RDOWN 消費経路の関係を再確認する必要がある。別セッションで調査・修正予定

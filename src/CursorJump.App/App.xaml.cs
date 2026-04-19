@@ -43,7 +43,7 @@ public partial class App : Application
         {
             EnsureWindowsFormsIsInitialized();
 
-            DebugLog.Write("=== CursorJump starting ===");
+            DebugLog.Write($"=== CursorJump starting === [{System.Diagnostics.Process.GetCurrentProcess().MainModule?.FileName}]");
             DebugLog.WriteMonitorInfo();
 
             _settingsService = new SettingsService();

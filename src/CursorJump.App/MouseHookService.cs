@@ -519,11 +519,9 @@ internal sealed class MouseHookService : IDisposable
         lock (_middleLock)
         {
             if (!_middleChordHeld) return false;
-            if ((NativeMethods.GetAsyncKeyState(NativeMethods.VK_MBUTTON) & 0x8000) == 0)
-            {
-                _middleChordHeld = false;
-                return false;
-            }
+            // 注: GetAsyncKeyState(VK_MBUTTON) は、フックで WM_MBUTTONDOWN を消費する
+            // (return (IntPtr)1) と OS の非同期キー状態に反映されないため使わない。
+            // _middleChordHeld フラグのみで判定する（MUP 到達時にクリアされる）。
 
             settings = _settingsService.Current;
             chordBtn = msg == NativeMethods.WM_LBUTTONDOWN
