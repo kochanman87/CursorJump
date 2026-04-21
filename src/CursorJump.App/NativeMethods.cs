@@ -127,4 +127,39 @@ internal static class NativeMethods
 
     [DllImport("user32.dll")]
     internal static extern bool AttachThreadInput(uint idAttach, uint idAttachTo, bool fAttach);
+
+    // ── SendInput（合成マウス入力）──
+    internal const uint INPUT_MOUSE = 0;
+    internal const uint MOUSEEVENTF_MIDDLEDOWN = 0x0020;
+    internal const uint MOUSEEVENTF_MIDDLEUP   = 0x0040;
+
+    // MSLLHOOKSTRUCT.flags: 合成入力の判定に使用
+    internal const uint LLMHF_INJECTED = 0x00000001;
+
+    [StructLayout(LayoutKind.Sequential)]
+    internal struct MOUSEINPUT
+    {
+        public int dx;
+        public int dy;
+        public uint mouseData;
+        public uint dwFlags;
+        public uint time;
+        public IntPtr dwExtraInfo;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    internal struct INPUT
+    {
+        public uint type;
+        public INPUTUNION u;
+    }
+
+    [StructLayout(LayoutKind.Explicit)]
+    internal struct INPUTUNION
+    {
+        [FieldOffset(0)] public MOUSEINPUT mi;
+    }
+
+    [DllImport("user32.dll", SetLastError = true)]
+    internal static extern uint SendInput(uint nInputs, INPUT[] pInputs, int cbSize);
 }

@@ -232,16 +232,26 @@ public partial class SettingsWindow : Window
             return;
         }
 
-        if (ShortcutsConflict(saveShortcut, navShortcut) ||
-            ShortcutsConflict(saveShortcut, monNavShortcut) ||
-            ShortcutsConflict(saveShortcut, dispShortcut) ||
-            ShortcutsConflict(navShortcut, monNavShortcut) ||
-            ShortcutsConflict(navShortcut, dispShortcut) ||
-            ShortcutsConflict(monNavShortcut, dispShortcut))
+        var actions = new (string Name, ActionShortcut Shortcut)[]
         {
-            MessageBox.Show("ショートカットの組み合わせが重複しています。",
-                "CursorJump", MessageBoxButton.OK, MessageBoxImage.Warning);
-            return;
+            ("座標保存", saveShortcut),
+            ("ナビゲート（全体）", navShortcut),
+            ("ナビゲート（モニタ内）", monNavShortcut),
+            ("座標表示/削除", dispShortcut),
+        };
+        for (int i = 0; i < actions.Length; i++)
+        {
+            for (int j = i + 1; j < actions.Length; j++)
+            {
+                var (mouseDup, keyboardDup) = DetectShortcutConflict(actions[i].Shortcut, actions[j].Shortcut);
+                if (!mouseDup && !keyboardDup) continue;
+                string kind = mouseDup && keyboardDup ? "マウス/キーボード両方の"
+                            : mouseDup ? "マウス" : "キーボード";
+                MessageBox.Show(
+                    $"「{actions[i].Name}」と「{actions[j].Name}」の{kind}ショートカットが重複しています。どちらか片方を変更してください。",
+                    "CursorJump", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
         }
 
         var settings = new AppSettings
@@ -360,17 +370,17 @@ public partial class SettingsWindow : Window
         };
     }
 
-    private static bool ShortcutsConflict(ActionShortcut a, ActionShortcut b)
+    private static (bool mouse, bool keyboard) DetectShortcutConflict(ActionShortcut a, ActionShortcut b)
     {
-        if (a.EnabledTriggers.HasFlag(TriggerType.Mouse) && b.EnabledTriggers.HasFlag(TriggerType.Mouse)
-            && a.Modifiers == b.Modifiers && a.MouseButton == b.MouseButton)
-            return true;
+        bool mouseDup =
+            a.EnabledTriggers.HasFlag(TriggerType.Mouse) && b.EnabledTriggers.HasFlag(TriggerType.Mouse)
+            && a.Modifiers == b.Modifiers && a.MouseButton == b.MouseButton;
 
-        if (a.EnabledTriggers.HasFlag(TriggerType.Keyboard) && b.EnabledTriggers.HasFlag(TriggerType.Keyboard)
-            && a.VirtualKeyCode == b.VirtualKeyCode)
-            return true;
+        bool keyboardDup =
+            a.EnabledTriggers.HasFlag(TriggerType.Keyboard) && b.EnabledTriggers.HasFlag(TriggerType.Keyboard)
+            && a.VirtualKeyCode == b.VirtualKeyCode;
 
-        return false;
+        return (mouseDup, keyboardDup);
     }
 
     private static string ButtonTypeToName(MouseButtonType type) => type switch

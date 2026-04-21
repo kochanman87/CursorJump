@@ -61,7 +61,11 @@ src/CursorJump.App/
 - **ログファイル**: `%APPDATA%/CursorJump/debug.log`（起動時モニター情報、フックイベント、DPI変更を記録）
 - **MouseButtonType enum**: Left=0, Right=1, Middle=2, XButton1=3, XButton2=4, MiddleLeftChord=5, MiddleRightChord=6, MiddleDoubleClick=7, MiddleTripleClick=8（末尾追加で後方互換性維持）。後方4値は「マウスのみで完結するトリガー」用で、修飾キー不要でも割当可
 - **中ボタン拡張トリガー（Chord / 多重クリック）**: `MouseHookService` がタイマー遅延で判定する。拡張ボタン（MiddleLeftChord/MiddleRightChord/MiddleDoubleClick/MiddleTripleClick）が**どれか1つでも割り当てられている場合のみ** WM_MBUTTONDOWN を消費して `ChordWindowMs`(200ms) タイマー起動。その間に L/R DOWN が来れば該当 Chord を発火し Middle/L/R の UP を全消費、来なければタイマー満了時にクリック数（`MultiClickWindowMs`=350ms 以内の連続 MDOWN 数）に応じて Triple→Double→Single の順に優先発火。タイマーは ThreadPool スレッドなので `Application.Current.Dispatcher.BeginInvoke` で UI スレッドに復帰してから WPF 側のイベントハンドラを呼ぶ。拡張ボタン未割当時は従来通りの Middle 単押しパスが走り遅延なし。削除モード中は拡張判定に入らず、従来の単押し優先（DisplayDelete=全削除）が動作する
-- **Chord 判定で `GetAsyncKeyState(VK_MBUTTON)` は使用禁止**: フックで WM_MBUTTONDOWN を消費（`return (IntPtr)1`）すると OS の非同期キー状態に反映されず、直後の L/R DOWN 時に `GetAsyncKeyState(VK_MBUTTON)` が 0 を返してしまい Chord が発火しない。中ボタン押下状態の判定は `_middleChordHeld` フラグのみで行う（MDOWN 遅延時に true、MUP / Chord 発火 / タイマー満了でクリア）
+- **Chord 成立時に `_middleChordHeld` はクリアしない**: Chord 発火後もホイールが物理的に押下中の間は判定を継続する必要があるため（ホイール押下のまま L/R を連打したときに2回目以降の Chord を発火させる）、`_middleChordHeld` のクリアは MUP 到達時のみ行う。Chord 発火時はタイマー dispose と `_middleClickCount=0` のみでよい
+- **拡張トリガー割当時の中ボタン単押しフォールバック**: MDOWN を一律消費する都合で、Chord/多重クリックいずれにも該当しない単押しは Chrome のタブクローズ等アプリの通常動作を壊してしまう。対策としてタイマー満了時 `count==1` かつ単押しショートカット未マッチ、かつ中ボタンが既に離されている場合に限り `SendInput` で `MOUSEEVENTF_MIDDLEDOWN+MIDDLEUP` を合成再送する。合成入力は `MSLLHOOKSTRUCT.flags & LLMHF_INJECTED` が立つので `HookCallback` 冒頭で素通しさせ、再遅延・無限ループを防ぐ。押下継続中（autoscroll 等）は合成しない（長押し用途と区別不能なため静かに飲み込む従来動作）
+- **Chord 判定で `GetAsyncKeyState(VK_MBUTTON)` は使用禁止**: フックで WM_MBUTTONDOWN を消費（`return (IntPtr)1`）すると OS の非同期キー状態に反映されず、直後の L/R DOWN 時に `GetAsyncKeyState(VK_MBUTTON)` が 0 を返してしまい Chord が発火しない。中ボタン押下状態の判定は `_middleChordHeld` フラグのみで行う（MDOWN 遅延時に true、MUP 到達時のみクリア）
+- **ホイール長押し → L/R クリックで Chord 発火**: `ChordWindowMs` 満了時に中ボタンがまだ押下中（`_middleChordHeld == true`）であれば、`_middleClickCount` のみクリアして `_middleChordHeld` は true のまま維持する（`OnMiddleDeferElapsed` の冒頭分岐）。これにより押下時間に制限されず、ホイールを押したままの L/R DOWN を `TryHandleMiddleChord` が捕捉する。中ボタンが既に離されている場合のみ従来通り Triple/Double/Single 判定＋合成再送を実行する
+- **`EnterDeleteMode`/`ExitDeleteMode` は swallow フラグをクリアしない**: `_swallowNextLeftUp`/`_swallowNextRightUp` は対応する UP 到達時に自然消費される。削除モード遷移時にクリアすると、Chord 成立 → `BeginInvoke` → `EnterDeleteMode` → 物理 RUP という非同期経路で直前に立てたフラグが潰され、コンテキストメニューが出る不具合を招く
 - **TriggerType [Flags] enum**: `Mouse=1, Keyboard=2`。`EnabledTriggers` に複数フラグをセットすることでOR動作。旧settings.jsonは `EnabledTriggers` 不在 → デフォルト `Mouse` として扱われ後方互換。JSONはJsonStringEnumConverterで文字列保存（例: `"Mouse, Keyboard"`）
 - **SavedCoordinate**: `record SavedCoordinate(int X, int Y, string MonitorDeviceName = "")`。保存時に `Screen.FromPoint` でモニタ名を記録。`""` は旧settings.jsonとの後方互換のデフォルト値
 
@@ -112,6 +116,10 @@ public sealed class ActionShortcut
 - 両サービスとも `SaveRequested`/`NavigateRequested`/`NavigateCurrentMonitorRequested`/`DisplayDeleteRequested` を発火
 - キーボードトリガー時は `GetCursorPos()` で現在のカーソル座標を取得して `MouseHookEventArgs` に格納
 - 削除モード中は `KeyboardHookService` のトリガーを無効化（`EnterDeleteMode`/`ExitDeleteMode`）
+- **キーボードトリガーの修飾キーは表示上のみで実挙動では無視する（仕様）**: `ActionShortcut.Modifiers` は UI 構造上マウス/キーボードで共通だが、`KeyboardHookService.IsKeyboardShortcutMatch` は `VirtualKeyCode` 一致のみで判定する。VIA マクロで F13-F24 を送るユースケースでは修飾キーの同時押下保証が難しいため、意図的に VK 単独一致としている。UI 上で `Ctrl+Win+F15` と表示されていても実際は `F15` 単独で発火する。これはバグではない
+
+### 削除モード中のマウスマッチング
+- `MouseHookService.IsShortcutMatchForDeleteMode` は、ショートカットが拡張ボタン（`MiddleLeftChord` / `MiddleRightChord` / `MiddleDoubleClick` / `MiddleTripleClick`）に割り当てられている場合でも、削除モード中は基底の物理ボタン単押しにマップして判定する（`MiddleLeftChord`→Left、`MiddleRightChord`→Right、`MiddleDoubleClick`/`MiddleTripleClick`→Middle）。理由: 削除モード中はオーバーレイ表示中の素早い操作が求められるため、Chord や多重クリックの待機時間を挟まずに即応したい。通常モード中の拡張トリガー挙動はそのまま維持される
 
 ### モニタ内ナビゲーション
 - `NavigateCurrentMonitorShortcut`（デフォルト `TriggerType.None`＝無効）: ナビゲート時に現在カーソルのモニタ内の座標のみ循環
@@ -120,6 +128,3 @@ public sealed class ActionShortcut
 - `CoordinateStore.GetNextInMonitor(deviceName)`: モニタ別インデックス（`Dictionary<string,int>`）で循環管理。該当モニタ座標が0個の場合 `null` を返す（フォールバックなし）
 - `Screen.FromPoint` / `Screen.DeviceName` は物理ピクセル座標ベースで安全に使用可能（DPI変換不要）
 
-## 既知の問題（未対応）
-
-- **MiddleRightChord（ホイール+右クリック）発火時にコンテキストメニューが表示される**: Chord 成立時に `_swallowNextRightUp = true` を立てて RUP を消費しているが、実際にはメニューが出てしまう。WM_RBUTTONDOWN 自体の消費タイミングや、Chord 判定経路と通常の RDOWN 消費経路の関係を再確認する必要がある。別セッションで調査・修正予定

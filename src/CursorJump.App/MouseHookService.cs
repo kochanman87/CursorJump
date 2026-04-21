@@ -124,8 +124,10 @@ internal sealed class MouseHookService : IDisposable
     {
         DebugLog.Write("MouseHookService: EnterDeleteMode()");
         _deleteMode = true;
-        _swallowNextLeftUp = false;
-        _swallowNextRightUp = false;
+        // 注: _swallowNextLeftUp/_swallowNextRightUp はここでクリアしない。
+        // Chord 発火 → BeginInvoke → EnterDeleteMode の非同期経路で、
+        // 直前に立てた swallow フラグが物理 UP 到達前に潰されるとメニューが出る。
+        // フラグは対応 UP 到達時に自然消費される設計なので、ここで触る必要はない。
 
         // ESC検出用キーボードフックをインストール
         IntPtr moduleHandle = NativeMethods.GetModuleHandle(null);
@@ -144,8 +146,7 @@ internal sealed class MouseHookService : IDisposable
     {
         DebugLog.Write("MouseHookService: ExitDeleteMode()");
         _deleteMode = false;
-        _swallowNextLeftUp = false;
-        _swallowNextRightUp = false;
+        // 注: swallow フラグは EnterDeleteMode と同じ理由でクリアしない。
 
         // キーボードフックをアンインストール
         if (_keyboardHookHandle != IntPtr.Zero)
@@ -177,6 +178,15 @@ internal sealed class MouseHookService : IDisposable
 
     private IntPtr HookCallback(int nCode, IntPtr wParam, IntPtr lParam)
     {
+        if (nCode >= 0)
+        {
+            // 合成入力（SendInput で再送した中クリック等）は判定せず素通し。
+            // 無限再帰・中ボタン単押しフォールバックの再遅延を防ぐ。
+            var injectCheck = Marshal.PtrToStructure<NativeMethods.MSLLHOOKSTRUCT>(lParam);
+            if ((injectCheck.flags & NativeMethods.LLMHF_INJECTED) != 0)
+                return NativeMethods.CallNextHookEx(_hookHandle, nCode, wParam, lParam);
+        }
+
         if (nCode >= 0 && _deleteMode)
         {
             int msg = wParam.ToInt32();
@@ -287,7 +297,16 @@ internal sealed class MouseHookService : IDisposable
             }
             if (msg == NativeMethods.WM_MBUTTONUP && _swallowNextMiddleUp)
             {
+                // MUP を消費しつつ、Chord 判定フラグも同時にクリアする。
+                // この return 後は下の "MUP: Chord判定を解除" ブロックに到達しないため、
+                // ここで更新しないと _middleChordHeld が true のまま残り、
+                // 次の L/R クリックで誤発火する（長押し Chord 後に再現）。
                 _swallowNextMiddleUp = false;
+                lock (_middleLock)
+                {
+                    _lastMiddleUpTickCount = Environment.TickCount;
+                    _middleChordHeld = false;
+                }
                 return (IntPtr)1;
             }
             if (msg == NativeMethods.WM_XBUTTONUP)
@@ -310,6 +329,7 @@ internal sealed class MouseHookService : IDisposable
             var hookStruct = Marshal.PtrToStructure<NativeMethods.MSLLHOOKSTRUCT>(lParam);
 
             // MUP: 拡張トリガー用に MUP 時刻を記録し、Chord 判定を解除
+            // （MUP が消費されずに到達した場合の二重保険）
             if (msg == NativeMethods.WM_MBUTTONUP)
             {
                 lock (_middleLock)
@@ -414,11 +434,21 @@ internal sealed class MouseHookService : IDisposable
     }
 
     // 削除モード中専用: 対応ボタンの単押しだけでマッチ（修飾キー不問）
+    // 拡張ボタン（Chord / 多重クリック）は基底の物理ボタンに読み替えて判定する。
+    // 例: SaveShortcut=MiddleLeftChord の場合、削除モード中は左クリック単押しでマッチ。
     private static bool IsShortcutMatchForDeleteMode(MouseButtonType pressedButton, Models.ActionShortcut shortcut)
     {
         if (!shortcut.EnabledTriggers.HasFlag(Models.TriggerType.Mouse))
             return false;
-        return pressedButton == shortcut.MouseButton;
+        var effective = shortcut.MouseButton switch
+        {
+            MouseButtonType.MiddleLeftChord   => MouseButtonType.Left,
+            MouseButtonType.MiddleRightChord  => MouseButtonType.Right,
+            MouseButtonType.MiddleDoubleClick => MouseButtonType.Middle,
+            MouseButtonType.MiddleTripleClick => MouseButtonType.Middle,
+            _ => shortcut.MouseButton
+        };
+        return pressedButton == effective;
     }
 
     // ショートカットがマッチするか判定する
@@ -531,9 +561,11 @@ internal sealed class MouseHookService : IDisposable
             sc = FindShortcutByButton(settings, chordBtn);
             if (sc is null) return false;
 
-            // Chord 成立: 単押し/連打判定は打ち切り、後続 MUP/LUP/RUP も消費する
+            // Chord 成立: 単押し/連打判定は打ち切り、後続 LUP/RUP も消費する。
+            // 注: _middleChordHeld はここでクリアしない（MUP 到達までは true 継続）。
+            // これによりホイール押下のまま L/R を連打しても連続 Chord が発火する。
+            // MUP 消費用 _swallowNextMiddleUp は TryDeferMiddleDown で既に true。
             _middleClickCount = 0;
-            _middleChordHeld = false;
             _middleDeferTimer?.Dispose();
             _middleDeferTimer = null;
 
@@ -555,9 +587,21 @@ internal sealed class MouseHookService : IDisposable
     {
         AppSettings settings;
         int count, x, y;
+        bool middleReleased;
         lock (_middleLock)
         {
             if (_middleClickCount == 0) return; // Chord が先に消費した
+            middleReleased = !_middleChordHeld; // MUP で false 化されていれば既に離されている
+            if (!middleReleased)
+            {
+                // ホイール押下継続中: Chord 待機を維持する（長押し → L/R クリックで発火させたい）。
+                // 連打カウントだけクリアし、_middleChordHeld は true のまま残す。
+                // 次の L/R DOWN は TryHandleMiddleChord で即時発火する。
+                _middleClickCount = 0;
+                _middleDeferTimer = null;
+                DebugLog.Write("MiddleExtended: timer elapsed while still held → keep chord armed");
+                return;
+            }
             count = _middleClickCount;
             x = _middleDownX;
             y = _middleDownY;
@@ -580,13 +624,36 @@ internal sealed class MouseHookService : IDisposable
 
         if (sc is null)
         {
-            DebugLog.Write($"MiddleExtended: timer elapsed, count={count}, no match");
+            // 単押しかつどのアクションにもマッチしなかった場合、
+            // 中ボタンが既に離されていればアプリへ合成 MDOWN+MUP を再送する
+            // （Chrome のタブクローズ等、通常の中クリック動作を保つため）。
+            // 押下継続中は autoscroll 等と区別できないので何もしない。
+            if (count == 1 && middleReleased)
+            {
+                DebugLog.Write($"MiddleExtended: timer elapsed, count=1, no match → synthesize MDOWN+MUP");
+                SynthesizeMiddleClick();
+            }
+            else
+            {
+                DebugLog.Write($"MiddleExtended: timer elapsed, count={count}, no match");
+            }
             return;
         }
 
         DebugLog.Write($"MiddleExtended: timer elapsed, count={count}, fire {sc.MouseButton}");
         var args = new MouseHookEventArgs(x, y);
         FireShortcutOnUiThread(sc, settings, args);
+    }
+
+    private static void SynthesizeMiddleClick()
+    {
+        var inputs = new NativeMethods.INPUT[2];
+        inputs[0].type = NativeMethods.INPUT_MOUSE;
+        inputs[0].u.mi.dwFlags = NativeMethods.MOUSEEVENTF_MIDDLEDOWN;
+        inputs[1].type = NativeMethods.INPUT_MOUSE;
+        inputs[1].u.mi.dwFlags = NativeMethods.MOUSEEVENTF_MIDDLEUP;
+        int size = Marshal.SizeOf<NativeMethods.INPUT>();
+        NativeMethods.SendInput(2, inputs, size);
     }
 
     private static bool AnyShortcutUsesMiddleExtended(AppSettings s) =>
