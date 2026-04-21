@@ -560,6 +560,7 @@ internal sealed class MouseHookService : IDisposable
 
             sc = FindShortcutByButton(settings, chordBtn);
             if (sc is null) return false;
+            if (!AreModifiersHeld(sc.Modifiers)) return false;
 
             // Chord 成立: 単押し/連打判定は打ち切り、後続 LUP/RUP も消費する。
             // 注: _middleChordHeld はここでクリアしない（MUP 到達までは true 継続）。
@@ -613,9 +614,15 @@ internal sealed class MouseHookService : IDisposable
 
         ActionShortcut? sc = null;
         if (count >= 3)
+        {
             sc = FindShortcutByButton(settings, MouseButtonType.MiddleTripleClick);
+            if (sc is not null && !AreModifiersHeld(sc.Modifiers)) sc = null;
+        }
         if (sc is null && count >= 2)
+        {
             sc = FindShortcutByButton(settings, MouseButtonType.MiddleDoubleClick);
+            if (sc is not null && !AreModifiersHeld(sc.Modifiers)) sc = null;
+        }
         if (sc is null && count == 1)
         {
             // Middle 単押し（従来の修飾キー付き）にフォールバック
