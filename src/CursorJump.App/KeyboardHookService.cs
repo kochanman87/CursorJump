@@ -30,6 +30,10 @@ internal sealed class KeyboardHookService : IDisposable
     public event EventHandler<MouseHookEventArgs>? NavigateRequested;
     public event EventHandler<MouseHookEventArgs>? NavigateCurrentMonitorRequested;
     public event EventHandler<MouseHookEventArgs>? DisplayDeleteRequested;
+    /// <summary>第2座標セット（Set B）の座標保存リクエスト。</summary>
+    public event EventHandler<MouseHookEventArgs>? SaveRequestedB;
+    /// <summary>第2座標セット（Set B）の座標移動リクエスト。</summary>
+    public event EventHandler<MouseHookEventArgs>? NavigateRequestedB;
     /// <summary>削除モード中に DisplayDeleteShortcut がマッチしたとき発火（全削除に使用）。</summary>
     public event EventHandler<MouseHookEventArgs>? DeleteAllConfirmRequested;
     /// <summary>削除モード中に SaveShortcut がマッチしたとき発火（追加/削除ハイブリッド）。</summary>
@@ -183,6 +187,25 @@ internal sealed class KeyboardHookService : IDisposable
                 DebugLog.Write($"KeyboardHookService: DisplayDeleteRequested (vk=0x{vkCode:X2})");
                 var args = GetCurrentCursorArgs();
                 DisplayDeleteRequested?.Invoke(this, args);
+                _swallowNextKeyUp.Add(vkCode);
+                return (IntPtr)1;
+            }
+
+            // ── Set B（独立した第2座標セット） ──
+            if (IsKeyboardShortcutMatch(vkCode, settings.SaveShortcutB))
+            {
+                DebugLog.Write($"KeyboardHookService: SaveRequestedB (vk=0x{vkCode:X2})");
+                var args = GetCurrentCursorArgs();
+                SaveRequestedB?.Invoke(this, args);
+                _swallowNextKeyUp.Add(vkCode);
+                return (IntPtr)1;
+            }
+
+            if (IsKeyboardShortcutMatch(vkCode, settings.NavigateShortcutB))
+            {
+                DebugLog.Write($"KeyboardHookService: NavigateRequestedB (vk=0x{vkCode:X2})");
+                var args = GetCurrentCursorArgs();
+                NavigateRequestedB?.Invoke(this, args);
                 _swallowNextKeyUp.Add(vkCode);
                 return (IntPtr)1;
             }

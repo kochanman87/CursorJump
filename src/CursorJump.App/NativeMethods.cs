@@ -8,6 +8,7 @@ internal static class NativeMethods
     // ── Virtual key codes ──
     internal const int VK_LCONTROL = 0xA2;
     internal const int VK_RCONTROL = 0xA3;
+    internal const int VK_MENU     = 0x12; // Alt キー（汎用: Left/Right 区別なし。Win+Alt 時の fallback 用）
     internal const int VK_LMENU   = 0xA4; // Left Alt
     internal const int VK_RMENU   = 0xA5; // Right Alt
     internal const int VK_LSHIFT  = 0xA0;

@@ -2,6 +2,7 @@ using System;
 using System.Reflection;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Shapes;
@@ -34,6 +35,7 @@ public partial class SettingsWindow : Window
     private string _saveColor = "#FF0000";
     private string _trailColor = "#00FF00";
     private string _markerColor = "#0088FF";
+    private string _markerColorB = "#FF8800";
     private UiTheme _currentTheme = UiTheme.Light;
 
     private bool _initialized;
@@ -58,11 +60,15 @@ public partial class SettingsWindow : Window
         CmbNavBtn.ItemsSource = ButtonNames;
         CmbMonNavBtn.ItemsSource = ButtonNames;
         CmbDispBtn.ItemsSource = ButtonNames;
+        CmbSaveBBtn.ItemsSource = ButtonNames;
+        CmbNavBBtn.ItemsSource = ButtonNames;
 
         CmbSaveKey.ItemsSource = FKeyNames;
         CmbNavKey.ItemsSource = FKeyNames;
         CmbMonNavKey.ItemsSource = FKeyNames;
         CmbDispKey.ItemsSource = FKeyNames;
+        CmbSaveBKey.ItemsSource = FKeyNames;
+        CmbNavBKey.ItemsSource = FKeyNames;
     }
 
     private void LoadCurrentSettings()
@@ -89,22 +95,41 @@ public partial class SettingsWindow : Window
             ChkDispCtrl, ChkDispAlt, ChkDispShift, ChkDispWin, CmbDispBtn,
             ChkDispKeyboardEnabled, PnlDispKeyboard, CmbDispKey);
 
+        LoadShortcutUI(s.SaveShortcutB,
+            ChkSaveBMouseEnabled, PnlSaveBMouse,
+            ChkSaveBCtrl, ChkSaveBAlt, ChkSaveBShift, ChkSaveBWin, CmbSaveBBtn,
+            ChkSaveBKeyboardEnabled, PnlSaveBKeyboard, CmbSaveBKey);
+
+        LoadShortcutUI(s.NavigateShortcutB,
+            ChkNavBMouseEnabled, PnlNavBMouse,
+            ChkNavBCtrl, ChkNavBAlt, ChkNavBShift, ChkNavBWin, CmbNavBBtn,
+            ChkNavBKeyboardEnabled, PnlNavBKeyboard, CmbNavBKey);
+
         // 色
         _saveColor = s.SaveCircleColor;
         _trailColor = s.TrailColor;
         _markerColor = s.MarkerColor;
+        _markerColorB = s.MarkerColorB;
         SetSwatchColor(RectSaveColor, _saveColor);
         SetSwatchColor(RectTrailColor, _trailColor);
         SetSwatchColor(RectMarkerColor, _markerColor);
+        SetSwatchColor(RectMarkerColorB, _markerColorB);
         TxtSaveColorHex.Text = _saveColor.ToUpperInvariant();
         TxtTrailColorHex.Text = _trailColor.ToUpperInvariant();
         TxtMarkerColorHex.Text = _markerColor.ToUpperInvariant();
+        TxtMarkerColorBHex.Text = _markerColorB.ToUpperInvariant();
 
         // エフェクト ON/OFF
         ChkSaveEffectEnabled.IsChecked = s.SaveEffectEnabled;
         ChkTrailEffectEnabled.IsChecked = s.TrailEffectEnabled;
         ChkMarkerEffectEnabled.IsChecked = s.MarkerEffectEnabled;
         ChkShowDeleteModeHelp.IsChecked = s.ShowDeleteModeHelp;
+
+        // 軌跡エフェクト詳細スライダー（クランプして反映）
+        SldTrailThickness.Value = Math.Clamp(s.TrailThickness, SldTrailThickness.Minimum, SldTrailThickness.Maximum);
+        SldTrailDuration.Value = Math.Clamp(s.TrailDurationMs, (int)SldTrailDuration.Minimum, (int)SldTrailDuration.Maximum);
+        SldTrailOpacity.Value = Math.Clamp(s.TrailOpacity, SldTrailOpacity.Minimum, SldTrailOpacity.Maximum);
+        UpdateTrailValueLabels();
 
         // テーマ
         _currentTheme = s.UiTheme;
@@ -117,6 +142,22 @@ public partial class SettingsWindow : Window
             ThemeLight.IsChecked = true;
         }
     }
+
+    private void UpdateTrailValueLabels()
+    {
+        // XAML ロード中、Slider の Maximum/Minimum 設定が ValueChanged を発火するが
+        // この時点では後続の TextBlock がまだ生成されていない可能性があるため、個別に null チェックする。
+        if (TxtTrailThickness is not null && SldTrailThickness is not null)
+            TxtTrailThickness.Text = $"{SldTrailThickness.Value:0} dp";
+        if (TxtTrailDuration is not null && SldTrailDuration is not null)
+            TxtTrailDuration.Text = $"{SldTrailDuration.Value:0} ms";
+        if (TxtTrailOpacity is not null && SldTrailOpacity is not null)
+            TxtTrailOpacity.Text = $"{SldTrailOpacity.Value:0.00}";
+    }
+
+    private void OnTrailThicknessChanged(object sender, RoutedPropertyChangedEventArgs<double> e) => UpdateTrailValueLabels();
+    private void OnTrailDurationChanged(object sender, RoutedPropertyChangedEventArgs<double> e) => UpdateTrailValueLabels();
+    private void OnTrailOpacityChanged(object sender, RoutedPropertyChangedEventArgs<double> e) => UpdateTrailValueLabels();
 
     private static void LoadShortcutUI(ActionShortcut shortcut,
         CheckBox chkMouseEnabled, System.Windows.Controls.Panel pnlMouse,
@@ -152,6 +193,10 @@ public partial class SettingsWindow : Window
         UpdateTriggerPanel(ChkMonNavKeyboardEnabled, PnlMonNavKeyboard);
         UpdateTriggerPanel(ChkDispMouseEnabled, PnlDispMouse);
         UpdateTriggerPanel(ChkDispKeyboardEnabled, PnlDispKeyboard);
+        UpdateTriggerPanel(ChkSaveBMouseEnabled, PnlSaveBMouse);
+        UpdateTriggerPanel(ChkSaveBKeyboardEnabled, PnlSaveBKeyboard);
+        UpdateTriggerPanel(ChkNavBMouseEnabled, PnlNavBMouse);
+        UpdateTriggerPanel(ChkNavBKeyboardEnabled, PnlNavBKeyboard);
     }
 
     private static void UpdateTriggerPanel(CheckBox chk, System.Windows.Controls.Panel pnl)
@@ -203,6 +248,12 @@ public partial class SettingsWindow : Window
         var dispShortcut = ReadShortcutUI(
             ChkDispMouseEnabled, ChkDispCtrl, ChkDispAlt, ChkDispShift, ChkDispWin, CmbDispBtn,
             ChkDispKeyboardEnabled, CmbDispKey);
+        var saveBShortcut = ReadShortcutUI(
+            ChkSaveBMouseEnabled, ChkSaveBCtrl, ChkSaveBAlt, ChkSaveBShift, ChkSaveBWin, CmbSaveBBtn,
+            ChkSaveBKeyboardEnabled, CmbSaveBKey);
+        var navBShortcut = ReadShortcutUI(
+            ChkNavBMouseEnabled, ChkNavBCtrl, ChkNavBAlt, ChkNavBShift, ChkNavBWin, CmbNavBBtn,
+            ChkNavBKeyboardEnabled, CmbNavBKey);
 
         if (saveShortcut.EnabledTriggers == TriggerType.None ||
             navShortcut.EnabledTriggers == TriggerType.None ||
@@ -212,6 +263,8 @@ public partial class SettingsWindow : Window
                 "CursorJump", MessageBoxButton.OK, MessageBoxImage.Warning);
             return;
         }
+
+        // Set B は両方無効（=未使用）も許可。片方だけ有効はOK（保存のみ・移動のみの運用も可能）
 
         static bool NeedsModifier(ActionShortcut s) =>
             s.EnabledTriggers.HasFlag(TriggerType.Mouse)
@@ -225,7 +278,8 @@ public partial class SettingsWindow : Window
                 MouseButtonType.MiddleTripleClick);
 
         if (NeedsModifier(saveShortcut) || NeedsModifier(navShortcut) ||
-            NeedsModifier(monNavShortcut) || NeedsModifier(dispShortcut))
+            NeedsModifier(monNavShortcut) || NeedsModifier(dispShortcut) ||
+            NeedsModifier(saveBShortcut) || NeedsModifier(navBShortcut))
         {
             MessageBox.Show("左/右/ホイールクリック（単押し）の場合は修飾キーを1つ以上選択してください。ホイール＋L/R、ホイール連打、戻る/進むボタンは修飾キー不要で使用できます。",
                 "CursorJump", MessageBoxButton.OK, MessageBoxImage.Warning);
@@ -238,6 +292,8 @@ public partial class SettingsWindow : Window
             ("ナビゲート（全体）", navShortcut),
             ("ナビゲート（モニタ内）", monNavShortcut),
             ("座標表示/削除", dispShortcut),
+            ("座標保存（Set B）", saveBShortcut),
+            ("座標移動（Set B）", navBShortcut),
         };
         for (int i = 0; i < actions.Length; i++)
         {
@@ -260,13 +316,22 @@ public partial class SettingsWindow : Window
             NavigateShortcut = navShortcut,
             NavigateCurrentMonitorShortcut = monNavShortcut,
             DisplayDeleteShortcut = dispShortcut,
+            SaveShortcutB = saveBShortcut,
+            NavigateShortcutB = navBShortcut,
             SaveCircleColor = _saveColor,
             TrailColor = _trailColor,
             MarkerColor = _markerColor,
+            MarkerColorB = _markerColorB,
             SaveEffectEnabled = ChkSaveEffectEnabled.IsChecked == true,
             TrailEffectEnabled = ChkTrailEffectEnabled.IsChecked == true,
             MarkerEffectEnabled = ChkMarkerEffectEnabled.IsChecked == true,
             ShowDeleteModeHelp = ChkShowDeleteModeHelp.IsChecked == true,
+            TrailThickness = SldTrailThickness.Value,
+            TrailDurationMs = (int)Math.Round(SldTrailDuration.Value),
+            TrailOpacity = SldTrailOpacity.Value,
+            // 永続化された座標は SettingsService.Current 側を維持（OnSaveClick で上書きされないように）
+            SavedCoordinatesA = _settingsService.Current.SavedCoordinatesA,
+            SavedCoordinatesB = _settingsService.Current.SavedCoordinatesB,
             UiTheme = _currentTheme,
         };
 
@@ -291,6 +356,7 @@ public partial class SettingsWindow : Window
         if (shape == RectSaveColor) currentHex = _saveColor;
         else if (shape == RectTrailColor) currentHex = _trailColor;
         else if (shape == RectMarkerColor) currentHex = _markerColor;
+        else if (shape == RectMarkerColorB) currentHex = _markerColorB;
         else return;
 
         using var dialog = new System.Windows.Forms.ColorDialog();
@@ -322,6 +388,11 @@ public partial class SettingsWindow : Window
             {
                 _markerColor = hex;
                 TxtMarkerColorHex.Text = hex;
+            }
+            else if (shape == RectMarkerColorB)
+            {
+                _markerColorB = hex;
+                TxtMarkerColorBHex.Text = hex;
             }
 
             shape.Fill = new SolidColorBrush(Color.FromRgb(selected.R, selected.G, selected.B));

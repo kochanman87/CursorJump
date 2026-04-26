@@ -15,12 +15,11 @@ internal sealed class OverlayService
     private KeyboardHookService? _keyboardHookService;
     private OverlayWindow? _markerOverlay;
 
-    // 削除モード用状態
-    private CoordinateStore? _deleteStore;
+    // 削除モード用状態（複数ストア対応）
+    private List<(CoordinateStore store, Color color)> _deleteStores = new();
     private Action? _deleteOnExitMode;
-    private List<(Ellipse ellipse, int index, int physX, int physY)> _markers = new();
+    private List<(Ellipse ellipse, CoordinateStore store, int indexInStore, int physX, int physY)> _markers = new();
     private Ellipse? _lastHighlighted;
-    private Color _markerColor;
     private const double MarkerRadius = 15;
     private const double SnapDistancePhysical = 40; // 物理ピクセル
 
@@ -106,12 +105,19 @@ internal sealed class OverlayService
 
     /// <summary>
     /// 座標ナビゲーション時の軌跡アニメーション表示。
+    /// 軌跡を N セグメントに分割し、移動元側（遠端）から段階的にフェードアウトする。
     /// </summary>
     public void ShowTrail(int fromX, int fromY, int toX, int toY)
     {
-        if (!_settingsService.Current.TrailEffectEnabled) return;
-        var color = ParseColor(_settingsService.Current.TrailColor, Colors.LimeGreen);
-        const double duration = 500; // ms
+        var settings = _settingsService.Current;
+        if (!settings.TrailEffectEnabled) return;
+
+        var color = ParseColor(settings.TrailColor, Colors.LimeGreen);
+
+        // 設定値クランプ（範囲外の値が settings.json に入っていても安全に）
+        double thickness = Math.Clamp(settings.TrailThickness, 1.0, 20.0);
+        double duration = Math.Clamp(settings.TrailDurationMs, 100, 3000);
+        double peakOpacity = Math.Clamp(settings.TrailOpacity, 0.05, 1.0);
 
         var overlay = new OverlayWindow(clickThrough: true);
         overlay.Show();
@@ -123,65 +129,102 @@ internal sealed class OverlayService
         double offsetX = overlay.Left;
         double offsetY = overlay.Top;
 
-        var line = new Line
+        double x1 = fromPos.X - offsetX;
+        double y1 = fromPos.Y - offsetY;
+        double x2 = toPos.X - offsetX;
+        double y2 = toPos.Y - offsetY;
+
+        // セグメント分割（遠端=移動元側=i=0 が先に消える）
+        const int segmentCount = 12;
+        var brush = new SolidColorBrush(color);
+
+        // BeginTime の最大値を duration の半分まで広げ、各セグメントの実フェード時間も duration の半分。
+        // 結果として全体の表示時間（最後のセグメントが消えるまで）≒ duration になる。
+        double staggerSpan = duration * 0.5;
+        double segDuration = duration * 0.5;
+
+        // 最終アニメ完了でオーバーレイを閉じるためのカウンタ
+        int remainingAnims = segmentCount + 1; // セグメント + 移動先円
+
+        for (int i = 0; i < segmentCount; i++)
         {
-            X1 = fromPos.X - offsetX,
-            Y1 = fromPos.Y - offsetY,
-            X2 = toPos.X - offsetX,
-            Y2 = toPos.Y - offsetY,
-            Stroke = new SolidColorBrush(color),
-            StrokeThickness = 3,
-            StrokeStartLineCap = PenLineCap.Round,
-            StrokeEndLineCap = PenLineCap.Round,
-            Opacity = 1.0
-        };
+            double t1 = (double)i / segmentCount;
+            double t2 = (double)(i + 1) / segmentCount;
 
-        overlay.OverlayCanvasElement.Children.Add(line);
+            var seg = new Line
+            {
+                X1 = x1 + (x2 - x1) * t1,
+                Y1 = y1 + (y2 - y1) * t1,
+                X2 = x1 + (x2 - x1) * t2,
+                Y2 = y1 + (y2 - y1) * t2,
+                Stroke = brush,
+                StrokeThickness = thickness,
+                StrokeStartLineCap = PenLineCap.Round,
+                StrokeEndLineCap = PenLineCap.Round,
+                Opacity = peakOpacity
+            };
+            overlay.OverlayCanvasElement.Children.Add(seg);
 
-        // 移動先に小さい円を表示
+            // i=0（移動元=遠端）→ BeginTime=0（最初に消える）
+            // i=segmentCount-1（移動先=近端）→ BeginTime=staggerSpan（最後に消える）
+            double beginMs = staggerSpan * ((double)i / Math.Max(1, segmentCount - 1));
+
+            var anim = new DoubleAnimation(peakOpacity, 0.0, TimeSpan.FromMilliseconds(segDuration))
+            {
+                BeginTime = TimeSpan.FromMilliseconds(beginMs),
+                EasingFunction = new QuadraticEase { EasingMode = EasingMode.EaseIn }
+            };
+            anim.Completed += (_, _) =>
+            {
+                remainingAnims--;
+                if (remainingAnims <= 0) overlay.Close();
+            };
+            seg.BeginAnimation(UIElement.OpacityProperty, anim);
+        }
+
+        // 移動先に小さい円を表示（最後に消える）
         const double targetRadius = 8;
         var targetCircle = new Ellipse
         {
             Width = targetRadius * 2,
             Height = targetRadius * 2,
-            Fill = new SolidColorBrush(color),
-            Opacity = 1.0
+            Fill = brush,
+            Opacity = peakOpacity
         };
-        Canvas.SetLeft(targetCircle, toPos.X - offsetX - targetRadius);
-        Canvas.SetTop(targetCircle, toPos.Y - offsetY - targetRadius);
+        Canvas.SetLeft(targetCircle, x2 - targetRadius);
+        Canvas.SetTop(targetCircle, y2 - targetRadius);
         overlay.OverlayCanvasElement.Children.Add(targetCircle);
 
-        var opacityAnim = new DoubleAnimation(1.0, 0.0, TimeSpan.FromMilliseconds(duration))
+        var circleAnim = new DoubleAnimation(peakOpacity, 0.0, TimeSpan.FromMilliseconds(segDuration))
         {
+            BeginTime = TimeSpan.FromMilliseconds(staggerSpan),
             EasingFunction = new QuadraticEase { EasingMode = EasingMode.EaseIn }
         };
-        var circleOpacityAnim = new DoubleAnimation(1.0, 0.0, TimeSpan.FromMilliseconds(duration))
+        circleAnim.Completed += (_, _) =>
         {
-            EasingFunction = new QuadraticEase { EasingMode = EasingMode.EaseIn }
+            remainingAnims--;
+            if (remainingAnims <= 0) overlay.Close();
         };
-
-        opacityAnim.Completed += (_, _) => overlay.Close();
-
-        line.BeginAnimation(UIElement.OpacityProperty, opacityAnim);
-        targetCircle.BeginAnimation(UIElement.OpacityProperty, circleOpacityAnim);
+        targetCircle.BeginAnimation(UIElement.OpacityProperty, circleAnim);
     }
 
     /// <summary>
     /// 座標マーカーを表示し、クリックで削除可能にする。
+    /// 複数のストアを色分けして同時表示する（Set A / Set B など）。
     /// オーバーレイは表示専用（clickThrough=true）。入力はすべて低レベルマウスフック+
     /// キーボードフックで処理するため、ウィンドウフォーカスに依存しない。
     /// </summary>
+    /// <param name="stores">(座標ストア, マーカー色) のペア。先頭のストアが「空きエリアクリックで追加」の対象になる。</param>
     public void ShowCoordinateMarkers(
-        CoordinateStore store,
+        IReadOnlyList<(CoordinateStore store, Color color)> stores,
         Action? onEnterMode,
         Action? onExitMode)
     {
         // 既にマーカー表示中なら閉じる
         CloseMarkerOverlay();
 
-        _deleteStore = store;
+        _deleteStores = new List<(CoordinateStore, Color)>(stores);
         _deleteOnExitMode = onExitMode;
-        _markerColor = ParseColor(_settingsService.Current.MarkerColor, Colors.DodgerBlue);
         _lastHighlighted = null;
 
         // マウスフックイベント購読
@@ -207,7 +250,10 @@ internal sealed class OverlayService
         var overlay = new OverlayWindow(clickThrough: true);
         _markerOverlay = overlay;
 
-        DebugLog.Write($"ShowCoordinateMarkers: count={store.Count}");
+        int totalCount = 0;
+        foreach (var (s, _) in _deleteStores) totalCount += s.Count;
+        DebugLog.Write($"ShowCoordinateMarkers: stores={_deleteStores.Count}, totalCount={totalCount}");
+
         overlay.Show();
         overlay.CoverVirtualScreen();
 
@@ -247,7 +293,7 @@ internal sealed class OverlayService
             _keyboardHookService.DeleteModeEscPressed -= OnDeleteModeEscPressed;
         }
 
-        _deleteStore = null;
+        _deleteStores = new List<(CoordinateStore, Color)>();
         _lastHighlighted = null;
         _markers.Clear();
 
@@ -262,21 +308,21 @@ internal sealed class OverlayService
 
     private void OnDeleteModeClicked(object? sender, MouseHookEventArgs e)
     {
-        if (_deleteStore is null || _markerOverlay is null) return;
+        if (_deleteStores.Count == 0 || _markerOverlay is null) return;
 
         int closestIdx = FindNearestMarker(e.X, e.Y);
         if (closestIdx >= 0)
         {
-            // マーカー上: 削除
-            int storeIdx = _markers[closestIdx].index;
-            DebugLog.Write($"Marker clicked via hook: storeIndex={storeIdx}, physical=({e.X},{e.Y}) - removing");
-            _deleteStore.RemoveAt(storeIdx);
+            // マーカー上: 該当ストアから削除
+            var (_, store, storeIdx, _, _) = _markers[closestIdx];
+            DebugLog.Write($"Marker clicked via hook: storeIdx={storeIdx}, physical=({e.X},{e.Y}) - removing");
+            store.RemoveAt(storeIdx);
         }
         else
         {
-            // マーカー外: 追加
-            DebugLog.Write($"Empty area clicked via hook: physical=({e.X},{e.Y}) - adding");
-            _deleteStore.Add(e.X, e.Y);
+            // マーカー外: 先頭ストア（Set A）に追加
+            DebugLog.Write($"Empty area clicked via hook: physical=({e.X},{e.Y}) - adding to first store");
+            _deleteStores[0].store.Add(e.X, e.Y);
         }
 
         _lastHighlighted = null;
@@ -358,17 +404,17 @@ internal sealed class OverlayService
 
         // Save ショートカット行
         stack.Children.Add(BuildHelpLine(
-            $"[{ShortcutFormatter.Format(settings.SaveShortcut)}]",
+            $"[{ShortcutFormatter.FormatForDeleteMode(settings.SaveShortcut)}]",
             "追加/削除"));
 
         // DisplayDelete ショートカット行
         stack.Children.Add(BuildHelpLine(
-            $"[{ShortcutFormatter.Format(settings.DisplayDeleteShortcut)}]",
+            $"[{ShortcutFormatter.FormatForDeleteMode(settings.DisplayDeleteShortcut)}]",
             "全削除"));
 
         // Navigate ショートカット行
         stack.Children.Add(BuildHelpLine(
-            $"[{ShortcutFormatter.Format(settings.NavigateShortcut)}]",
+            $"[{ShortcutFormatter.FormatForDeleteMode(settings.NavigateShortcut)}]",
             "終了"));
 
         // ESC 行
@@ -488,17 +534,22 @@ internal sealed class OverlayService
 
     private void ExecuteClearAll()
     {
-        if (_deleteStore is null || _markerOverlay is null) return;
+        if (_deleteStores.Count == 0 || _markerOverlay is null) return;
 
-        DebugLog.Write($"ExecuteClearAll: clearing {_deleteStore.Count} coordinates");
-
-        // 削除前の座標リストを保存（収縮円アニメ用）
+        // 全ストア合算で削除前の座標を集める（収縮円アニメ用）
         var positions = new List<(int X, int Y)>();
-        foreach (var coord in _deleteStore.GetAll())
-            positions.Add((coord.X, coord.Y));
+        int totalBefore = 0;
+        foreach (var (store, _) in _deleteStores)
+        {
+            totalBefore += store.Count;
+            foreach (var coord in store.GetAll())
+                positions.Add((coord.X, coord.Y));
+        }
+        DebugLog.Write($"ExecuteClearAll: clearing {totalBefore} coordinates across {_deleteStores.Count} stores");
 
-        // 全削除
-        _deleteStore.Clear();
+        // 全ストアを Clear
+        foreach (var (store, _) in _deleteStores)
+            store.Clear();
 
         // マーカー再描画（全消去）
         _lastHighlighted = null;
@@ -593,9 +644,9 @@ internal sealed class OverlayService
 
         for (int i = 0; i < _markers.Count; i++)
         {
-            var (_, _, mx, my) = _markers[i];
-            double dx = physX - mx;
-            double dy = physY - my;
+            var m = _markers[i];
+            double dx = physX - m.physX;
+            double dy = physY - m.physY;
             double dist = Math.Sqrt(dx * dx + dy * dy);
             if (dist < SnapDistancePhysical && dist < closestDist)
             {
@@ -608,7 +659,7 @@ internal sealed class OverlayService
     }
 
     /// <summary>
-    /// マーカー要素を構築してCanvasに配置する（表示専用）。
+    /// 全ストアのマーカー要素を構築してCanvasに配置する（表示専用、ストアごとに色分け）。
     /// ヘルプパネルは Children.Clear() 後に再追加して保持する。
     /// 入力処理は低レベルフックで行うため、WPFイベントハンドラは不要。
     /// </summary>
@@ -620,7 +671,7 @@ internal sealed class OverlayService
         overlay.OverlayCanvasElement.Children.Clear();
         _markers.Clear();
 
-        if (_deleteStore is null)
+        if (_deleteStores.Count == 0)
         {
             if (savedHelpPanel is not null)
                 overlay.OverlayCanvasElement.Children.Add(savedHelpPanel);
@@ -630,43 +681,46 @@ internal sealed class OverlayService
         // マーカーエフェクトが無効なら描画をスキップ（モード自体は継続 = ESC/クリック追加は動作）
         if (_settingsService.Current.MarkerEffectEnabled)
         {
-            var coordinates = _deleteStore.GetAll();
-            for (int i = 0; i < coordinates.Count; i++)
+            foreach (var (store, color) in _deleteStores)
             {
-                var coord = coordinates[i];
-                var pos = overlay.PhysicalToWpf(coord.X, coord.Y);
-                double canvasX = pos.X - overlay.Left;
-                double canvasY = pos.Y - overlay.Top;
-
-                var ellipse = new Ellipse
+                var coordinates = store.GetAll();
+                for (int i = 0; i < coordinates.Count; i++)
                 {
-                    Width = MarkerRadius * 2,
-                    Height = MarkerRadius * 2,
-                    Fill = new SolidColorBrush(Color.FromArgb(180, _markerColor.R, _markerColor.G, _markerColor.B)),
-                    Stroke = new SolidColorBrush(Colors.White),
-                    StrokeThickness = 2,
-                    IsHitTestVisible = false
-                };
-                Canvas.SetLeft(ellipse, canvasX - MarkerRadius);
-                Canvas.SetTop(ellipse, canvasY - MarkerRadius);
-                overlay.OverlayCanvasElement.Children.Add(ellipse);
+                    var coord = coordinates[i];
+                    var pos = overlay.PhysicalToWpf(coord.X, coord.Y);
+                    double canvasX = pos.X - overlay.Left;
+                    double canvasY = pos.Y - overlay.Top;
 
-                var label = new TextBlock
-                {
-                    Text = (i + 1).ToString(),
-                    Foreground = Brushes.White,
-                    FontSize = 12,
-                    FontWeight = FontWeights.Bold,
-                    IsHitTestVisible = false
-                };
-                label.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
-                Canvas.SetLeft(label, canvasX - label.DesiredSize.Width / 2);
-                Canvas.SetTop(label, canvasY - label.DesiredSize.Height / 2);
-                overlay.OverlayCanvasElement.Children.Add(label);
+                    var ellipse = new Ellipse
+                    {
+                        Width = MarkerRadius * 2,
+                        Height = MarkerRadius * 2,
+                        Fill = new SolidColorBrush(Color.FromArgb(180, color.R, color.G, color.B)),
+                        Stroke = new SolidColorBrush(Colors.White),
+                        StrokeThickness = 2,
+                        IsHitTestVisible = false
+                    };
+                    Canvas.SetLeft(ellipse, canvasX - MarkerRadius);
+                    Canvas.SetTop(ellipse, canvasY - MarkerRadius);
+                    overlay.OverlayCanvasElement.Children.Add(ellipse);
 
-                _markers.Add((ellipse, i, coord.X, coord.Y));
-                DebugLog.Write($"Marker[{i}]: physical=({coord.X},{coord.Y}), canvas=({canvasX:F1},{canvasY:F1})");
+                    var label = new TextBlock
+                    {
+                        Text = (i + 1).ToString(),
+                        Foreground = Brushes.White,
+                        FontSize = 12,
+                        FontWeight = FontWeights.Bold,
+                        IsHitTestVisible = false
+                    };
+                    label.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
+                    Canvas.SetLeft(label, canvasX - label.DesiredSize.Width / 2);
+                    Canvas.SetTop(label, canvasY - label.DesiredSize.Height / 2);
+                    overlay.OverlayCanvasElement.Children.Add(label);
+
+                    _markers.Add((ellipse, store, i, coord.X, coord.Y));
+                }
             }
+            DebugLog.Write($"BuildMarkers: drew {_markers.Count} markers across {_deleteStores.Count} stores");
         }
 
         // ヘルプパネルをCanvasの最前面に再追加

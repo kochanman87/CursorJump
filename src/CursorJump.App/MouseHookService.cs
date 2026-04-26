@@ -55,6 +55,10 @@ internal sealed class MouseHookService : IDisposable
     public event EventHandler<MouseHookEventArgs>? NavigateRequested;
     public event EventHandler<MouseHookEventArgs>? NavigateCurrentMonitorRequested;
     public event EventHandler<MouseHookEventArgs>? DisplayDeleteRequested;
+    /// <summary>第2座標セット（Set B）の座標保存リクエスト。</summary>
+    public event EventHandler<MouseHookEventArgs>? SaveRequestedB;
+    /// <summary>第2座標セット（Set B）の座標移動リクエスト。</summary>
+    public event EventHandler<MouseHookEventArgs>? NavigateRequestedB;
 
     // 削除モード用イベント
     public event EventHandler<MouseHookEventArgs>? DeleteModeClicked;
@@ -399,6 +403,23 @@ internal sealed class MouseHookService : IDisposable
                     SetSwallowUpFlag(pressedButton.Value);
                     return (IntPtr)1;
                 }
+
+                // ── Set B（独立した第2座標セット） ──
+                if (IsShortcutMatch(pressedButton.Value, settings.SaveShortcutB))
+                {
+                    DebugLog.Write($"HookCallback: SaveRequestedB matched (button={pressedButton.Value})");
+                    SaveRequestedB?.Invoke(this, args);
+                    SetSwallowUpFlag(pressedButton.Value);
+                    return (IntPtr)1;
+                }
+
+                if (IsShortcutMatch(pressedButton.Value, settings.NavigateShortcutB))
+                {
+                    DebugLog.Write($"HookCallback: NavigateRequestedB matched (button={pressedButton.Value})");
+                    NavigateRequestedB?.Invoke(this, args);
+                    SetSwallowUpFlag(pressedButton.Value);
+                    return (IntPtr)1;
+                }
             }
         }
 
@@ -442,10 +463,10 @@ internal sealed class MouseHookService : IDisposable
             return false;
         var effective = shortcut.MouseButton switch
         {
-            MouseButtonType.MiddleLeftChord   => MouseButtonType.Left,
-            MouseButtonType.MiddleRightChord  => MouseButtonType.Right,
-            MouseButtonType.MiddleDoubleClick => MouseButtonType.Middle,
-            MouseButtonType.MiddleTripleClick => MouseButtonType.Middle,
+            MouseButtonType.MiddleLeftChord
+            or MouseButtonType.MiddleDoubleClick => MouseButtonType.Left,
+            MouseButtonType.MiddleRightChord
+            or MouseButtonType.MiddleTripleClick => MouseButtonType.Right,
             _ => shortcut.MouseButton
         };
         return pressedButton == effective;
@@ -477,7 +498,10 @@ internal sealed class MouseHookService : IDisposable
 
         if (required.HasFlag(ModifierKeyFlags.Alt))
         {
-            if (!IsKeyDown(NativeMethods.VK_LMENU) && !IsKeyDown(NativeMethods.VK_RMENU))
+            // Win+Alt 組み合わせ時に OS（Xbox Game Bar 等）が VK_LMENU/VK_RMENU の
+            // async 状態をクリアする場合があるため、汎用 VK_MENU もフォールバックとして検査する。
+            if (!IsKeyDown(NativeMethods.VK_LMENU) && !IsKeyDown(NativeMethods.VK_RMENU)
+                && !IsKeyDown(NativeMethods.VK_MENU))
                 return false;
         }
 
@@ -667,7 +691,9 @@ internal sealed class MouseHookService : IDisposable
         UsesMiddleExtended(s.SaveShortcut) ||
         UsesMiddleExtended(s.NavigateShortcut) ||
         UsesMiddleExtended(s.NavigateCurrentMonitorShortcut) ||
-        UsesMiddleExtended(s.DisplayDeleteShortcut);
+        UsesMiddleExtended(s.DisplayDeleteShortcut) ||
+        UsesMiddleExtended(s.SaveShortcutB) ||
+        UsesMiddleExtended(s.NavigateShortcutB);
 
     private static bool UsesMiddleExtended(ActionShortcut sc) =>
         sc.EnabledTriggers.HasFlag(TriggerType.Mouse) &&
@@ -682,13 +708,15 @@ internal sealed class MouseHookService : IDisposable
         if (s.NavigateShortcut.EnabledTriggers.HasFlag(TriggerType.Mouse) && s.NavigateShortcut.MouseButton == btn) return s.NavigateShortcut;
         if (s.NavigateCurrentMonitorShortcut.EnabledTriggers.HasFlag(TriggerType.Mouse) && s.NavigateCurrentMonitorShortcut.MouseButton == btn) return s.NavigateCurrentMonitorShortcut;
         if (s.DisplayDeleteShortcut.EnabledTriggers.HasFlag(TriggerType.Mouse) && s.DisplayDeleteShortcut.MouseButton == btn) return s.DisplayDeleteShortcut;
+        if (s.SaveShortcutB.EnabledTriggers.HasFlag(TriggerType.Mouse) && s.SaveShortcutB.MouseButton == btn) return s.SaveShortcutB;
+        if (s.NavigateShortcutB.EnabledTriggers.HasFlag(TriggerType.Mouse) && s.NavigateShortcutB.MouseButton == btn) return s.NavigateShortcutB;
         return null;
     }
 
     /// <summary>Middle 単押し（MouseButton==Middle）のアクションで修飾キーもマッチするもの。</summary>
     private static ActionShortcut? FindMiddleSinglePressMatch(AppSettings s)
     {
-        ActionShortcut[] all = { s.SaveShortcut, s.NavigateShortcut, s.NavigateCurrentMonitorShortcut, s.DisplayDeleteShortcut };
+        ActionShortcut[] all = { s.SaveShortcut, s.NavigateShortcut, s.NavigateCurrentMonitorShortcut, s.DisplayDeleteShortcut, s.SaveShortcutB, s.NavigateShortcutB };
         foreach (var sc in all)
         {
             if (!sc.EnabledTriggers.HasFlag(TriggerType.Mouse)) continue;
@@ -708,6 +736,8 @@ internal sealed class MouseHookService : IDisposable
             else if (ReferenceEquals(sc, s.NavigateShortcut)) NavigateRequested?.Invoke(this, args);
             else if (ReferenceEquals(sc, s.NavigateCurrentMonitorShortcut)) NavigateCurrentMonitorRequested?.Invoke(this, args);
             else if (ReferenceEquals(sc, s.DisplayDeleteShortcut)) DisplayDeleteRequested?.Invoke(this, args);
+            else if (ReferenceEquals(sc, s.SaveShortcutB)) SaveRequestedB?.Invoke(this, args);
+            else if (ReferenceEquals(sc, s.NavigateShortcutB)) NavigateRequestedB?.Invoke(this, args);
         };
         if (dispatcher is null || dispatcher.CheckAccess()) fire();
         else dispatcher.BeginInvoke(fire);

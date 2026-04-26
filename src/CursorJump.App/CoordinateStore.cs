@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Drawing;
 using System.Linq;
@@ -13,12 +14,16 @@ internal sealed class CoordinateStore
     // モニタ別の循環インデックス（GetNextInMonitor 用）
     private readonly Dictionary<string, int> _monitorIndices = new();
 
+    /// <summary>座標リストが変更された（Add/RemoveAt/Clear/Load）ときに発火。永続化フックに使う。</summary>
+    public event Action? Changed;
+
     public int Count => _coordinates.Count;
 
     public void Add(int x, int y)
     {
         var screen = Screen.FromPoint(new Point(x, y));
         _coordinates.Add(new SavedCoordinate(x, y, screen.DeviceName));
+        Changed?.Invoke();
     }
 
     public SavedCoordinate? GetNext()
@@ -76,14 +81,45 @@ internal sealed class CoordinateStore
             _currentIndex = _coordinates.Count - 1;
         }
 
+        Changed?.Invoke();
         return true;
     }
 
     /// <summary>全座標を削除し、インデックスをリセットする。</summary>
     public void Clear()
     {
+        bool wasNonEmpty = _coordinates.Count > 0;
         _coordinates.Clear();
         _currentIndex = -1;
         _monitorIndices.Clear();
+        if (wasNonEmpty) Changed?.Invoke();
+    }
+
+    /// <summary>
+    /// 既存座標をクリアして指定リストで初期化する。アプリ起動時の永続化座標復元用。
+    /// MonitorDeviceName が空の場合は座標から再判定する（旧 settings.json 互換）。
+    /// Changed は発火しない（永続化先と同じデータの再注入のため、ループを避ける）。
+    /// </summary>
+    public void Load(IEnumerable<SavedCoordinate> coordinates)
+    {
+        _coordinates.Clear();
+        _currentIndex = -1;
+        _monitorIndices.Clear();
+        foreach (var c in coordinates)
+        {
+            string monitor = c.MonitorDeviceName;
+            if (string.IsNullOrEmpty(monitor))
+            {
+                try
+                {
+                    monitor = Screen.FromPoint(new Point(c.X, c.Y)).DeviceName;
+                }
+                catch
+                {
+                    monitor = string.Empty;
+                }
+            }
+            _coordinates.Add(new SavedCoordinate(c.X, c.Y, monitor));
+        }
     }
 }

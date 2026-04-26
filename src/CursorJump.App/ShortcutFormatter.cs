@@ -71,14 +71,49 @@ internal static class ShortcutFormatter
         return string.Join("+", parts);
     }
 
+    /// <summary>
+    /// 削除モードヘルプ用。修飾キーなし・拡張ボタンは削除モードで実際に押す物理ボタン名を返す。
+    /// </summary>
+    public static string FormatForDeleteMode(ActionShortcut shortcut)
+    {
+        bool hasMouse    = shortcut.EnabledTriggers.HasFlag(TriggerType.Mouse);
+        bool hasKeyboard = shortcut.EnabledTriggers.HasFlag(TriggerType.Keyboard);
+
+        if (!hasMouse && !hasKeyboard) return "（無効）";
+
+        var parts = new System.Collections.Generic.List<string>(2);
+
+        if (hasMouse)
+        {
+            var effective = shortcut.MouseButton switch
+            {
+                MouseButtonType.MiddleLeftChord
+                or MouseButtonType.MiddleDoubleClick => MouseButtonType.Left,
+                MouseButtonType.MiddleRightChord
+                or MouseButtonType.MiddleTripleClick => MouseButtonType.Right,
+                _ => shortcut.MouseButton
+            };
+            parts.Add(ButtonTypeName(effective));
+        }
+
+        if (hasKeyboard)
+            parts.Add(VirtualKeyName(shortcut.VirtualKeyCode));
+
+        return string.Join(" / ", parts);
+    }
+
     private static string ButtonTypeName(MouseButtonType type) => type switch
     {
-        MouseButtonType.Left     => "左クリック",
-        MouseButtonType.Right    => "右クリック",
-        MouseButtonType.Middle   => "ホイールクリック",
-        MouseButtonType.XButton1 => "戻るボタン",
-        MouseButtonType.XButton2 => "進むボタン",
-        _                        => "左クリック"
+        MouseButtonType.Left              => "左クリック",
+        MouseButtonType.Right             => "右クリック",
+        MouseButtonType.Middle            => "ホイールクリック",
+        MouseButtonType.XButton1          => "戻るボタン",
+        MouseButtonType.XButton2          => "進むボタン",
+        MouseButtonType.MiddleLeftChord   => "ホイール+左クリック",
+        MouseButtonType.MiddleRightChord  => "ホイール+右クリック",
+        MouseButtonType.MiddleDoubleClick => "ホイールダブルクリック",
+        MouseButtonType.MiddleTripleClick => "ホイールトリプルクリック",
+        _                                 => "左クリック"
     };
 
     private static string VirtualKeyName(int vkCode)

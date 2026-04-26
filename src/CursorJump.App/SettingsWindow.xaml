@@ -328,6 +328,131 @@
                         </Border>
                     </Grid>
 
+                    <!-- ==== 第2座標セット（独立 / Set B） ==== -->
+                    <StackPanel Margin="0,12,0,4">
+                        <TextBlock Text="第2座標セット（独立）" FontSize="14" FontWeight="SemiBold"
+                                   Foreground="{DynamicResource TextPrimaryBrush}"/>
+                        <TextBlock Text="Set A とは別の座標リストを管理します。互いに独立して循環し、削除モードでは色分けして同時表示されます。"
+                                   Style="{StaticResource HintText}" TextWrapping="Wrap" Margin="0,2,0,0"/>
+                    </StackPanel>
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="12"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+
+                        <!-- Card B1: 座標保存（Set B） -->
+                        <Border Grid.Column="0" Style="{StaticResource CardBorder}">
+                            <StackPanel>
+                                <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
+                                    <Border Style="{StaticResource CardIconBox}">
+                                        <TextBlock Style="{StaticResource FluentIcon}" Text="&#xE74E;"/>
+                                    </Border>
+                                    <TextBlock Style="{StaticResource CardHeaderText}" Text="座標保存（Set B）" Margin="10,0,0,0"/>
+                                </StackPanel>
+
+                                <Grid Margin="0,4">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Grid.Column="0" Style="{StaticResource BodyText}" Text="マウスボタン"/>
+                                    <CheckBox x:Name="ChkSaveBMouseEnabled" Grid.Column="1"
+                                              Style="{StaticResource ToggleSwitchStyle}"
+                                              Checked="OnTriggerEnabledChanged" Unchecked="OnTriggerEnabledChanged"/>
+                                </Grid>
+                                <StackPanel x:Name="PnlSaveBMouse" Margin="0,4,0,4">
+                                    <WrapPanel Margin="0,0,0,6">
+                                        <CheckBox x:Name="ChkSaveBCtrl"  Style="{StaticResource ModifierChipStyle}" Content="Ctrl"/>
+                                        <CheckBox x:Name="ChkSaveBAlt"   Style="{StaticResource ModifierChipStyle}" Content="Alt"/>
+                                        <CheckBox x:Name="ChkSaveBShift" Style="{StaticResource ModifierChipStyle}" Content="Shift"/>
+                                        <CheckBox x:Name="ChkSaveBWin"   Style="{StaticResource ModifierChipStyle}" Content="Win"/>
+                                    </WrapPanel>
+                                    <StackPanel Orientation="Horizontal">
+                                        <TextBlock Style="{StaticResource HintText}" Text="+" Margin="0,0,6,0"/>
+                                        <ComboBox x:Name="CmbSaveBBtn" Style="{StaticResource ModernComboBoxStyle}" Width="140"/>
+                                    </StackPanel>
+                                </StackPanel>
+
+                                <Grid Margin="0,6,0,4">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Grid.Column="0" Orientation="Horizontal">
+                                        <TextBlock Style="{StaticResource BodyText}" Text="キーボードキー"/>
+                                        <Border Style="{StaticResource HintBadgeStyle}" ToolTip="F13-F24 は VIA/QMK/AutoHotkey 等で送信できる拡張キー。詳細は「使い方」タブ参照">
+                                            <TextBlock Text="?" FontSize="9" FontWeight="Bold" Foreground="{DynamicResource TextMutedBrush}"
+                                                       HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                        </Border>
+                                    </StackPanel>
+                                    <CheckBox x:Name="ChkSaveBKeyboardEnabled" Grid.Column="1"
+                                              Style="{StaticResource ToggleSwitchStyle}"
+                                              Checked="OnTriggerEnabledChanged" Unchecked="OnTriggerEnabledChanged"/>
+                                </Grid>
+                                <StackPanel x:Name="PnlSaveBKeyboard" Margin="0,0,0,4" Visibility="Collapsed">
+                                    <ComboBox x:Name="CmbSaveBKey" Style="{StaticResource ModernComboBoxStyle}" Width="100" HorizontalAlignment="Left"/>
+                                </StackPanel>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- Card B2: 座標移動（Set B） -->
+                        <Border Grid.Column="2" Style="{StaticResource CardBorder}">
+                            <StackPanel>
+                                <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
+                                    <Border Style="{StaticResource CardIconBox}">
+                                        <TextBlock Style="{StaticResource FluentIcon}" Text="&#xE72A;"/>
+                                    </Border>
+                                    <TextBlock Style="{StaticResource CardHeaderText}" Text="座標移動（Set B）" Margin="10,0,0,0"/>
+                                </StackPanel>
+
+                                <Grid Margin="0,4">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Grid.Column="0" Style="{StaticResource BodyText}" Text="マウスボタン"/>
+                                    <CheckBox x:Name="ChkNavBMouseEnabled" Grid.Column="1"
+                                              Style="{StaticResource ToggleSwitchStyle}"
+                                              Checked="OnTriggerEnabledChanged" Unchecked="OnTriggerEnabledChanged"/>
+                                </Grid>
+                                <StackPanel x:Name="PnlNavBMouse" Margin="0,4,0,4">
+                                    <WrapPanel Margin="0,0,0,6">
+                                        <CheckBox x:Name="ChkNavBCtrl"  Style="{StaticResource ModifierChipStyle}" Content="Ctrl"/>
+                                        <CheckBox x:Name="ChkNavBAlt"   Style="{StaticResource ModifierChipStyle}" Content="Alt"/>
+                                        <CheckBox x:Name="ChkNavBShift" Style="{StaticResource ModifierChipStyle}" Content="Shift"/>
+                                        <CheckBox x:Name="ChkNavBWin"   Style="{StaticResource ModifierChipStyle}" Content="Win"/>
+                                    </WrapPanel>
+                                    <StackPanel Orientation="Horizontal">
+                                        <TextBlock Style="{StaticResource HintText}" Text="+" Margin="0,0,6,0"/>
+                                        <ComboBox x:Name="CmbNavBBtn" Style="{StaticResource ModernComboBoxStyle}" Width="140"/>
+                                    </StackPanel>
+                                </StackPanel>
+
+                                <Grid Margin="0,6,0,4">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Grid.Column="0" Orientation="Horizontal">
+                                        <TextBlock Style="{StaticResource BodyText}" Text="キーボードキー"/>
+                                        <Border Style="{StaticResource HintBadgeStyle}" ToolTip="F13-F24 は VIA/QMK/AutoHotkey 等で送信できる拡張キー。詳細は「使い方」タブ参照">
+                                            <TextBlock Text="?" FontSize="9" FontWeight="Bold" Foreground="{DynamicResource TextMutedBrush}"
+                                                       HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                        </Border>
+                                    </StackPanel>
+                                    <CheckBox x:Name="ChkNavBKeyboardEnabled" Grid.Column="1"
+                                              Style="{StaticResource ToggleSwitchStyle}"
+                                              Checked="OnTriggerEnabledChanged" Unchecked="OnTriggerEnabledChanged"/>
+                                </Grid>
+                                <StackPanel x:Name="PnlNavBKeyboard" Margin="0,0,0,4" Visibility="Collapsed">
+                                    <ComboBox x:Name="CmbNavBKey" Style="{StaticResource ModernComboBoxStyle}" Width="100" HorizontalAlignment="Left"/>
+                                </StackPanel>
+                            </StackPanel>
+                        </Border>
+                    </Grid>
+
                     <!-- ==== エフェクトカード ==== -->
                     <Border Style="{StaticResource CardBorder}">
                         <StackPanel>
@@ -399,6 +524,63 @@
                                               Style="{StaticResource ToggleSwitchStyle}"
                                               VerticalAlignment="Center"/>
                                 </Grid>
+
+                                <!-- 軌跡エフェクト詳細スライダー -->
+                                <StackPanel x:Name="PnlTrailDetails" Margin="20,4,0,8">
+                                    <!-- 太さ -->
+                                    <Grid Margin="0,3">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="120"/>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Grid.Column="0" Style="{StaticResource BodyText}" Text="軌跡の太さ" VerticalAlignment="Center"/>
+                                        <Slider x:Name="SldTrailThickness" Grid.Column="1"
+                                                Minimum="1" Maximum="20" SmallChange="1" LargeChange="2"
+                                                IsSnapToTickEnabled="True" TickFrequency="1"
+                                                VerticalAlignment="Center" Margin="0,0,12,0"
+                                                ValueChanged="OnTrailThicknessChanged"/>
+                                        <TextBlock x:Name="TxtTrailThickness" Grid.Column="2"
+                                                   Style="{StaticResource BodyText}" Width="60" TextAlignment="Right"
+                                                   VerticalAlignment="Center"/>
+                                    </Grid>
+
+                                    <!-- 持続時間 -->
+                                    <Grid Margin="0,3">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="120"/>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Grid.Column="0" Style="{StaticResource BodyText}" Text="持続時間" VerticalAlignment="Center"/>
+                                        <Slider x:Name="SldTrailDuration" Grid.Column="1"
+                                                Minimum="100" Maximum="3000" SmallChange="50" LargeChange="200"
+                                                IsSnapToTickEnabled="True" TickFrequency="50"
+                                                VerticalAlignment="Center" Margin="0,0,12,0"
+                                                ValueChanged="OnTrailDurationChanged"/>
+                                        <TextBlock x:Name="TxtTrailDuration" Grid.Column="2"
+                                                   Style="{StaticResource BodyText}" Width="60" TextAlignment="Right"
+                                                   VerticalAlignment="Center"/>
+                                    </Grid>
+
+                                    <!-- 不透明度 -->
+                                    <Grid Margin="0,3">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="120"/>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Grid.Column="0" Style="{StaticResource BodyText}" Text="不透明度" VerticalAlignment="Center"/>
+                                        <Slider x:Name="SldTrailOpacity" Grid.Column="1"
+                                                Minimum="0.1" Maximum="1.0" SmallChange="0.05" LargeChange="0.1"
+                                                IsSnapToTickEnabled="True" TickFrequency="0.05"
+                                                VerticalAlignment="Center" Margin="0,0,12,0"
+                                                ValueChanged="OnTrailOpacityChanged"/>
+                                        <TextBlock x:Name="TxtTrailOpacity" Grid.Column="2"
+                                                   Style="{StaticResource BodyText}" Width="60" TextAlignment="Right"
+                                                   VerticalAlignment="Center"/>
+                                    </Grid>
+                                </StackPanel>
                                 <Border Height="1" Background="{DynamicResource BorderSubtleBrush}" Margin="0,2"/>
 
                                 <!-- マーカー -->
@@ -429,6 +611,34 @@
                                     <CheckBox x:Name="ChkMarkerEffectEnabled" Grid.Column="4"
                                               Style="{StaticResource ToggleSwitchStyle}"
                                               VerticalAlignment="Center"/>
+                                </Grid>
+                                <Border Height="1" Background="{DynamicResource BorderSubtleBrush}" Margin="0,2"/>
+
+                                <!-- Set B マーカー色 -->
+                                <Grid Margin="0,6">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <Ellipse x:Name="RectMarkerColorB" Grid.Column="0"
+                                             Style="{StaticResource ColorSwatchStyle}"
+                                             MouseLeftButtonDown="OnColorRectangleClick"/>
+                                    <StackPanel Grid.Column="1" Margin="12,0,8,0" VerticalAlignment="Center">
+                                        <TextBlock Text="座標マーカー（Set B）" FontSize="13" FontWeight="Medium"
+                                                   Foreground="{DynamicResource TextPrimaryBrush}"/>
+                                        <TextBlock Text="第2座標セットのマーカー色（削除モードで色分け表示）"
+                                                   Style="{StaticResource HintText}"/>
+                                    </StackPanel>
+                                    <Border Grid.Column="2" Style="{StaticResource StatusBadgeEnabledStyle}">
+                                        <TextBlock Text="有効" FontSize="10" FontWeight="SemiBold" Foreground="#34C759"/>
+                                    </Border>
+                                    <Border Grid.Column="3" Style="{StaticResource HexCodeBadgeStyle}">
+                                        <TextBlock x:Name="TxtMarkerColorBHex" FontFamily="Consolas" FontSize="11"
+                                                   Foreground="{DynamicResource TextSecondaryBrush}"/>
+                                    </Border>
                                 </Grid>
                                 <Border Height="1" Background="{DynamicResource BorderSubtleBrush}" Margin="0,2"/>
 

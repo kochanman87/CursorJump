@@ -1,6 +1,9 @@
 using System;
 using System.ComponentModel;
+using System.Linq;
 using System.Windows;
+using System.Windows.Media;
+using CursorJump.App.Models;
 
 namespace CursorJump.App;
 
@@ -13,6 +16,7 @@ public partial class MainWindow : Window
     private KeyboardHookService? _keyboardHookService;
     private readonly SettingsService _settingsService;
     private readonly CoordinateStore _coordinateStore = new();
+    private readonly CoordinateStore _coordinateStoreB = new();
     private readonly OverlayService _overlayService;
 
     public MainWindow(SettingsService settingsService)
@@ -20,9 +24,29 @@ public partial class MainWindow : Window
         _settingsService = settingsService;
         _overlayService = new OverlayService(settingsService);
 
+        // 永続化された座標を復元
+        _coordinateStore.Load(_settingsService.Current.SavedCoordinatesA);
+        _coordinateStoreB.Load(_settingsService.Current.SavedCoordinatesB);
+
+        // 変更時に settings.json へ書き戻す
+        _coordinateStore.Changed += OnCoordinateStoreAChanged;
+        _coordinateStoreB.Changed += OnCoordinateStoreBChanged;
+
         InitializeComponent();
         SourceInitialized += OnSourceInitialized;
         Closed += OnClosed;
+    }
+
+    private void OnCoordinateStoreAChanged()
+    {
+        _settingsService.Current.SavedCoordinatesA = _coordinateStore.GetAll().ToList();
+        _settingsService.Save(_settingsService.Current);
+    }
+
+    private void OnCoordinateStoreBChanged()
+    {
+        _settingsService.Current.SavedCoordinatesB = _coordinateStoreB.GetAll().ToList();
+        _settingsService.Save(_settingsService.Current);
     }
 
     private void OnSourceInitialized(object? sender, EventArgs e)
@@ -34,6 +58,8 @@ public partial class MainWindow : Window
             _mouseHookService.NavigateRequested += OnNavigateRequested;
             _mouseHookService.NavigateCurrentMonitorRequested += OnNavigateCurrentMonitorRequested;
             _mouseHookService.DisplayDeleteRequested += OnDisplayDeleteRequested;
+            _mouseHookService.SaveRequestedB += OnSaveRequestedB;
+            _mouseHookService.NavigateRequestedB += OnNavigateRequestedB;
             _mouseHookService.Install();
 
             _overlayService.SetMouseHookService(_mouseHookService);
@@ -54,6 +80,8 @@ public partial class MainWindow : Window
             _keyboardHookService.NavigateRequested += OnNavigateRequested;
             _keyboardHookService.NavigateCurrentMonitorRequested += OnNavigateCurrentMonitorRequested;
             _keyboardHookService.DisplayDeleteRequested += OnDisplayDeleteRequested;
+            _keyboardHookService.SaveRequestedB += OnSaveRequestedB;
+            _keyboardHookService.NavigateRequestedB += OnNavigateRequestedB;
             _keyboardHookService.Install();
 
             _overlayService.SetKeyboardHookService(_keyboardHookService);
@@ -98,8 +126,16 @@ public partial class MainWindow : Window
 
     private void OnDisplayDeleteRequested(object? sender, MouseHookEventArgs e)
     {
+        // Set A と Set B を両方表示・両方削除可能にする（色で区別）
+        var markerA = ParseColor(_settingsService.Current.MarkerColor, Color.FromRgb(0x00, 0x88, 0xFF));
+        var markerB = ParseColor(_settingsService.Current.MarkerColorB, Color.FromRgb(0xFF, 0x88, 0x00));
+
         _overlayService.ShowCoordinateMarkers(
-            _coordinateStore,
+            new[]
+            {
+                (_coordinateStore, markerA),
+                (_coordinateStoreB, markerB),
+            },
             onEnterMode: () =>
             {
                 _mouseHookService?.EnterDeleteMode();
@@ -112,6 +148,37 @@ public partial class MainWindow : Window
             });
     }
 
+    // ── Set B（独立した第2座標セット） ──
+
+    private void OnSaveRequestedB(object? sender, MouseHookEventArgs e)
+    {
+        _coordinateStoreB.Add(e.X, e.Y);
+        _overlayService.ShowShrinkCircle(e.X, e.Y);
+    }
+
+    private void OnNavigateRequestedB(object? sender, MouseHookEventArgs e)
+    {
+        var target = _coordinateStoreB.GetNext();
+        if (target is null) return;
+
+        int fromX = e.X;
+        int fromY = e.Y;
+
+        CursorService.JumpTo(target.X, target.Y);
+        _overlayService.ShowTrail(fromX, fromY, target.X, target.Y);
+    }
+
+    private static Color ParseColor(string hex, Color fallback)
+    {
+        try
+        {
+            var converted = ColorConverter.ConvertFromString(hex);
+            if (converted is Color c) return c;
+        }
+        catch { }
+        return fallback;
+    }
+
     private void OnClosed(object? sender, EventArgs e)
     {
         if (_mouseHookService is not null)
@@ -120,6 +187,8 @@ public partial class MainWindow : Window
             _mouseHookService.NavigateRequested -= OnNavigateRequested;
             _mouseHookService.NavigateCurrentMonitorRequested -= OnNavigateCurrentMonitorRequested;
             _mouseHookService.DisplayDeleteRequested -= OnDisplayDeleteRequested;
+            _mouseHookService.SaveRequestedB -= OnSaveRequestedB;
+            _mouseHookService.NavigateRequestedB -= OnNavigateRequestedB;
             _mouseHookService.Dispose();
             _mouseHookService = null;
         }
@@ -130,8 +199,13 @@ public partial class MainWindow : Window
             _keyboardHookService.NavigateRequested -= OnNavigateRequested;
             _keyboardHookService.NavigateCurrentMonitorRequested -= OnNavigateCurrentMonitorRequested;
             _keyboardHookService.DisplayDeleteRequested -= OnDisplayDeleteRequested;
+            _keyboardHookService.SaveRequestedB -= OnSaveRequestedB;
+            _keyboardHookService.NavigateRequestedB -= OnNavigateRequestedB;
             _keyboardHookService.Dispose();
             _keyboardHookService = null;
         }
+
+        _coordinateStore.Changed -= OnCoordinateStoreAChanged;
+        _coordinateStoreB.Changed -= OnCoordinateStoreBChanged;
     }
 }

@@ -38,7 +38,7 @@ src/CursorJump.App/
 ├── MouseHookService.cs             # WH_MOUSE_LL低レベルフック + 座標表示モード（WH_KEYBOARD_LL併用）
 ├── KeyboardHookService.cs          # WH_KEYBOARD_LL常時フック（F13-F24キーボードトリガー）
 ├── CursorService.cs                # カーソル移動（任意座標ジャンプ）
-├── CoordinateStore.cs              # 座標リスト管理（Add/GetNext循環/GetNextInMonitor/RemoveAt）
+├── CoordinateStore.cs              # 座標リスト管理（Add/GetNext循環/GetNextInMonitor/RemoveAt/Load/Changed）
 ├── OverlayService.cs               # オーバーレイアニメーション（収縮円、軌跡、マーカー）
 ├── OverlayWindow.xaml / .cs        # 透明オーバーレイウィンドウ基盤
 ├── DebugLog.cs                     # デバッグログ（%APPDATA%/CursorJump/debug.log）
@@ -57,7 +57,10 @@ src/CursorJump.App/
 - **UPイベント消費**: DOWNイベント消費時にフラグを立て、対応するUPイベントも消費する（右クリックメニュー抑止）
 - **XButtonのUP消費**: `WM_XBUTTONUP`はボタン種別が`mouseData >> 16`で判定が必要（L/R/Mと異なる）
 - **座標系**: マウスフック・SetCursorPosは物理ピクセル座標。WPFオーバーレイ描画時はTransformFromDeviceでDIP変換
-- **設定ファイル**: `%APPDATA%/CursorJump/settings.json`（System.Text.Json）
+- **設定ファイル**: `%APPDATA%/CursorJump/settings.json`（System.Text.Json）。`AppSettings.SavedCoordinatesA` / `SavedCoordinatesB` に Set A/B の座標が永続化される。`CoordinateStore.Changed` イベントで `MainWindow` が `_settingsService.Save()` を呼び戻し書きする
+- **第2座標セット（Set B）**: Win+Shift+左/右 デフォルトの**完全独立**な座標リスト（旧デフォルト Win+Alt は Xbox Game Bar プレフィックスと干渉するため Win+Shift に変更）。`CoordinateStore` を Set A/B で2インスタンス保持し、`SaveShortcutB`/`NavigateShortcutB` でトリガー。`MouseHookService`/`KeyboardHookService` はそれぞれ `SaveRequestedB`/`NavigateRequestedB` イベントを発火。**保存・移動のみ独立**で、削除モード/モニタ内ナビは Set A のみ。削除モードでは `OverlayService.ShowCoordinateMarkers` が `(CoordinateStore, Color)` のリストを受け取り、Set A=`MarkerColor`(青)、Set B=`MarkerColorB`(オレンジ) で**両方同時表示・両方削除可能**。空きエリアクリックでの追加は先頭ストア（Set A）に入る
+- **Alt キー検出の補足**: `AreModifiersHeld` は `VK_LMENU(0xA4)` / `VK_RMENU(0xA5)` に加えて汎用 `VK_MENU(0x12)` もフォールバックとしてチェックする。Win+Alt 時に OS が Left/Right Alt の async 状態をクリアする場合でも Alt を正しく検出できる
+- **軌跡エフェクト詳細設定**: `TrailThickness`(1–20dp) / `TrailDurationMs`(100–3000ms) / `TrailOpacity`(0.1–1.0) を設定画面のスライダーで調整可能。`OverlayService.ShowTrail` は単一 `Line` ではなく **12 セグメントに分割した `Line` 群** を描画し、`DoubleAnimation.BeginTime` を移動元側ほど 0、移動先側ほど `duration*0.5` までずらすことで**遠端（移動元）から段階的にフェードアウト**する演出を実現する。各セグメントの実フェード時間は `duration*0.5`、合計再生時間は `duration` に揃う
 - **ログファイル**: `%APPDATA%/CursorJump/debug.log`（起動時モニター情報、フックイベント、DPI変更を記録）
 - **MouseButtonType enum**: Left=0, Right=1, Middle=2, XButton1=3, XButton2=4, MiddleLeftChord=5, MiddleRightChord=6, MiddleDoubleClick=7, MiddleTripleClick=8（末尾追加で後方互換性維持）。後方4値は「マウスのみで完結するトリガー」用で、修飾キー不要でも割当可
 - **中ボタン拡張トリガー（Chord / 多重クリック）**: `MouseHookService` がタイマー遅延で判定する。拡張ボタン（MiddleLeftChord/MiddleRightChord/MiddleDoubleClick/MiddleTripleClick）が**どれか1つでも割り当てられている場合のみ** WM_MBUTTONDOWN を消費して `ChordWindowMs`(200ms) タイマー起動。その間に L/R DOWN が来れば該当 Chord を発火し Middle/L/R の UP を全消費、来なければタイマー満了時にクリック数（`MultiClickWindowMs`=350ms 以内の連続 MDOWN 数）に応じて Triple→Double→Single の順に優先発火。タイマーは ThreadPool スレッドなので `Application.Current.Dispatcher.BeginInvoke` で UI スレッドに復帰してから WPF 側のイベントハンドラを呼ぶ。拡張ボタン未割当時は従来通りの Middle 単押しパスが走り遅延なし。削除モード中は拡張判定に入らず、従来の単押し優先（DisplayDelete=全削除）が動作する
@@ -119,7 +122,8 @@ public sealed class ActionShortcut
 - **キーボードトリガーの修飾キーは表示上のみで実挙動では無視する（仕様）**: `ActionShortcut.Modifiers` は UI 構造上マウス/キーボードで共通だが、`KeyboardHookService.IsKeyboardShortcutMatch` は `VirtualKeyCode` 一致のみで判定する。VIA マクロで F13-F24 を送るユースケースでは修飾キーの同時押下保証が難しいため、意図的に VK 単独一致としている。UI 上で `Ctrl+Win+F15` と表示されていても実際は `F15` 単独で発火する。これはバグではない
 
 ### 削除モード中のマウスマッチング
-- `MouseHookService.IsShortcutMatchForDeleteMode` は、ショートカットが拡張ボタン（`MiddleLeftChord` / `MiddleRightChord` / `MiddleDoubleClick` / `MiddleTripleClick`）に割り当てられている場合でも、削除モード中は基底の物理ボタン単押しにマップして判定する（`MiddleLeftChord`→Left、`MiddleRightChord`→Right、`MiddleDoubleClick`/`MiddleTripleClick`→Middle）。理由: 削除モード中はオーバーレイ表示中の素早い操作が求められるため、Chord や多重クリックの待機時間を挟まずに即応したい。通常モード中の拡張トリガー挙動はそのまま維持される
+- `MouseHookService.IsShortcutMatchForDeleteMode` は、ショートカットが拡張ボタンに割り当てられている場合でも、削除モード中は物理ボタン単押しにマップして判定する（`MiddleLeftChord`/`MiddleDoubleClick`→Left、`MiddleRightChord`/`MiddleTripleClick`→Right）。理由: 削除モード中はオーバーレイ表示中の素早い操作が求められるため、Chord や多重クリックの待機時間を挟まずに即応したい。DoubleClick/TripleClick を Left/Right に分けることで、両方を同時に割り当てても競合しない。通常モード中の拡張トリガー挙動はそのまま維持される
+- 削除モードヘルプ表示は `ShortcutFormatter.FormatForDeleteMode()` を使用する。修飾キーなし・拡張ボタンは上記の物理ボタン名（「左クリック」「右クリック」）に変換して表示することで、実際の操作と一致させる
 
 ### モニタ内ナビゲーション
 - `NavigateCurrentMonitorShortcut`（デフォルト `TriggerType.None`＝無効）: ナビゲート時に現在カーソルのモニタ内の座標のみ循環
