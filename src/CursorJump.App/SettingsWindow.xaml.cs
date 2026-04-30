@@ -33,7 +33,9 @@ public partial class SettingsWindow : Window
     };
 
     private string _saveColor = "#FF0000";
+    private string _saveColorB = "#FF8800";
     private string _trailColor = "#00FF00";
+    private string _trailColorB = "#FF8800";
     private string _markerColor = "#0088FF";
     private string _markerColorB = "#FF8800";
     private UiTheme _currentTheme = UiTheme.Light;
@@ -106,17 +108,23 @@ public partial class SettingsWindow : Window
             ChkNavBKeyboardEnabled, PnlNavBKeyboard, CmbNavBKey);
 
         // 色
-        _saveColor = s.SaveCircleColor;
-        _trailColor = s.TrailColor;
-        _markerColor = s.MarkerColor;
+        _saveColor   = s.SaveCircleColor;
+        _saveColorB  = s.SaveCircleColorB;
+        _trailColor  = s.TrailColor;
+        _trailColorB = s.TrailColorB;
+        _markerColor  = s.MarkerColor;
         _markerColorB = s.MarkerColorB;
-        SetSwatchColor(RectSaveColor, _saveColor);
-        SetSwatchColor(RectTrailColor, _trailColor);
-        SetSwatchColor(RectMarkerColor, _markerColor);
+        SetSwatchColor(RectSaveColor,   _saveColor);
+        SetSwatchColor(RectSaveColorB,  _saveColorB);
+        SetSwatchColor(RectTrailColor,  _trailColor);
+        SetSwatchColor(RectTrailColorB, _trailColorB);
+        SetSwatchColor(RectMarkerColor,  _markerColor);
         SetSwatchColor(RectMarkerColorB, _markerColorB);
-        TxtSaveColorHex.Text = _saveColor.ToUpperInvariant();
-        TxtTrailColorHex.Text = _trailColor.ToUpperInvariant();
-        TxtMarkerColorHex.Text = _markerColor.ToUpperInvariant();
+        TxtSaveColorHex.Text   = _saveColor.ToUpperInvariant();
+        TxtSaveColorBHex.Text  = _saveColorB.ToUpperInvariant();
+        TxtTrailColorHex.Text  = _trailColor.ToUpperInvariant();
+        TxtTrailColorBHex.Text = _trailColorB.ToUpperInvariant();
+        TxtMarkerColorHex.Text  = _markerColor.ToUpperInvariant();
         TxtMarkerColorBHex.Text = _markerColorB.ToUpperInvariant();
 
         // エフェクト ON/OFF
@@ -318,10 +326,12 @@ public partial class SettingsWindow : Window
             DisplayDeleteShortcut = dispShortcut,
             SaveShortcutB = saveBShortcut,
             NavigateShortcutB = navBShortcut,
-            SaveCircleColor = _saveColor,
-            TrailColor = _trailColor,
-            MarkerColor = _markerColor,
-            MarkerColorB = _markerColorB,
+            SaveCircleColor  = _saveColor,
+            SaveCircleColorB = _saveColorB,
+            TrailColor       = _trailColor,
+            TrailColorB      = _trailColorB,
+            MarkerColor      = _markerColor,
+            MarkerColorB     = _markerColorB,
             SaveEffectEnabled = ChkSaveEffectEnabled.IsChecked == true,
             TrailEffectEnabled = ChkTrailEffectEnabled.IsChecked == true,
             MarkerEffectEnabled = ChkMarkerEffectEnabled.IsChecked == true,
@@ -353,9 +363,11 @@ public partial class SettingsWindow : Window
         if (sender is not Shape shape) return;
 
         string currentHex;
-        if (shape == RectSaveColor) currentHex = _saveColor;
-        else if (shape == RectTrailColor) currentHex = _trailColor;
-        else if (shape == RectMarkerColor) currentHex = _markerColor;
+        if      (shape == RectSaveColor)    currentHex = _saveColor;
+        else if (shape == RectSaveColorB)   currentHex = _saveColorB;
+        else if (shape == RectTrailColor)   currentHex = _trailColor;
+        else if (shape == RectTrailColorB)  currentHex = _trailColorB;
+        else if (shape == RectMarkerColor)  currentHex = _markerColor;
         else if (shape == RectMarkerColorB) currentHex = _markerColorB;
         else return;
 
@@ -374,26 +386,12 @@ public partial class SettingsWindow : Window
             var selected = dialog.Color;
             string hex = $"#{selected.R:X2}{selected.G:X2}{selected.B:X2}";
 
-            if (shape == RectSaveColor)
-            {
-                _saveColor = hex;
-                TxtSaveColorHex.Text = hex;
-            }
-            else if (shape == RectTrailColor)
-            {
-                _trailColor = hex;
-                TxtTrailColorHex.Text = hex;
-            }
-            else if (shape == RectMarkerColor)
-            {
-                _markerColor = hex;
-                TxtMarkerColorHex.Text = hex;
-            }
-            else if (shape == RectMarkerColorB)
-            {
-                _markerColorB = hex;
-                TxtMarkerColorBHex.Text = hex;
-            }
+            if      (shape == RectSaveColor)    { _saveColor   = hex; TxtSaveColorHex.Text   = hex; }
+            else if (shape == RectSaveColorB)   { _saveColorB  = hex; TxtSaveColorBHex.Text  = hex; }
+            else if (shape == RectTrailColor)   { _trailColor  = hex; TxtTrailColorHex.Text  = hex; }
+            else if (shape == RectTrailColorB)  { _trailColorB = hex; TxtTrailColorBHex.Text = hex; }
+            else if (shape == RectMarkerColor)  { _markerColor  = hex; TxtMarkerColorHex.Text  = hex; }
+            else if (shape == RectMarkerColorB) { _markerColorB = hex; TxtMarkerColorBHex.Text = hex; }
 
             shape.Fill = new SolidColorBrush(Color.FromRgb(selected.R, selected.G, selected.B));
         }

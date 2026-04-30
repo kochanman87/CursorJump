@@ -51,10 +51,10 @@ internal sealed class OverlayService
     /// <summary>
     /// 座標保存時の収縮円アニメーション表示。
     /// </summary>
-    public void ShowShrinkCircle(int physicalX, int physicalY)
+    public void ShowShrinkCircle(int physicalX, int physicalY, string? colorOverride = null)
     {
         if (!_settingsService.Current.SaveEffectEnabled) return;
-        var color = ParseColor(_settingsService.Current.SaveCircleColor, Colors.Red);
+        var color = ParseColor(colorOverride ?? _settingsService.Current.SaveCircleColor, Colors.Red);
         const double initialRadius = 30;
         const double duration = 400; // ms
 
@@ -107,12 +107,12 @@ internal sealed class OverlayService
     /// 座標ナビゲーション時の軌跡アニメーション表示。
     /// 軌跡を N セグメントに分割し、移動元側（遠端）から段階的にフェードアウトする。
     /// </summary>
-    public void ShowTrail(int fromX, int fromY, int toX, int toY)
+    public void ShowTrail(int fromX, int fromY, int toX, int toY, string? colorOverride = null)
     {
         var settings = _settingsService.Current;
         if (!settings.TrailEffectEnabled) return;
 
-        var color = ParseColor(settings.TrailColor, Colors.LimeGreen);
+        var color = ParseColor(colorOverride ?? settings.TrailColor, Colors.LimeGreen);
 
         // 設定値クランプ（範囲外の値が settings.json に入っていても安全に）
         double thickness = Math.Clamp(settings.TrailThickness, 1.0, 20.0);

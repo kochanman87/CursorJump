@@ -153,7 +153,7 @@ public partial class MainWindow : Window
     private void OnSaveRequestedB(object? sender, MouseHookEventArgs e)
     {
         _coordinateStoreB.Add(e.X, e.Y);
-        _overlayService.ShowShrinkCircle(e.X, e.Y);
+        _overlayService.ShowShrinkCircle(e.X, e.Y, _settingsService.Current.SaveCircleColorB);
     }
 
     private void OnNavigateRequestedB(object? sender, MouseHookEventArgs e)
@@ -165,7 +165,7 @@ public partial class MainWindow : Window
         int fromY = e.Y;
 
         CursorService.JumpTo(target.X, target.Y);
-        _overlayService.ShowTrail(fromX, fromY, target.X, target.Y);
+        _overlayService.ShowTrail(fromX, fromY, target.X, target.Y, _settingsService.Current.TrailColorB);
     }
 
     private static Color ParseColor(string hex, Color fallback)
