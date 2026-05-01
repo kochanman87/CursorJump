@@ -14,10 +14,33 @@ public partial class SettingsWindow : Window
 {
     private readonly SettingsService _settingsService;
 
-    private static readonly string[] ButtonNames =
+    /// <summary>
+    /// ComboBox の表示用 wrapper。enum 値を保持しつつ、ToString() で現在言語のリソース名を返すため、
+    /// 言語切替時に再評価される（CollectionView の Refresh 経由）。
+    /// </summary>
+    public sealed class ButtonOption
     {
-        "左クリック", "右クリック", "ホイールクリック", "戻るボタン", "進むボタン",
-        "ホイール＋左クリック", "ホイール＋右クリック", "ホイール2連打", "ホイール3連打"
+        public MouseButtonType Value { get; }
+        public string ResourceKey { get; }
+        public ButtonOption(MouseButtonType value, string key)
+        {
+            Value = value;
+            ResourceKey = key;
+        }
+        public override string ToString() => Loc.Get(ResourceKey);
+    }
+
+    private static readonly ButtonOption[] ButtonOptions =
+    {
+        new(MouseButtonType.Left,              "Str.Button.Left"),
+        new(MouseButtonType.Right,             "Str.Button.Right"),
+        new(MouseButtonType.Middle,            "Str.Button.Middle"),
+        new(MouseButtonType.XButton1,          "Str.Button.XButton1"),
+        new(MouseButtonType.XButton2,          "Str.Button.XButton2"),
+        new(MouseButtonType.MiddleLeftChord,   "Str.Button.MiddleLeftChord"),
+        new(MouseButtonType.MiddleRightChord,  "Str.Button.MiddleRightChord"),
+        new(MouseButtonType.MiddleDoubleClick, "Str.Button.MiddleDoubleClick"),
+        new(MouseButtonType.MiddleTripleClick, "Str.Button.MiddleTripleClick"),
     };
 
     private static readonly string[] FKeyNames =
@@ -39,6 +62,7 @@ public partial class SettingsWindow : Window
     private string _markerColor = "#0088FF";
     private string _markerColorB = "#FF8800";
     private UiTheme _currentTheme = UiTheme.Light;
+    private UiLanguage _currentLanguage = UiLanguage.Auto;
 
     private bool _initialized;
 
@@ -49,21 +73,46 @@ public partial class SettingsWindow : Window
         var v = Assembly.GetExecutingAssembly().GetName().Version;
         if (v is not null)
         {
-            Title = $"CursorJump 設定  v{v.Major}.{v.Minor}.{v.Build}";
+            Title = string.Format(Loc.Get("Str.Settings.TitleFormat"), v.Major, v.Minor, v.Build);
         }
         PopulateComboBoxes();
         LoadCurrentSettings();
+        LocalizationManager.LanguageChanged += OnLanguageChanged;
+        Closed += (_, _) => LocalizationManager.LanguageChanged -= OnLanguageChanged;
         _initialized = true;
+    }
+
+    private void OnLanguageChanged()
+    {
+        // Title はバインド経由でなく直接設定しているため再生成する
+        var v = Assembly.GetExecutingAssembly().GetName().Version;
+        if (v is not null)
+        {
+            Title = string.Format(Loc.Get("Str.Settings.TitleFormat"), v.Major, v.Minor, v.Build);
+        }
+        // ButtonOption.ToString() は Loc.Get を呼ぶが、ComboBox は変更通知を受け取らないので強制リフレッシュ
+        RefreshButtonComboBoxes();
+    }
+
+    private void RefreshButtonComboBoxes()
+    {
+        foreach (var combo in new[] { CmbSaveBtn, CmbNavBtn, CmbMonNavBtn, CmbDispBtn, CmbSaveBBtn, CmbNavBBtn })
+        {
+            var selected = combo.SelectedItem;
+            combo.ItemsSource = null;
+            combo.ItemsSource = ButtonOptions;
+            combo.SelectedItem = selected;
+        }
     }
 
     private void PopulateComboBoxes()
     {
-        CmbSaveBtn.ItemsSource = ButtonNames;
-        CmbNavBtn.ItemsSource = ButtonNames;
-        CmbMonNavBtn.ItemsSource = ButtonNames;
-        CmbDispBtn.ItemsSource = ButtonNames;
-        CmbSaveBBtn.ItemsSource = ButtonNames;
-        CmbNavBBtn.ItemsSource = ButtonNames;
+        CmbSaveBtn.ItemsSource = ButtonOptions;
+        CmbNavBtn.ItemsSource = ButtonOptions;
+        CmbMonNavBtn.ItemsSource = ButtonOptions;
+        CmbDispBtn.ItemsSource = ButtonOptions;
+        CmbSaveBBtn.ItemsSource = ButtonOptions;
+        CmbNavBBtn.ItemsSource = ButtonOptions;
 
         CmbSaveKey.ItemsSource = FKeyNames;
         CmbNavKey.ItemsSource = FKeyNames;
@@ -149,6 +198,18 @@ public partial class SettingsWindow : Window
         {
             ThemeLight.IsChecked = true;
         }
+
+        // 言語（Auto は実解決値で表示）
+        _currentLanguage = s.UiLanguage;
+        var resolved = LocalizationManager.Resolve(_currentLanguage);
+        if (resolved == UiLanguage.English)
+        {
+            LangEn.IsChecked = true;
+        }
+        else
+        {
+            LangJa.IsChecked = true;
+        }
     }
 
     private void UpdateTrailValueLabels()
@@ -181,7 +242,7 @@ public partial class SettingsWindow : Window
         chkAlt.IsChecked = shortcut.Modifiers.HasFlag(ModifierKeyFlags.Alt);
         chkShift.IsChecked = shortcut.Modifiers.HasFlag(ModifierKeyFlags.Shift);
         chkWin.IsChecked = shortcut.Modifiers.HasFlag(ModifierKeyFlags.Windows);
-        cmbBtn.SelectedItem = ButtonTypeToName(shortcut.MouseButton);
+        cmbBtn.SelectedItem = FindButtonOption(shortcut.MouseButton);
 
         chkKeyboardEnabled.IsChecked = keyboardOn;
         pnlKeyboard.Visibility = keyboardOn ? Visibility.Visible : Visibility.Collapsed;
@@ -242,6 +303,21 @@ public partial class SettingsWindow : Window
         ThemeManager.Apply(UiTheme.Dark);
     }
 
+    // ==== 言語切替 ====
+    private void OnLangJaChecked(object sender, RoutedEventArgs e)
+    {
+        if (!_initialized) return;
+        _currentLanguage = UiLanguage.Japanese;
+        LocalizationManager.Apply(UiLanguage.Japanese);
+    }
+
+    private void OnLangEnChecked(object sender, RoutedEventArgs e)
+    {
+        if (!_initialized) return;
+        _currentLanguage = UiLanguage.English;
+        LocalizationManager.Apply(UiLanguage.English);
+    }
+
     private void OnSaveClick(object sender, RoutedEventArgs e)
     {
         var saveShortcut = ReadShortcutUI(
@@ -267,8 +343,8 @@ public partial class SettingsWindow : Window
             navShortcut.EnabledTriggers == TriggerType.None ||
             dispShortcut.EnabledTriggers == TriggerType.None)
         {
-            MessageBox.Show("座標保存・ナビゲーション・座標表示/削除の各アクションにつき、マウスボタンまたはキーボードキーを少なくとも1つ有効にしてください。",
-                "CursorJump", MessageBoxButton.OK, MessageBoxImage.Warning);
+            MessageBox.Show(Loc.Get("Str.Settings.Validation.NoTrigger"),
+                Loc.Get("Str.AppName"), MessageBoxButton.OK, MessageBoxImage.Warning);
             return;
         }
 
@@ -289,19 +365,19 @@ public partial class SettingsWindow : Window
             NeedsModifier(monNavShortcut) || NeedsModifier(dispShortcut) ||
             NeedsModifier(saveBShortcut) || NeedsModifier(navBShortcut))
         {
-            MessageBox.Show("左/右/ホイールクリック（単押し）の場合は修飾キーを1つ以上選択してください。ホイール＋L/R、ホイール連打、戻る/進むボタンは修飾キー不要で使用できます。",
-                "CursorJump", MessageBoxButton.OK, MessageBoxImage.Warning);
+            MessageBox.Show(Loc.Get("Str.Settings.Validation.NoModifier"),
+                Loc.Get("Str.AppName"), MessageBoxButton.OK, MessageBoxImage.Warning);
             return;
         }
 
-        var actions = new (string Name, ActionShortcut Shortcut)[]
+        var actions = new (string NameKey, ActionShortcut Shortcut)[]
         {
-            ("座標保存", saveShortcut),
-            ("ナビゲート（全体）", navShortcut),
-            ("ナビゲート（モニタ内）", monNavShortcut),
-            ("座標表示/削除", dispShortcut),
-            ("座標保存（Set B）", saveBShortcut),
-            ("座標移動（Set B）", navBShortcut),
+            ("Str.Settings.Action.Save", saveShortcut),
+            ("Str.Settings.Action.NavigateAll", navShortcut),
+            ("Str.Settings.Action.NavigateMonitor", monNavShortcut),
+            ("Str.Settings.Action.Display", dispShortcut),
+            ("Str.Settings.Action.SaveB", saveBShortcut),
+            ("Str.Settings.Action.NavigateB", navBShortcut),
         };
         for (int i = 0; i < actions.Length; i++)
         {
@@ -309,11 +385,18 @@ public partial class SettingsWindow : Window
             {
                 var (mouseDup, keyboardDup) = DetectShortcutConflict(actions[i].Shortcut, actions[j].Shortcut);
                 if (!mouseDup && !keyboardDup) continue;
-                string kind = mouseDup && keyboardDup ? "マウス/キーボード両方の"
-                            : mouseDup ? "マウス" : "キーボード";
+                string kind = mouseDup && keyboardDup
+                    ? Loc.Get("Str.Settings.Validation.ConflictKind.Both")
+                    : mouseDup
+                        ? Loc.Get("Str.Settings.Validation.ConflictKind.Mouse")
+                        : Loc.Get("Str.Settings.Validation.ConflictKind.Keyboard");
                 MessageBox.Show(
-                    $"「{actions[i].Name}」と「{actions[j].Name}」の{kind}ショートカットが重複しています。どちらか片方を変更してください。",
-                    "CursorJump", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    string.Format(
+                        Loc.Get("Str.Settings.Validation.ConflictFormat"),
+                        Loc.Get(actions[i].NameKey),
+                        Loc.Get(actions[j].NameKey),
+                        kind),
+                    Loc.Get("Str.AppName"), MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
             }
         }
@@ -343,6 +426,7 @@ public partial class SettingsWindow : Window
             SavedCoordinatesA = _settingsService.Current.SavedCoordinatesA,
             SavedCoordinatesB = _settingsService.Current.SavedCoordinatesB,
             UiTheme = _currentTheme,
+            UiLanguage = _currentLanguage,
         };
 
         _settingsService.Save(settings);
@@ -352,8 +436,9 @@ public partial class SettingsWindow : Window
 
     private void OnCancelClick(object sender, RoutedEventArgs e)
     {
-        // キャンセル時はテーマも元に戻す
+        // キャンセル時はテーマ・言語を元に戻す
         ThemeManager.Apply(_settingsService.Current.UiTheme);
+        LocalizationManager.Apply(_settingsService.Current.UiLanguage);
         DialogResult = false;
         Close();
     }
@@ -434,7 +519,7 @@ public partial class SettingsWindow : Window
         {
             EnabledTriggers = triggers,
             Modifiers = mod,
-            MouseButton = NameToButtonType(cmbBtn.SelectedItem as string),
+            MouseButton = (cmbBtn.SelectedItem as ButtonOption)?.Value ?? MouseButtonType.Left,
             VirtualKeyCode = vkCode
         };
     }
@@ -452,30 +537,12 @@ public partial class SettingsWindow : Window
         return (mouseDup, keyboardDup);
     }
 
-    private static string ButtonTypeToName(MouseButtonType type) => type switch
+    private static ButtonOption FindButtonOption(MouseButtonType type)
     {
-        MouseButtonType.Left => "左クリック",
-        MouseButtonType.Right => "右クリック",
-        MouseButtonType.Middle => "ホイールクリック",
-        MouseButtonType.XButton1 => "戻るボタン",
-        MouseButtonType.XButton2 => "進むボタン",
-        MouseButtonType.MiddleLeftChord => "ホイール＋左クリック",
-        MouseButtonType.MiddleRightChord => "ホイール＋右クリック",
-        MouseButtonType.MiddleDoubleClick => "ホイール2連打",
-        MouseButtonType.MiddleTripleClick => "ホイール3連打",
-        _ => "左クリック"
-    };
-
-    private static MouseButtonType NameToButtonType(string? name) => name switch
-    {
-        "右クリック" => MouseButtonType.Right,
-        "ホイールクリック" => MouseButtonType.Middle,
-        "戻るボタン" => MouseButtonType.XButton1,
-        "進むボタン" => MouseButtonType.XButton2,
-        "ホイール＋左クリック" => MouseButtonType.MiddleLeftChord,
-        "ホイール＋右クリック" => MouseButtonType.MiddleRightChord,
-        "ホイール2連打" => MouseButtonType.MiddleDoubleClick,
-        "ホイール3連打" => MouseButtonType.MiddleTripleClick,
-        _ => MouseButtonType.Left
-    };
+        foreach (var opt in ButtonOptions)
+        {
+            if (opt.Value == type) return opt;
+        }
+        return ButtonOptions[0];
+    }
 }

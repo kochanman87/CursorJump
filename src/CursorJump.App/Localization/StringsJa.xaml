@@ -1,0 +1,139 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:sys="clr-namespace:System;assembly=mscorlib">
+
+    <!-- アプリ全般 -->
+    <sys:String x:Key="Str.AppName">CursorJump</sys:String>
+    <sys:String x:Key="Str.AlreadyRunning">CursorJump はすでに起動中です。タスクトレイを確認してください。</sys:String>
+
+    <!-- トレイメニュー -->
+    <sys:String x:Key="Str.Tray.Settings">設定</sys:String>
+    <sys:String x:Key="Str.Tray.Exit">終了</sys:String>
+
+    <!-- 設定ウィンドウ全般 -->
+    <sys:String x:Key="Str.Settings.Title">CursorJump 設定</sys:String>
+    <sys:String x:Key="Str.Settings.TitleFormat">CursorJump 設定  v{0}.{1}.{2}</sys:String>
+    <sys:String x:Key="Str.Settings.Tab.Settings">設定</sys:String>
+    <sys:String x:Key="Str.Settings.Tab.Usage">使い方</sys:String>
+    <sys:String x:Key="Str.Settings.Theme.Light">ライト</sys:String>
+    <sys:String x:Key="Str.Settings.Theme.Dark">ダーク</sys:String>
+    <sys:String x:Key="Str.Settings.Language.Japanese">日本語</sys:String>
+    <sys:String x:Key="Str.Settings.Language.English">English</sys:String>
+
+    <!-- カードヘッダ -->
+    <sys:String x:Key="Str.Settings.Card.Save">座標保存</sys:String>
+    <sys:String x:Key="Str.Settings.Card.Navigate">座標ナビゲーション</sys:String>
+    <sys:String x:Key="Str.Settings.Card.NavigateInMonitor">モニタ内ナビゲーション</sys:String>
+    <sys:String x:Key="Str.Settings.Card.NavigateInMonitor.Hint">現在モニタのみ循環</sys:String>
+    <sys:String x:Key="Str.Settings.Card.Display">座標表示 / 削除</sys:String>
+    <sys:String x:Key="Str.Settings.Card.SaveB">座標保存（Set B）</sys:String>
+    <sys:String x:Key="Str.Settings.Card.NavigateB">座標移動（Set B）</sys:String>
+    <sys:String x:Key="Str.Settings.Card.Effects">エフェクト</sys:String>
+
+    <!-- 共通ラベル -->
+    <sys:String x:Key="Str.Settings.MouseButton">マウスボタン</sys:String>
+    <sys:String x:Key="Str.Settings.KeyboardKey">キーボードキー</sys:String>
+    <sys:String x:Key="Str.Settings.FKeyTooltip">F13-F24 は VIA/QMK/AutoHotkey 等で送信できる拡張キー。詳細は「使い方」タブ参照</sys:String>
+    <sys:String x:Key="Str.Settings.StatusEnabled">有効</sys:String>
+    <sys:String x:Key="Str.Settings.StatusNotImplemented">未実装</sys:String>
+
+    <!-- Set B セクション -->
+    <sys:String x:Key="Str.Settings.SetB.Header">第2座標セット（独立）</sys:String>
+    <sys:String x:Key="Str.Settings.SetB.Description">Set A とは別の座標リストを管理します。互いに独立して循環し、削除モードでは色分けして同時表示されます。</sys:String>
+
+    <!-- エフェクトカード -->
+    <sys:String x:Key="Str.Settings.Effect.Save.Title">保存エフェクト</sys:String>
+    <sys:String x:Key="Str.Settings.Effect.Save.Hint">座標保存時の収縮円アニメーション</sys:String>
+    <sys:String x:Key="Str.Settings.Effect.SaveB.Title">保存エフェクト（Set B）</sys:String>
+    <sys:String x:Key="Str.Settings.Effect.SaveB.Hint">Set B 座標保存時の収縮円アニメーション色</sys:String>
+    <sys:String x:Key="Str.Settings.Effect.Trail.Title">ジャンプ軌跡</sys:String>
+    <sys:String x:Key="Str.Settings.Effect.Trail.Hint">カーソル移動時の軌跡ライン</sys:String>
+    <sys:String x:Key="Str.Settings.Effect.Trail.Thickness">軌跡の太さ</sys:String>
+    <sys:String x:Key="Str.Settings.Effect.Trail.Duration">持続時間</sys:String>
+    <sys:String x:Key="Str.Settings.Effect.Trail.Opacity">不透明度</sys:String>
+    <sys:String x:Key="Str.Settings.Effect.TrailB.Title">ジャンプ軌跡（Set B）</sys:String>
+    <sys:String x:Key="Str.Settings.Effect.TrailB.Hint">Set B カーソル移動時の軌跡ライン色</sys:String>
+    <sys:String x:Key="Str.Settings.Effect.Marker.Title">座標マーカー</sys:String>
+    <sys:String x:Key="Str.Settings.Effect.Marker.Hint">表示モード時の保存座標マーカー</sys:String>
+    <sys:String x:Key="Str.Settings.Effect.MarkerB.Title">座標マーカー（Set B）</sys:String>
+    <sys:String x:Key="Str.Settings.Effect.MarkerB.Hint">第2座標セットのマーカー色（削除モードで色分け表示）</sys:String>
+    <sys:String x:Key="Str.Settings.Effect.DeleteHelp.Title">削除モードヘルプ</sys:String>
+    <sys:String x:Key="Str.Settings.Effect.DeleteHelp.Hint">削除モード中に操作ガイドを画面隅に表示</sys:String>
+    <sys:String x:Key="Str.Settings.Effect.MoveTrail.Title">マウス移動エフェクト</sys:String>
+    <sys:String x:Key="Str.Settings.Effect.MoveTrail.Hint">（将来追加予定）カーソル移動時のトレイル</sys:String>
+
+    <!-- ボタン -->
+    <sys:String x:Key="Str.Settings.Cancel">キャンセル</sys:String>
+    <sys:String x:Key="Str.Settings.Save">保存</sys:String>
+
+    <!-- バリデーション・エラー -->
+    <sys:String x:Key="Str.Settings.Validation.NoTrigger">座標保存・ナビゲーション・座標表示/削除の各アクションにつき、マウスボタンまたはキーボードキーを少なくとも1つ有効にしてください。</sys:String>
+    <sys:String x:Key="Str.Settings.Validation.NoModifier">左/右/ホイールクリック（単押し）の場合は修飾キーを1つ以上選択してください。ホイール＋L/R、ホイール連打、戻る/進むボタンは修飾キー不要で使用できます。</sys:String>
+    <sys:String x:Key="Str.Settings.Validation.ConflictFormat">「{0}」と「{1}」の{2}ショートカットが重複しています。どちらか片方を変更してください。</sys:String>
+    <sys:String x:Key="Str.Settings.Validation.ConflictKind.Mouse">マウス</sys:String>
+    <sys:String x:Key="Str.Settings.Validation.ConflictKind.Keyboard">キーボード</sys:String>
+    <sys:String x:Key="Str.Settings.Validation.ConflictKind.Both">マウス/キーボード両方の</sys:String>
+
+    <!-- アクション名（競合エラーで使用） -->
+    <sys:String x:Key="Str.Settings.Action.Save">座標保存</sys:String>
+    <sys:String x:Key="Str.Settings.Action.NavigateAll">ナビゲート（全体）</sys:String>
+    <sys:String x:Key="Str.Settings.Action.NavigateMonitor">ナビゲート（モニタ内）</sys:String>
+    <sys:String x:Key="Str.Settings.Action.Display">座標表示/削除</sys:String>
+    <sys:String x:Key="Str.Settings.Action.SaveB">座標保存（Set B）</sys:String>
+    <sys:String x:Key="Str.Settings.Action.NavigateB">座標移動（Set B）</sys:String>
+
+    <!-- マウスボタン名 -->
+    <sys:String x:Key="Str.Button.Left">左クリック</sys:String>
+    <sys:String x:Key="Str.Button.Right">右クリック</sys:String>
+    <sys:String x:Key="Str.Button.Middle">ホイールクリック</sys:String>
+    <sys:String x:Key="Str.Button.XButton1">戻るボタン</sys:String>
+    <sys:String x:Key="Str.Button.XButton2">進むボタン</sys:String>
+    <sys:String x:Key="Str.Button.MiddleLeftChord">ホイール＋左クリック</sys:String>
+    <sys:String x:Key="Str.Button.MiddleRightChord">ホイール＋右クリック</sys:String>
+    <sys:String x:Key="Str.Button.MiddleDoubleClick">ホイール2連打</sys:String>
+    <sys:String x:Key="Str.Button.MiddleTripleClick">ホイール3連打</sys:String>
+    <!-- 削除モードヘルプ用（FormatForDeleteMode で使用、表記揺れあり） -->
+    <sys:String x:Key="Str.Button.Compact.MiddleLeftChord">ホイール+左クリック</sys:String>
+    <sys:String x:Key="Str.Button.Compact.MiddleRightChord">ホイール+右クリック</sys:String>
+    <sys:String x:Key="Str.Button.Compact.MiddleDoubleClick">ホイールダブルクリック</sys:String>
+    <sys:String x:Key="Str.Button.Compact.MiddleTripleClick">ホイールトリプルクリック</sys:String>
+
+    <!-- ショートカット -->
+    <sys:String x:Key="Str.Shortcut.Disabled">（無効）</sys:String>
+
+    <!-- MessageBox -->
+    <sys:String x:Key="Str.MessageBox.MouseHookFailedFormat">マウスフックの登録に失敗しました: {0}</sys:String>
+    <sys:String x:Key="Str.MessageBox.KeyboardHookFailedFormat">キーボードフックの登録に失敗しました: {0}</sys:String>
+
+    <!-- オーバーレイ（削除モード） -->
+    <sys:String x:Key="Str.Overlay.DeleteMode.Title">保存座標削除モード</sys:String>
+    <sys:String x:Key="Str.Overlay.DeleteMode.AddDelete">追加/削除</sys:String>
+    <sys:String x:Key="Str.Overlay.DeleteMode.DeleteAll">全削除</sys:String>
+    <sys:String x:Key="Str.Overlay.DeleteMode.Exit">終了</sys:String>
+
+    <!-- 使い方タブ -->
+    <sys:String x:Key="Str.Usage.WhatIs.Title">CursorJumpとは</sys:String>
+    <sys:String x:Key="Str.Usage.WhatIs.Body">CursorJumpは、よく使う画面の位置にマウスカーソルを瞬間移動できる常駐ツールです。広いモニタ・マルチモニタ環境で、マウスを大きく動かす手間を減らします。</sys:String>
+    <sys:String x:Key="Str.Usage.Basics.Title">基本操作</sys:String>
+    <sys:String x:Key="Str.Usage.Basics.Step1.Title">座標を保存</sys:String>
+    <sys:String x:Key="Str.Usage.Basics.Step1.Prefix">ジャンプ先にしたい位置にカーソルを置き、</sys:String>
+    <sys:String x:Key="Str.Usage.Basics.Step1.Suffix">+ 左クリック</sys:String>
+    <sys:String x:Key="Str.Usage.Basics.Step2.Title">保存位置に移動</sys:String>
+    <sys:String x:Key="Str.Usage.Basics.Step2.Body">ナビゲーションショートカットで保存した座標を順番に循環。マルチモニタなら全座標を横断して巡回します。</sys:String>
+    <sys:String x:Key="Str.Usage.Basics.Step3.Title">現在モニタのみ循環</sys:String>
+    <sys:String x:Key="Str.Usage.Basics.Step3.Body">モニタ内ナビゲーションは、今カーソルがあるモニタの座標だけを循環します。</sys:String>
+    <sys:String x:Key="Str.Usage.Basics.Step4.Title">座標の表示 / 削除</sys:String>
+    <sys:String x:Key="Str.Usage.Basics.Step4.Body">表示モードに入ると保存位置にマーカーが表示されます。マーカー付近をクリックで削除、何もない場所をクリックで新規追加、ESCで終了。</sys:String>
+    <sys:String x:Key="Str.Usage.FKey.Title">キーボードトリガー（F13〜F24）について</sys:String>
+    <sys:String x:Key="Str.Usage.FKey.Intro">F13〜F24 は、通常のキーボードには物理キーとして存在しない「拡張ファンクションキー」です。以下の方法で送信できます:</sys:String>
+    <sys:String x:Key="Str.Usage.FKey.Method1.Term">VIA / QMK 対応キーボード</sys:String>
+    <sys:String x:Key="Str.Usage.FKey.Method1.Desc">— 任意のキーに F13〜F24 を割り当て可能</sys:String>
+    <sys:String x:Key="Str.Usage.FKey.Method2.Term">AutoHotkey</sys:String>
+    <sys:String x:Key="Str.Usage.FKey.Method2.Desc">— スクリプトで既存キーを F13〜F24 に変換</sys:String>
+    <sys:String x:Key="Str.Usage.FKey.Method3.Term">マクロ付きマウス / 周辺機器</sys:String>
+    <sys:String x:Key="Str.Usage.FKey.Method3.Desc">— 物理ボタンから送信</sys:String>
+    <sys:String x:Key="Str.Usage.FKey.Tip">💡 なぜ F13〜F24? — 通常のキー (A-Z, F1-F12) は他アプリと競合するため、専用領域として用意されている F13 以降を使うと安全に独自ショートカットが組めます。</sys:String>
+    <sys:String x:Key="Str.Usage.MonitorNav.Title">モニタ内ナビゲーションとは</sys:String>
+    <sys:String x:Key="Str.Usage.MonitorNav.Body">通常のナビゲーションは「全モニタの全保存座標」を順番に循環しますが、モニタ内ナビゲーションは現在カーソルのあるモニタに保存された座標のみを循環します。マルチモニタ環境で「今のモニタの中だけを行き来したい」場合に便利です。</sys:String>
+
+</ResourceDictionary>

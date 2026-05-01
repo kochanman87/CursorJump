@@ -12,6 +12,8 @@ public sealed class TrayIconService : IDisposable
 {
     private readonly NotifyIcon _notifyIcon;
     private readonly SettingsService _settingsService;
+    private ToolStripMenuItem? _settingsItem;
+    private ToolStripMenuItem? _exitItem;
     private bool _disposed;
 
     public TrayIconService(SettingsService settingsService)
@@ -33,22 +35,33 @@ public sealed class TrayIconService : IDisposable
         var iconUri = new Uri("pack://application:,,,/Assets/icon.ico", UriKind.Absolute);
         var iconStream = System.Windows.Application.GetResourceStream(iconUri)?.Stream;
         _notifyIcon.Icon = iconStream is not null ? new Icon(iconStream) : SystemIcons.Application;
-        _notifyIcon.Text = "CursorJump";
+        _notifyIcon.Text = Loc.Get("Str.AppName");
 
         var contextMenu = new ContextMenuStrip();
 
-        var settingsItem = new ToolStripMenuItem("設定");
-        settingsItem.Click += HandleSettingsClick;
-        contextMenu.Items.Add(settingsItem);
+        _settingsItem = new ToolStripMenuItem(Loc.Get("Str.Tray.Settings"));
+        _settingsItem.Click += HandleSettingsClick;
+        contextMenu.Items.Add(_settingsItem);
 
         contextMenu.Items.Add(new ToolStripSeparator());
 
-        var exitItem = new ToolStripMenuItem("終了");
-        exitItem.Click += HandleExitClick;
-        contextMenu.Items.Add(exitItem);
+        _exitItem = new ToolStripMenuItem(Loc.Get("Str.Tray.Exit"));
+        _exitItem.Click += HandleExitClick;
+        contextMenu.Items.Add(_exitItem);
 
         _notifyIcon.ContextMenuStrip = contextMenu;
         _notifyIcon.Visible = true;
+
+        LocalizationManager.LanguageChanged += OnLanguageChanged;
+    }
+
+    private void OnLanguageChanged()
+    {
+        if (_disposed) return;
+        // メニュー項目のテキストを現在言語に更新
+        _notifyIcon.Text = Loc.Get("Str.AppName");
+        if (_settingsItem is not null) _settingsItem.Text = Loc.Get("Str.Tray.Settings");
+        if (_exitItem is not null) _exitItem.Text = Loc.Get("Str.Tray.Exit");
     }
 
     private void HandleSettingsClick(object? sender, EventArgs e)
@@ -80,6 +93,7 @@ public sealed class TrayIconService : IDisposable
         }
 
         _disposed = true;
+        LocalizationManager.LanguageChanged -= OnLanguageChanged;
 
         var contextMenu = _notifyIcon.ContextMenuStrip;
         if (contextMenu is not null)

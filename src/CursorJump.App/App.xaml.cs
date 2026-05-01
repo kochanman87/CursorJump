@@ -29,9 +29,10 @@ public partial class App : Application
         _singleInstanceMutex = new Mutex(initiallyOwned: true, SingleInstanceMutexName, out bool createdNew);
         if (!createdNew)
         {
+            // 設定読込前なので OS 既定言語で表示する（言語辞書は App.xaml の初期値=日本語）
             MessageBox.Show(
-                "CursorJump はすでに起動中です。タスクトレイを確認してください。",
-                "CursorJump",
+                Loc.Get("Str.AlreadyRunning"),
+                Loc.Get("Str.AppName"),
                 MessageBoxButton.OK,
                 MessageBoxImage.Information);
             Shutdown(0);
@@ -49,8 +50,9 @@ public partial class App : Application
             _settingsService = new SettingsService();
             _settingsService.Load();
 
-            // 起動時にユーザーが保存したテーマを適用
+            // 起動時にユーザーが保存したテーマと言語を適用
             ThemeManager.Apply(_settingsService.Current.UiTheme);
+            LocalizationManager.Apply(_settingsService.Current.UiLanguage);
 
             _mainWindow = new MainWindow(_settingsService);
             MainWindow = _mainWindow;
@@ -64,8 +66,7 @@ public partial class App : Application
         }
         catch (Exception ex)
         {
-            const string title = "CursorJump";
-            MessageBox.Show(ex.Message, title, MessageBoxButton.OK, MessageBoxImage.Error);
+            MessageBox.Show(ex.Message, Loc.Get("Str.AppName"), MessageBoxButton.OK, MessageBoxImage.Error);
             Shutdown(-1);
             return;
         }

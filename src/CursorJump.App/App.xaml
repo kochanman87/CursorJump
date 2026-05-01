@@ -7,6 +7,8 @@
             <ResourceDictionary.MergedDictionaries>
                 <!-- テーマ: 先頭の辞書が ThemeManager により切替される (index 0) -->
                 <ResourceDictionary Source="Themes/LightTheme.xaml"/>
+                <!-- 言語: index 1 が LocalizationManager により切替される -->
+                <ResourceDictionary Source="Localization/StringsJa.xaml"/>
                 <!-- 共通スタイル (テーマリソースを DynamicResource 参照) -->
                 <ResourceDictionary Source="Styles/ModernTheme.xaml"/>
             </ResourceDictionary.MergedDictionaries>

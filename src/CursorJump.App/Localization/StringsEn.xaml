@@ -1,0 +1,139 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:sys="clr-namespace:System;assembly=mscorlib">
+
+    <!-- App general -->
+    <sys:String x:Key="Str.AppName">CursorJump</sys:String>
+    <sys:String x:Key="Str.AlreadyRunning">CursorJump is already running. Please check the system tray.</sys:String>
+
+    <!-- Tray menu -->
+    <sys:String x:Key="Str.Tray.Settings">Settings</sys:String>
+    <sys:String x:Key="Str.Tray.Exit">Exit</sys:String>
+
+    <!-- Settings window general -->
+    <sys:String x:Key="Str.Settings.Title">CursorJump Settings</sys:String>
+    <sys:String x:Key="Str.Settings.TitleFormat">CursorJump Settings  v{0}.{1}.{2}</sys:String>
+    <sys:String x:Key="Str.Settings.Tab.Settings">Settings</sys:String>
+    <sys:String x:Key="Str.Settings.Tab.Usage">How to use</sys:String>
+    <sys:String x:Key="Str.Settings.Theme.Light">Light</sys:String>
+    <sys:String x:Key="Str.Settings.Theme.Dark">Dark</sys:String>
+    <sys:String x:Key="Str.Settings.Language.Japanese">日本語</sys:String>
+    <sys:String x:Key="Str.Settings.Language.English">English</sys:String>
+
+    <!-- Card headers -->
+    <sys:String x:Key="Str.Settings.Card.Save">Save coordinate</sys:String>
+    <sys:String x:Key="Str.Settings.Card.Navigate">Navigate coordinates</sys:String>
+    <sys:String x:Key="Str.Settings.Card.NavigateInMonitor">Navigate within monitor</sys:String>
+    <sys:String x:Key="Str.Settings.Card.NavigateInMonitor.Hint">Cycle current monitor only</sys:String>
+    <sys:String x:Key="Str.Settings.Card.Display">Display / Delete</sys:String>
+    <sys:String x:Key="Str.Settings.Card.SaveB">Save coordinate (Set B)</sys:String>
+    <sys:String x:Key="Str.Settings.Card.NavigateB">Navigate coordinates (Set B)</sys:String>
+    <sys:String x:Key="Str.Settings.Card.Effects">Effects</sys:String>
+
+    <!-- Common labels -->
+    <sys:String x:Key="Str.Settings.MouseButton">Mouse button</sys:String>
+    <sys:String x:Key="Str.Settings.KeyboardKey">Keyboard key</sys:String>
+    <sys:String x:Key="Str.Settings.FKeyTooltip">F13–F24 are extension keys you can send via VIA/QMK/AutoHotkey, etc. See the "How to use" tab for details.</sys:String>
+    <sys:String x:Key="Str.Settings.StatusEnabled">Enabled</sys:String>
+    <sys:String x:Key="Str.Settings.StatusNotImplemented">Not implemented</sys:String>
+
+    <!-- Set B section -->
+    <sys:String x:Key="Str.Settings.SetB.Header">Second coordinate set (independent)</sys:String>
+    <sys:String x:Key="Str.Settings.SetB.Description">Manages a separate coordinate list from Set A. The two cycle independently and are shown side-by-side with distinct colors in delete mode.</sys:String>
+
+    <!-- Effects card -->
+    <sys:String x:Key="Str.Settings.Effect.Save.Title">Save effect</sys:String>
+    <sys:String x:Key="Str.Settings.Effect.Save.Hint">Shrinking-circle animation when saving a coordinate</sys:String>
+    <sys:String x:Key="Str.Settings.Effect.SaveB.Title">Save effect (Set B)</sys:String>
+    <sys:String x:Key="Str.Settings.Effect.SaveB.Hint">Shrinking-circle animation color for Set B saves</sys:String>
+    <sys:String x:Key="Str.Settings.Effect.Trail.Title">Jump trail</sys:String>
+    <sys:String x:Key="Str.Settings.Effect.Trail.Hint">Trail line drawn during cursor jumps</sys:String>
+    <sys:String x:Key="Str.Settings.Effect.Trail.Thickness">Trail thickness</sys:String>
+    <sys:String x:Key="Str.Settings.Effect.Trail.Duration">Duration</sys:String>
+    <sys:String x:Key="Str.Settings.Effect.Trail.Opacity">Opacity</sys:String>
+    <sys:String x:Key="Str.Settings.Effect.TrailB.Title">Jump trail (Set B)</sys:String>
+    <sys:String x:Key="Str.Settings.Effect.TrailB.Hint">Trail line color for Set B jumps</sys:String>
+    <sys:String x:Key="Str.Settings.Effect.Marker.Title">Coordinate marker</sys:String>
+    <sys:String x:Key="Str.Settings.Effect.Marker.Hint">Marker shown at saved coordinates in display mode</sys:String>
+    <sys:String x:Key="Str.Settings.Effect.MarkerB.Title">Coordinate marker (Set B)</sys:String>
+    <sys:String x:Key="Str.Settings.Effect.MarkerB.Hint">Marker color for the second coordinate set (color-coded in delete mode)</sys:String>
+    <sys:String x:Key="Str.Settings.Effect.DeleteHelp.Title">Delete-mode help</sys:String>
+    <sys:String x:Key="Str.Settings.Effect.DeleteHelp.Hint">Show an in-screen guide while delete mode is active</sys:String>
+    <sys:String x:Key="Str.Settings.Effect.MoveTrail.Title">Mouse-move effect</sys:String>
+    <sys:String x:Key="Str.Settings.Effect.MoveTrail.Hint">(Coming soon) Trail effect on cursor movement</sys:String>
+
+    <!-- Buttons -->
+    <sys:String x:Key="Str.Settings.Cancel">Cancel</sys:String>
+    <sys:String x:Key="Str.Settings.Save">Save</sys:String>
+
+    <!-- Validation / errors -->
+    <sys:String x:Key="Str.Settings.Validation.NoTrigger">For each of Save, Navigate, and Display/Delete, you must enable at least one trigger (mouse button or keyboard key).</sys:String>
+    <sys:String x:Key="Str.Settings.Validation.NoModifier">Single Left/Right/Middle clicks require at least one modifier key. Wheel+L/R, multi-clicks, and back/forward buttons can be used without modifiers.</sys:String>
+    <sys:String x:Key="Str.Settings.Validation.ConflictFormat">The {2} shortcut for "{0}" conflicts with "{1}". Please change one of them.</sys:String>
+    <sys:String x:Key="Str.Settings.Validation.ConflictKind.Mouse">mouse</sys:String>
+    <sys:String x:Key="Str.Settings.Validation.ConflictKind.Keyboard">keyboard</sys:String>
+    <sys:String x:Key="Str.Settings.Validation.ConflictKind.Both">mouse and keyboard</sys:String>
+
+    <!-- Action names (used in conflict error) -->
+    <sys:String x:Key="Str.Settings.Action.Save">Save coordinate</sys:String>
+    <sys:String x:Key="Str.Settings.Action.NavigateAll">Navigate (all)</sys:String>
+    <sys:String x:Key="Str.Settings.Action.NavigateMonitor">Navigate (in monitor)</sys:String>
+    <sys:String x:Key="Str.Settings.Action.Display">Display/Delete</sys:String>
+    <sys:String x:Key="Str.Settings.Action.SaveB">Save coordinate (Set B)</sys:String>
+    <sys:String x:Key="Str.Settings.Action.NavigateB">Navigate coordinates (Set B)</sys:String>
+
+    <!-- Mouse button names -->
+    <sys:String x:Key="Str.Button.Left">Left click</sys:String>
+    <sys:String x:Key="Str.Button.Right">Right click</sys:String>
+    <sys:String x:Key="Str.Button.Middle">Middle click</sys:String>
+    <sys:String x:Key="Str.Button.XButton1">Back button</sys:String>
+    <sys:String x:Key="Str.Button.XButton2">Forward button</sys:String>
+    <sys:String x:Key="Str.Button.MiddleLeftChord">Wheel + Left click</sys:String>
+    <sys:String x:Key="Str.Button.MiddleRightChord">Wheel + Right click</sys:String>
+    <sys:String x:Key="Str.Button.MiddleDoubleClick">Wheel double-click</sys:String>
+    <sys:String x:Key="Str.Button.MiddleTripleClick">Wheel triple-click</sys:String>
+    <!-- Compact form for delete-mode help -->
+    <sys:String x:Key="Str.Button.Compact.MiddleLeftChord">Wheel+Left</sys:String>
+    <sys:String x:Key="Str.Button.Compact.MiddleRightChord">Wheel+Right</sys:String>
+    <sys:String x:Key="Str.Button.Compact.MiddleDoubleClick">Wheel double</sys:String>
+    <sys:String x:Key="Str.Button.Compact.MiddleTripleClick">Wheel triple</sys:String>
+
+    <!-- Shortcut -->
+    <sys:String x:Key="Str.Shortcut.Disabled">(disabled)</sys:String>
+
+    <!-- MessageBox -->
+    <sys:String x:Key="Str.MessageBox.MouseHookFailedFormat">Failed to install the mouse hook: {0}</sys:String>
+    <sys:String x:Key="Str.MessageBox.KeyboardHookFailedFormat">Failed to install the keyboard hook: {0}</sys:String>
+
+    <!-- Overlay (delete mode) -->
+    <sys:String x:Key="Str.Overlay.DeleteMode.Title">Coordinate delete mode</sys:String>
+    <sys:String x:Key="Str.Overlay.DeleteMode.AddDelete">Add / Delete</sys:String>
+    <sys:String x:Key="Str.Overlay.DeleteMode.DeleteAll">Delete all</sys:String>
+    <sys:String x:Key="Str.Overlay.DeleteMode.Exit">Exit</sys:String>
+
+    <!-- Usage tab -->
+    <sys:String x:Key="Str.Usage.WhatIs.Title">What is CursorJump?</sys:String>
+    <sys:String x:Key="Str.Usage.WhatIs.Body">CursorJump is a resident utility that teleports your mouse cursor to frequently used screen positions. It reduces large mouse movements on wide and multi-monitor setups.</sys:String>
+    <sys:String x:Key="Str.Usage.Basics.Title">Basic operations</sys:String>
+    <sys:String x:Key="Str.Usage.Basics.Step1.Title">Save a coordinate</sys:String>
+    <sys:String x:Key="Str.Usage.Basics.Step1.Prefix">Place the cursor where you want to jump, then press </sys:String>
+    <sys:String x:Key="Str.Usage.Basics.Step1.Suffix">+ Left click</sys:String>
+    <sys:String x:Key="Str.Usage.Basics.Step2.Title">Jump to a saved location</sys:String>
+    <sys:String x:Key="Str.Usage.Basics.Step2.Body">The navigate shortcut cycles through saved coordinates in order. On multi-monitor setups it traverses every saved position.</sys:String>
+    <sys:String x:Key="Str.Usage.Basics.Step3.Title">Cycle the current monitor only</sys:String>
+    <sys:String x:Key="Str.Usage.Basics.Step3.Body">In-monitor navigation cycles only through coordinates saved on the monitor where the cursor currently is.</sys:String>
+    <sys:String x:Key="Str.Usage.Basics.Step4.Title">Display / Delete coordinates</sys:String>
+    <sys:String x:Key="Str.Usage.Basics.Step4.Body">In display mode, markers appear at every saved position. Click near a marker to delete it; click on an empty area to add a new coordinate; press ESC to exit.</sys:String>
+    <sys:String x:Key="Str.Usage.FKey.Title">About keyboard triggers (F13–F24)</sys:String>
+    <sys:String x:Key="Str.Usage.FKey.Intro">F13–F24 are "extended function keys" that don't exist as physical keys on a regular keyboard. You can send them with any of the following:</sys:String>
+    <sys:String x:Key="Str.Usage.FKey.Method1.Term">VIA / QMK keyboards</sys:String>
+    <sys:String x:Key="Str.Usage.FKey.Method1.Desc">— assign F13–F24 to any key</sys:String>
+    <sys:String x:Key="Str.Usage.FKey.Method2.Term">AutoHotkey</sys:String>
+    <sys:String x:Key="Str.Usage.FKey.Method2.Desc">— remap existing keys to F13–F24 via a script</sys:String>
+    <sys:String x:Key="Str.Usage.FKey.Method3.Term">Macro mice / peripherals</sys:String>
+    <sys:String x:Key="Str.Usage.FKey.Method3.Desc">— send them from a physical button</sys:String>
+    <sys:String x:Key="Str.Usage.FKey.Tip">💡 Why F13–F24? Regular keys (A–Z, F1–F12) tend to conflict with other apps. F13 onward is reserved territory, so you can build your own shortcuts safely.</sys:String>
+    <sys:String x:Key="Str.Usage.MonitorNav.Title">What is in-monitor navigation?</sys:String>
+    <sys:String x:Key="Str.Usage.MonitorNav.Body">Regular navigation cycles through every saved coordinate across all monitors, while in-monitor navigation cycles only through coordinates on the monitor where the cursor currently is. Useful when you want to stay within one monitor on a multi-monitor setup.</sys:String>
+
+</ResourceDictionary>

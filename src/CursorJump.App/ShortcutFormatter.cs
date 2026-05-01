@@ -18,7 +18,7 @@ internal static class ShortcutFormatter
         bool hasKeyboard = shortcut.EnabledTriggers.HasFlag(TriggerType.Keyboard);
 
         if (!hasMouse && !hasKeyboard)
-            return "（無効）";
+            return Loc.Get("Str.Shortcut.Disabled");
 
         if (hasMouse && hasKeyboard)
             return $"{FormatMouse(shortcut)} / {FormatKeyboard(shortcut)}";
@@ -79,7 +79,7 @@ internal static class ShortcutFormatter
         bool hasMouse    = shortcut.EnabledTriggers.HasFlag(TriggerType.Mouse);
         bool hasKeyboard = shortcut.EnabledTriggers.HasFlag(TriggerType.Keyboard);
 
-        if (!hasMouse && !hasKeyboard) return "（無効）";
+        if (!hasMouse && !hasKeyboard) return Loc.Get("Str.Shortcut.Disabled");
 
         var parts = new System.Collections.Generic.List<string>(2);
 
@@ -93,7 +93,7 @@ internal static class ShortcutFormatter
                 or MouseButtonType.MiddleTripleClick => MouseButtonType.Right,
                 _ => shortcut.MouseButton
             };
-            parts.Add(ButtonTypeName(effective));
+            parts.Add(ButtonTypeNameCompact(effective));
         }
 
         if (hasKeyboard)
@@ -104,16 +104,27 @@ internal static class ShortcutFormatter
 
     private static string ButtonTypeName(MouseButtonType type) => type switch
     {
-        MouseButtonType.Left              => "左クリック",
-        MouseButtonType.Right             => "右クリック",
-        MouseButtonType.Middle            => "ホイールクリック",
-        MouseButtonType.XButton1          => "戻るボタン",
-        MouseButtonType.XButton2          => "進むボタン",
-        MouseButtonType.MiddleLeftChord   => "ホイール+左クリック",
-        MouseButtonType.MiddleRightChord  => "ホイール+右クリック",
-        MouseButtonType.MiddleDoubleClick => "ホイールダブルクリック",
-        MouseButtonType.MiddleTripleClick => "ホイールトリプルクリック",
-        _                                 => "左クリック"
+        MouseButtonType.Left              => Loc.Get("Str.Button.Left"),
+        MouseButtonType.Right             => Loc.Get("Str.Button.Right"),
+        MouseButtonType.Middle            => Loc.Get("Str.Button.Middle"),
+        MouseButtonType.XButton1          => Loc.Get("Str.Button.XButton1"),
+        MouseButtonType.XButton2          => Loc.Get("Str.Button.XButton2"),
+        MouseButtonType.MiddleLeftChord   => Loc.Get("Str.Button.Compact.MiddleLeftChord"),
+        MouseButtonType.MiddleRightChord  => Loc.Get("Str.Button.Compact.MiddleRightChord"),
+        MouseButtonType.MiddleDoubleClick => Loc.Get("Str.Button.Compact.MiddleDoubleClick"),
+        MouseButtonType.MiddleTripleClick => Loc.Get("Str.Button.Compact.MiddleTripleClick"),
+        _                                 => Loc.Get("Str.Button.Left")
+    };
+
+    /// <summary>削除モードヘルプ用。物理ボタン名にマップ後の単純名（Left/Right/Middle/XButton1/XButton2）。</summary>
+    private static string ButtonTypeNameCompact(MouseButtonType type) => type switch
+    {
+        MouseButtonType.Left     => Loc.Get("Str.Button.Left"),
+        MouseButtonType.Right    => Loc.Get("Str.Button.Right"),
+        MouseButtonType.Middle   => Loc.Get("Str.Button.Middle"),
+        MouseButtonType.XButton1 => Loc.Get("Str.Button.XButton1"),
+        MouseButtonType.XButton2 => Loc.Get("Str.Button.XButton2"),
+        _                        => Loc.Get("Str.Button.Left")
     };
 
     private static string VirtualKeyName(int vkCode)

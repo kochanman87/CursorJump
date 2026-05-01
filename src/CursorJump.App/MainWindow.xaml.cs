@@ -67,8 +67,8 @@ public partial class MainWindow : Window
         catch (Win32Exception ex)
         {
             MessageBox.Show(
-                $"マウスフックの登録に失敗しました: {ex.Message}",
-                "CursorJump",
+                string.Format(Loc.Get("Str.MessageBox.MouseHookFailedFormat"), ex.Message),
+                Loc.Get("Str.AppName"),
                 MessageBoxButton.OK,
                 MessageBoxImage.Warning);
         }
@@ -89,8 +89,8 @@ public partial class MainWindow : Window
         catch (Win32Exception ex)
         {
             MessageBox.Show(
-                $"キーボードフックの登録に失敗しました: {ex.Message}",
-                "CursorJump",
+                string.Format(Loc.Get("Str.MessageBox.KeyboardHookFailedFormat"), ex.Message),
+                Loc.Get("Str.AppName"),
                 MessageBoxButton.OK,
                 MessageBoxImage.Warning);
         }

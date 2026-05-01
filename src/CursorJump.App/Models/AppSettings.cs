@@ -104,12 +104,22 @@ public sealed class AppSettings
 
     /// <summary>UI テーマ（Light / Dark）。デフォルトは Dark。</summary>
     public UiTheme UiTheme { get; set; } = UiTheme.Dark;
+
+    /// <summary>UI 言語。Auto は OS の UI 言語から自動判定する。</summary>
+    public UiLanguage UiLanguage { get; set; } = UiLanguage.Auto;
 }
 
 public enum UiTheme
 {
     Light,
     Dark
+}
+
+public enum UiLanguage
+{
+    Auto,
+    Japanese,
+    English
 }
 
 public enum MouseButtonType

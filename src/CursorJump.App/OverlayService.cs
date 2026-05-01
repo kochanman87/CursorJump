@@ -386,7 +386,7 @@ internal sealed class OverlayService
         // タイトル
         stack.Children.Add(new TextBlock
         {
-            Text = "保存座標削除モード",
+            Text = Loc.Get("Str.Overlay.DeleteMode.Title"),
             Foreground = Brushes.White,
             FontSize = 13,
             FontWeight = FontWeights.Bold,
@@ -405,20 +405,20 @@ internal sealed class OverlayService
         // Save ショートカット行
         stack.Children.Add(BuildHelpLine(
             $"[{ShortcutFormatter.FormatForDeleteMode(settings.SaveShortcut)}]",
-            "追加/削除"));
+            Loc.Get("Str.Overlay.DeleteMode.AddDelete")));
 
         // DisplayDelete ショートカット行
         stack.Children.Add(BuildHelpLine(
             $"[{ShortcutFormatter.FormatForDeleteMode(settings.DisplayDeleteShortcut)}]",
-            "全削除"));
+            Loc.Get("Str.Overlay.DeleteMode.DeleteAll")));
 
         // Navigate ショートカット行
         stack.Children.Add(BuildHelpLine(
             $"[{ShortcutFormatter.FormatForDeleteMode(settings.NavigateShortcut)}]",
-            "終了"));
+            Loc.Get("Str.Overlay.DeleteMode.Exit")));
 
         // ESC 行
-        stack.Children.Add(BuildHelpLine("[ESC]", "終了"));
+        stack.Children.Add(BuildHelpLine("[ESC]", Loc.Get("Str.Overlay.DeleteMode.Exit")));
 
         _helpPanel = new Border
         {
