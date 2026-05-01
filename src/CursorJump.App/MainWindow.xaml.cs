@@ -39,15 +39,17 @@ public partial class MainWindow : Window
 
     private void OnCoordinateStoreAChanged()
     {
-        _settingsService.Current.SavedCoordinatesA = _coordinateStore.GetAll().ToList();
-        if (!_settingsService.Save(_settingsService.Current))
+        var snap = _settingsService.Current.Clone();
+        snap.SavedCoordinatesA = _coordinateStore.GetAll().ToList();
+        if (!_settingsService.Save(snap))
             DebugLog.Write("MainWindow: SavedCoordinatesA persistence failed — memory state diverged from settings.json. Coordinates may be lost on next app restart.");
     }
 
     private void OnCoordinateStoreBChanged()
     {
-        _settingsService.Current.SavedCoordinatesB = _coordinateStoreB.GetAll().ToList();
-        if (!_settingsService.Save(_settingsService.Current))
+        var snap = _settingsService.Current.Clone();
+        snap.SavedCoordinatesB = _coordinateStoreB.GetAll().ToList();
+        if (!_settingsService.Save(snap))
             DebugLog.Write("MainWindow: SavedCoordinatesB persistence failed — memory state diverged from settings.json. Coordinates may be lost on next app restart.");
     }
 

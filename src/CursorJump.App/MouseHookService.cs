@@ -172,7 +172,7 @@ internal sealed class MouseHookService : IDisposable
                 if (vkCode == NativeMethods.VK_ESCAPE)
                 {
                     DebugLog.Write("KeyboardHook: ESC detected in delete mode");
-                    DeleteModeEscPressed?.Invoke(this, EventArgs.Empty);
+                    RaiseAsync(DeleteModeEscPressed);
                     return (IntPtr)1; // ESCを消費
                 }
             }
@@ -255,8 +255,8 @@ internal sealed class MouseHookService : IDisposable
                 if (IsShortcutMatchForDeleteMode(pressedButton.Value, settings.DisplayDeleteShortcut))
                 {
                     DebugLog.Write($"DeleteMode: DisplayDeleteShortcut matched at ({hookStruct.pt.X},{hookStruct.pt.Y})");
-                    DeleteAllConfirmRequested?.Invoke(this, args);
                     SetSwallowUpFlag(pressedButton.Value);
+                    RaiseAsync(DeleteAllConfirmRequested, args);
                     return (IntPtr)1;
                 }
 
@@ -264,8 +264,8 @@ internal sealed class MouseHookService : IDisposable
                 if (IsShortcutMatchForDeleteMode(pressedButton.Value, settings.SaveShortcut))
                 {
                     DebugLog.Write($"DeleteMode: SaveShortcut matched at ({hookStruct.pt.X},{hookStruct.pt.Y})");
-                    DeleteModeClicked?.Invoke(this, args);
                     SetSwallowUpFlag(pressedButton.Value);
+                    RaiseAsync(DeleteModeClicked, args);
                     return (IntPtr)1;
                 }
 
@@ -273,8 +273,8 @@ internal sealed class MouseHookService : IDisposable
                 if (IsShortcutMatchForDeleteMode(pressedButton.Value, settings.NavigateShortcut))
                 {
                     DebugLog.Write($"DeleteMode: NavigateShortcut matched → ESC");
-                    DeleteModeEscPressed?.Invoke(this, EventArgs.Empty);
                     SetSwallowUpFlag(pressedButton.Value);
+                    RaiseAsync(DeleteModeEscPressed);
                     return (IntPtr)1;
                 }
 
@@ -372,9 +372,8 @@ internal sealed class MouseHookService : IDisposable
                 var args = new MouseHookEventArgs(hookStruct.pt.X, hookStruct.pt.Y);
 
                 // 各アクションのショートカットを個別にチェック
-                // 通常パスのイベント発火は Dispatcher.BeginInvoke で UI スレッドへ逃がし、
-                // 低レベルフックの 300ms タイムアウトに引っかからないようにする。
-                // ただし DisplayDeleteRequested はフック内部状態 _deleteMode を書き換えるため同期のまま据え置く。
+                // フック内ではマッチ判定・swallow セット・return 1 のみ同期実行し、
+                // 重い処理（WPF/I/O）はすべて RaiseAsync で UI スレッドへ委譲する。
                 if (IsShortcutMatch(pressedButton.Value, settings.SaveShortcut))
                 {
                     DebugLog.Write($"HookCallback: SaveRequested matched (button={pressedButton.Value})");
@@ -402,8 +401,8 @@ internal sealed class MouseHookService : IDisposable
                 if (IsShortcutMatch(pressedButton.Value, settings.DisplayDeleteShortcut))
                 {
                     DebugLog.Write($"HookCallback: DisplayDeleteRequested matched (button={pressedButton.Value})");
-                    DisplayDeleteRequested?.Invoke(this, args);
                     SetSwallowUpFlag(pressedButton.Value);
+                    RaiseAsync(DisplayDeleteRequested, args);
                     return (IntPtr)1;
                 }
 
@@ -745,6 +744,14 @@ internal sealed class MouseHookService : IDisposable
             return;
         }
         dispatcher.BeginInvoke(new Action(() => handler(this, args)));
+    }
+
+    private void RaiseAsync(EventHandler? handler)
+    {
+        if (handler is null) return;
+        var dispatcher = Application.Current?.Dispatcher;
+        if (dispatcher is null) { handler(this, EventArgs.Empty); return; }
+        dispatcher.BeginInvoke(new Action(() => handler(this, EventArgs.Empty)));
     }
 
     private void FireShortcutOnUiThread(ActionShortcut sc, AppSettings s, MouseHookEventArgs args)

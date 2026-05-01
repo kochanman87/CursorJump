@@ -104,6 +104,14 @@ public sealed class AppSettings
 
     /// <summary>UI 言語。Auto は OS の UI 言語から自動判定する。</summary>
     public UiLanguage UiLanguage { get; set; } = UiLanguage.Auto;
+
+    public AppSettings Clone()
+    {
+        var c = (AppSettings)MemberwiseClone();
+        c.SavedCoordinatesA = new List<SavedCoordinate>(SavedCoordinatesA);
+        c.SavedCoordinatesB = new List<SavedCoordinate>(SavedCoordinatesB);
+        return c;
+    }
 }
 
 public enum UiTheme

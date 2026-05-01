@@ -130,8 +130,8 @@ internal sealed class KeyboardHookService : IDisposable
                 {
                     DebugLog.Write($"KeyboardHookService: DeleteAllConfirmRequested (vk=0x{vkCode:X2})");
                     var args = GetCurrentCursorArgs();
-                    DeleteAllConfirmRequested?.Invoke(this, args);
                     _swallowNextKeyUp.Add(vkCode);
+                    RaiseAsync(DeleteAllConfirmRequested, args);
                     return (IntPtr)1;
                 }
 
@@ -140,8 +140,8 @@ internal sealed class KeyboardHookService : IDisposable
                 {
                     DebugLog.Write($"KeyboardHookService: DeleteModeClicked (vk=0x{vkCode:X2})");
                     var args = GetCurrentCursorArgs();
-                    DeleteModeClicked?.Invoke(this, args);
                     _swallowNextKeyUp.Add(vkCode);
+                    RaiseAsync(DeleteModeClicked, args);
                     return (IntPtr)1;
                 }
 
@@ -149,8 +149,8 @@ internal sealed class KeyboardHookService : IDisposable
                 if (IsKeyboardShortcutMatch(vkCode, settings.NavigateShortcut))
                 {
                     DebugLog.Write($"KeyboardHookService: DeleteMode NavigateShortcut → ESC (vk=0x{vkCode:X2})");
-                    DeleteModeEscPressed?.Invoke(this, EventArgs.Empty);
                     _swallowNextKeyUp.Add(vkCode);
+                    RaiseAsync(DeleteModeEscPressed);
                     return (IntPtr)1;
                 }
 
@@ -159,9 +159,8 @@ internal sealed class KeyboardHookService : IDisposable
             }
 
             // 通常モード: 全ショートカットマッチング
-            // フック内では swallow セット追加と return 1 だけ同期で行い、
-            // イベント発火は Dispatcher.BeginInvoke で UI スレッドに逃がす。
-            // DisplayDeleteRequested はフック内部状態 _deleteMode を書き換えるため同期のまま据え置く。
+            // フック内ではマッチ判定・swallow セット・return 1 のみ同期実行し、
+            // 重い処理（WPF/I/O）はすべて RaiseAsync で UI スレッドへ委譲する。
             if (IsKeyboardShortcutMatch(vkCode, settings.SaveShortcut))
             {
                 DebugLog.Write($"KeyboardHookService: SaveRequested (vk=0x{vkCode:X2})");
@@ -190,8 +189,8 @@ internal sealed class KeyboardHookService : IDisposable
             {
                 DebugLog.Write($"KeyboardHookService: DisplayDeleteRequested (vk=0x{vkCode:X2})");
                 var args = GetCurrentCursorArgs();
-                DisplayDeleteRequested?.Invoke(this, args);
                 _swallowNextKeyUp.Add(vkCode);
+                RaiseAsync(DisplayDeleteRequested, args);
                 return (IntPtr)1;
             }
 
@@ -240,6 +239,14 @@ internal sealed class KeyboardHookService : IDisposable
             return;
         }
         dispatcher.BeginInvoke(new Action(() => handler(this, args)));
+    }
+
+    private void RaiseAsync(EventHandler? handler)
+    {
+        if (handler is null) return;
+        var dispatcher = System.Windows.Application.Current?.Dispatcher;
+        if (dispatcher is null) { handler(this, EventArgs.Empty); return; }
+        dispatcher.BeginInvoke(new Action(() => handler(this, EventArgs.Empty)));
     }
 
     /// <summary>キーボードトリガー時はフック座標がないため、GetCursorPos で現在位置を取得する。</summary>
