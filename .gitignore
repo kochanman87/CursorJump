@@ -1,6 +1,7 @@
 # Build results
 bin/
 obj/
+tempcursorjump-build/
 
 # Claude Code local settings
 .claude/
