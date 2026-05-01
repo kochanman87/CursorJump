@@ -228,6 +228,18 @@ public partial class SettingsWindow : Window
     private void OnTrailDurationChanged(object sender, RoutedPropertyChangedEventArgs<double> e) => UpdateTrailValueLabels();
     private void OnTrailOpacityChanged(object sender, RoutedPropertyChangedEventArgs<double> e) => UpdateTrailValueLabels();
 
+    private void OnTrailExpandChecked(object sender, RoutedEventArgs e)
+    {
+        PnlTrailDetails.Visibility = Visibility.Visible;
+        TxtTrailExpandIcon.Text = ""; // ChevronUp
+    }
+
+    private void OnTrailExpandUnchecked(object sender, RoutedEventArgs e)
+    {
+        PnlTrailDetails.Visibility = Visibility.Collapsed;
+        TxtTrailExpandIcon.Text = ""; // ChevronDown
+    }
+
     private static void LoadShortcutUI(ActionShortcut shortcut,
         CheckBox chkMouseEnabled, System.Windows.Controls.Panel pnlMouse,
         CheckBox chkCtrl, CheckBox chkAlt, CheckBox chkShift, CheckBox chkWin, ComboBox cmbBtn,

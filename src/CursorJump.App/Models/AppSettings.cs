@@ -70,14 +70,11 @@ public sealed class AppSettings
     };
 
     public string SaveCircleColor { get; set; } = "#FF0000";
-    /// <summary>Set B 用保存エフェクト色。MarkerColorB と同じオレンジ系をデフォルトに。</summary>
-    public string SaveCircleColorB { get; set; } = "#FF8800";
+    public string SaveCircleColorB { get; set; } = "#FF0000";
     public string TrailColor { get; set; } = "#00FF00";
-    /// <summary>Set B 用軌跡色。MarkerColorB と同じオレンジ系をデフォルトに。</summary>
-    public string TrailColorB { get; set; } = "#FF8800";
+    public string TrailColorB { get; set; } = "#00FF00";
     public string MarkerColor { get; set; } = "#0088FF";
-    /// <summary>Set B 用マーカー色。Set A の青系と区別しやすいオレンジ系をデフォルトに。</summary>
-    public string MarkerColorB { get; set; } = "#FF8800";
+    public string MarkerColorB { get; set; } = "#0088FF";
 
     /// <summary>座標保存時の収縮円エフェクトを表示するか。false なら視覚効果のみスキップ（保存自体は動作）。</summary>
     public bool SaveEffectEnabled { get; set; } = true;

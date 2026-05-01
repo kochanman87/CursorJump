@@ -485,7 +485,12 @@
                             </StackPanel>
 
                             <StackPanel x:Name="EffectList">
-                                <!-- 保存エフェクト -->
+
+                                <!-- ══ Set A ══ -->
+                                <TextBlock Text="Set A" FontSize="11" FontWeight="SemiBold"
+                                           Foreground="{DynamicResource TextMutedBrush}" Margin="0,4,0,6"/>
+
+                                <!-- 保存エフェクト（Set A） -->
                                 <Grid Margin="0,6">
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="Auto"/>
@@ -514,38 +519,13 @@
                                               Style="{StaticResource ToggleSwitchStyle}"
                                               VerticalAlignment="Center"/>
                                 </Grid>
-                                <!-- 保存エフェクト（Set B） -->
-                                <Grid Margin="0,6">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="Auto"/>
-                                        <ColumnDefinition Width="*"/>
-                                        <ColumnDefinition Width="Auto"/>
-                                        <ColumnDefinition Width="Auto"/>
-                                    </Grid.ColumnDefinitions>
-                                    <Ellipse x:Name="RectSaveColorB" Grid.Column="0"
-                                             Style="{StaticResource ColorSwatchStyle}"
-                                             MouseLeftButtonDown="OnColorRectangleClick"/>
-                                    <StackPanel Grid.Column="1" Margin="12,0,8,0" VerticalAlignment="Center">
-                                        <TextBlock Text="{DynamicResource Str.Settings.Effect.SaveB.Title}" FontSize="13" FontWeight="Medium"
-                                                   Foreground="{DynamicResource TextPrimaryBrush}"/>
-                                        <TextBlock Text="{DynamicResource Str.Settings.Effect.SaveB.Hint}"
-                                                   Style="{StaticResource HintText}"/>
-                                    </StackPanel>
-                                    <Border Grid.Column="2" Style="{StaticResource StatusBadgeEnabledStyle}">
-                                        <TextBlock Text="{DynamicResource Str.Settings.StatusEnabled}" FontSize="10" FontWeight="SemiBold" Foreground="#34C759"/>
-                                    </Border>
-                                    <Border Grid.Column="3" Style="{StaticResource HexCodeBadgeStyle}">
-                                        <TextBlock x:Name="TxtSaveColorBHex" FontFamily="Consolas" FontSize="11"
-                                                   Foreground="{DynamicResource TextSecondaryBrush}"/>
-                                    </Border>
-                                </Grid>
-                                <Border Height="1" Background="{DynamicResource BorderSubtleBrush}" Margin="0,2"/>
 
-                                <!-- 軌跡エフェクト -->
+                                <!-- ジャンプ軌跡（Set A）+ 展開ボタン -->
                                 <Grid Margin="0,6">
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="Auto"/>
                                         <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
                                         <ColumnDefinition Width="Auto"/>
                                         <ColumnDefinition Width="Auto"/>
                                         <ColumnDefinition Width="Auto"/>
@@ -566,14 +546,22 @@
                                         <TextBlock x:Name="TxtTrailColorHex" FontFamily="Consolas" FontSize="11"
                                                    Foreground="{DynamicResource TextSecondaryBrush}"/>
                                     </Border>
-                                    <CheckBox x:Name="ChkTrailEffectEnabled" Grid.Column="4"
+                                    <ToggleButton x:Name="BtnTrailExpand" Grid.Column="4"
+                                                  Checked="OnTrailExpandChecked" Unchecked="OnTrailExpandUnchecked"
+                                                  Background="Transparent" BorderThickness="0"
+                                                  Width="24" Height="24" VerticalAlignment="Center" Margin="4,0,0,0">
+                                        <TextBlock x:Name="TxtTrailExpandIcon"
+                                                   FontFamily="{StaticResource FluentIconFont}"
+                                                   FontSize="12" Text="&#xE70D;"
+                                                   Foreground="{DynamicResource TextSecondaryBrush}"/>
+                                    </ToggleButton>
+                                    <CheckBox x:Name="ChkTrailEffectEnabled" Grid.Column="5"
                                               Style="{StaticResource ToggleSwitchStyle}"
                                               VerticalAlignment="Center"/>
                                 </Grid>
 
-                                <!-- 軌跡エフェクト詳細スライダー -->
-                                <StackPanel x:Name="PnlTrailDetails" Margin="20,4,0,8">
-                                    <!-- 太さ -->
+                                <!-- 軌跡詳細スライダー（折りたたみ） -->
+                                <StackPanel x:Name="PnlTrailDetails" Margin="20,4,0,8" Visibility="Collapsed">
                                     <Grid Margin="0,3">
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="120"/>
@@ -590,8 +578,6 @@
                                                    Style="{StaticResource BodyText}" Width="60" TextAlignment="Right"
                                                    VerticalAlignment="Center"/>
                                     </Grid>
-
-                                    <!-- 持続時間 -->
                                     <Grid Margin="0,3">
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="120"/>
@@ -608,8 +594,6 @@
                                                    Style="{StaticResource BodyText}" Width="60" TextAlignment="Right"
                                                    VerticalAlignment="Center"/>
                                     </Grid>
-
-                                    <!-- 不透明度 -->
                                     <Grid Margin="0,3">
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="120"/>
@@ -627,34 +611,8 @@
                                                    VerticalAlignment="Center"/>
                                     </Grid>
                                 </StackPanel>
-                                <!-- ジャンプ軌跡（Set B） -->
-                                <Grid Margin="0,6">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="Auto"/>
-                                        <ColumnDefinition Width="*"/>
-                                        <ColumnDefinition Width="Auto"/>
-                                        <ColumnDefinition Width="Auto"/>
-                                    </Grid.ColumnDefinitions>
-                                    <Ellipse x:Name="RectTrailColorB" Grid.Column="0"
-                                             Style="{StaticResource ColorSwatchStyle}"
-                                             MouseLeftButtonDown="OnColorRectangleClick"/>
-                                    <StackPanel Grid.Column="1" Margin="12,0,8,0" VerticalAlignment="Center">
-                                        <TextBlock Text="{DynamicResource Str.Settings.Effect.TrailB.Title}" FontSize="13" FontWeight="Medium"
-                                                   Foreground="{DynamicResource TextPrimaryBrush}"/>
-                                        <TextBlock Text="{DynamicResource Str.Settings.Effect.TrailB.Hint}"
-                                                   Style="{StaticResource HintText}"/>
-                                    </StackPanel>
-                                    <Border Grid.Column="2" Style="{StaticResource StatusBadgeEnabledStyle}">
-                                        <TextBlock Text="{DynamicResource Str.Settings.StatusEnabled}" FontSize="10" FontWeight="SemiBold" Foreground="#34C759"/>
-                                    </Border>
-                                    <Border Grid.Column="3" Style="{StaticResource HexCodeBadgeStyle}">
-                                        <TextBlock x:Name="TxtTrailColorBHex" FontFamily="Consolas" FontSize="11"
-                                                   Foreground="{DynamicResource TextSecondaryBrush}"/>
-                                    </Border>
-                                </Grid>
-                                <Border Height="1" Background="{DynamicResource BorderSubtleBrush}" Margin="0,2"/>
 
-                                <!-- マーカー -->
+                                <!-- 座標マーカー（Set A） -->
                                 <Grid Margin="0,6">
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="Auto"/>
@@ -683,14 +641,70 @@
                                               Style="{StaticResource ToggleSwitchStyle}"
                                               VerticalAlignment="Center"/>
                                 </Grid>
-                                <Border Height="1" Background="{DynamicResource BorderSubtleBrush}" Margin="0,2"/>
 
-                                <!-- Set B マーカー色 -->
+                                <Border Height="1" Background="{DynamicResource BorderSubtleBrush}" Margin="0,4"/>
+
+                                <!-- ══ Set B ══ -->
+                                <TextBlock Text="Set B" FontSize="11" FontWeight="SemiBold"
+                                           Foreground="{DynamicResource TextMutedBrush}" Margin="0,4,0,6"/>
+
+                                <!-- 保存エフェクト（Set B） -->
                                 <Grid Margin="0,6">
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="Auto"/>
                                         <ColumnDefinition Width="*"/>
                                         <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <Ellipse x:Name="RectSaveColorB" Grid.Column="0"
+                                             Style="{StaticResource ColorSwatchStyle}"
+                                             MouseLeftButtonDown="OnColorRectangleClick"/>
+                                    <StackPanel Grid.Column="1" Margin="12,0,8,0" VerticalAlignment="Center">
+                                        <TextBlock Text="{DynamicResource Str.Settings.Effect.SaveB.Title}" FontSize="13" FontWeight="Medium"
+                                                   Foreground="{DynamicResource TextPrimaryBrush}"/>
+                                        <TextBlock Text="{DynamicResource Str.Settings.Effect.SaveB.Hint}"
+                                                   Style="{StaticResource HintText}"/>
+                                    </StackPanel>
+                                    <Border Grid.Column="2" Style="{StaticResource StatusBadgeEnabledStyle}">
+                                        <TextBlock Text="{DynamicResource Str.Settings.StatusEnabled}" FontSize="10" FontWeight="SemiBold" Foreground="#34C759"/>
+                                    </Border>
+                                    <Border Grid.Column="3" Style="{StaticResource HexCodeBadgeStyle}">
+                                        <TextBlock x:Name="TxtSaveColorBHex" FontFamily="Consolas" FontSize="11"
+                                                   Foreground="{DynamicResource TextSecondaryBrush}"/>
+                                    </Border>
+                                </Grid>
+
+                                <!-- ジャンプ軌跡（Set B） -->
+                                <Grid Margin="0,6">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <Ellipse x:Name="RectTrailColorB" Grid.Column="0"
+                                             Style="{StaticResource ColorSwatchStyle}"
+                                             MouseLeftButtonDown="OnColorRectangleClick"/>
+                                    <StackPanel Grid.Column="1" Margin="12,0,8,0" VerticalAlignment="Center">
+                                        <TextBlock Text="{DynamicResource Str.Settings.Effect.TrailB.Title}" FontSize="13" FontWeight="Medium"
+                                                   Foreground="{DynamicResource TextPrimaryBrush}"/>
+                                        <TextBlock Text="{DynamicResource Str.Settings.Effect.TrailB.Hint}"
+                                                   Style="{StaticResource HintText}"/>
+                                    </StackPanel>
+                                    <Border Grid.Column="2" Style="{StaticResource StatusBadgeEnabledStyle}">
+                                        <TextBlock Text="{DynamicResource Str.Settings.StatusEnabled}" FontSize="10" FontWeight="SemiBold" Foreground="#34C759"/>
+                                    </Border>
+                                    <Border Grid.Column="3" Style="{StaticResource HexCodeBadgeStyle}">
+                                        <TextBlock x:Name="TxtTrailColorBHex" FontFamily="Consolas" FontSize="11"
+                                                   Foreground="{DynamicResource TextSecondaryBrush}"/>
+                                    </Border>
+                                </Grid>
+
+                                <!-- 座標マーカー（Set B） -->
+                                <Grid Margin="0,6">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="*"/>
                                         <ColumnDefinition Width="Auto"/>
                                         <ColumnDefinition Width="Auto"/>
                                     </Grid.ColumnDefinitions>
@@ -711,7 +725,8 @@
                                                    Foreground="{DynamicResource TextSecondaryBrush}"/>
                                     </Border>
                                 </Grid>
-                                <Border Height="1" Background="{DynamicResource BorderSubtleBrush}" Margin="0,2"/>
+
+                                <Border Height="1" Background="{DynamicResource BorderSubtleBrush}" Margin="0,4"/>
 
                                 <!-- 削除モードヘルプパネル -->
                                 <Grid Margin="0,6">
