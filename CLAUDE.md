@@ -7,6 +7,14 @@
 - C#, WinExe, PerMonitorV2 DPI対応
 - 外部NuGetパッケージなし
 
+## バージョニング
+- バージョンは `src/CursorJump.App/CursorJump.App.csproj` の `<Version>` で `MAJOR.MINOR.PATCH`（例: `1.1.0`）形式で管理する
+- **機能追加・バグ修正・品質改善などコード変更を行ったときは、コミット前に必ず `<Version>` を更新する**（更新漏れが頻発しているため明示）
+  - 後方互換を壊す変更 → MAJOR を上げる
+  - 新機能追加 → MINOR を上げる、PATCH を 0 にリセット
+  - バグ修正・内部品質改善・リファクタリング → PATCH を上げる
+- 設定画面の「情報」タブは `Assembly.GetExecutingAssembly().GetName().Version` で参照しているため、`<Version>` 更新だけで自動的に反映される
+
 ## 実装時の工数（思考レベル・モデル）選択ガイド
 
 本プロジェクトは小規模 WPF アプリで、変更の大半は「1〜2ファイル・定型的な Win32/WPF パターン」。グローバル基準より軽めに倒してよい。

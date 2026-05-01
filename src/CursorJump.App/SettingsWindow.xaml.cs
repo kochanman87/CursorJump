@@ -429,7 +429,15 @@ public partial class SettingsWindow : Window
             UiLanguage = _currentLanguage,
         };
 
-        _settingsService.Save(settings);
+        if (!_settingsService.Save(settings))
+        {
+            MessageBox.Show(
+                Loc.Get("Str.MessageBox.SettingsSaveFailed"),
+                Loc.Get("Str.AppName"),
+                MessageBoxButton.OK,
+                MessageBoxImage.Error);
+            return;
+        }
         DialogResult = true;
         Close();
     }

@@ -104,6 +104,7 @@
     <!-- MessageBox -->
     <sys:String x:Key="Str.MessageBox.MouseHookFailedFormat">マウスフックの登録に失敗しました: {0}</sys:String>
     <sys:String x:Key="Str.MessageBox.KeyboardHookFailedFormat">キーボードフックの登録に失敗しました: {0}</sys:String>
+    <sys:String x:Key="Str.MessageBox.SettingsSaveFailed">設定の保存に失敗しました。ディスクの空き容量や書き込み権限を確認してください。</sys:String>
 
     <!-- オーバーレイ（削除モード） -->
     <sys:String x:Key="Str.Overlay.DeleteMode.Title">保存座標削除モード</sys:String>

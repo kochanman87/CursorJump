@@ -116,6 +116,10 @@ internal sealed class KeyboardHookService : IDisposable
         // KEYDOWN イベント: ショートカットマッチング
         if (msg == NativeMethods.WM_KEYDOWN || msg == NativeMethods.WM_SYSKEYDOWN)
         {
+            // auto-repeat 抑止: KEYUP 到達前の同じ vkCode の再 DOWN は無視
+            if (_swallowNextKeyUp.Contains(vkCode))
+                return (IntPtr)1;
+
             var settings = _settingsService.Current;
 
             // 削除モード中は DisplayDeleteShortcut / SaveShortcut のみ処理
@@ -155,30 +159,30 @@ internal sealed class KeyboardHookService : IDisposable
             }
 
             // 通常モード: 全ショートカットマッチング
+            // フック内では swallow セット追加と return 1 だけ同期で行い、
+            // イベント発火は Dispatcher.BeginInvoke で UI スレッドに逃がす。
+            // DisplayDeleteRequested はフック内部状態 _deleteMode を書き換えるため同期のまま据え置く。
             if (IsKeyboardShortcutMatch(vkCode, settings.SaveShortcut))
             {
                 DebugLog.Write($"KeyboardHookService: SaveRequested (vk=0x{vkCode:X2})");
-                var args = GetCurrentCursorArgs();
-                SaveRequested?.Invoke(this, args);
                 _swallowNextKeyUp.Add(vkCode);
+                RaiseAsync(SaveRequested, GetCurrentCursorArgs());
                 return (IntPtr)1;
             }
 
             if (IsKeyboardShortcutMatch(vkCode, settings.NavigateShortcut))
             {
                 DebugLog.Write($"KeyboardHookService: NavigateRequested (vk=0x{vkCode:X2})");
-                var args = GetCurrentCursorArgs();
-                NavigateRequested?.Invoke(this, args);
                 _swallowNextKeyUp.Add(vkCode);
+                RaiseAsync(NavigateRequested, GetCurrentCursorArgs());
                 return (IntPtr)1;
             }
 
             if (IsKeyboardShortcutMatch(vkCode, settings.NavigateCurrentMonitorShortcut))
             {
                 DebugLog.Write($"KeyboardHookService: NavigateCurrentMonitorRequested (vk=0x{vkCode:X2})");
-                var args = GetCurrentCursorArgs();
-                NavigateCurrentMonitorRequested?.Invoke(this, args);
                 _swallowNextKeyUp.Add(vkCode);
+                RaiseAsync(NavigateCurrentMonitorRequested, GetCurrentCursorArgs());
                 return (IntPtr)1;
             }
 
@@ -195,18 +199,16 @@ internal sealed class KeyboardHookService : IDisposable
             if (IsKeyboardShortcutMatch(vkCode, settings.SaveShortcutB))
             {
                 DebugLog.Write($"KeyboardHookService: SaveRequestedB (vk=0x{vkCode:X2})");
-                var args = GetCurrentCursorArgs();
-                SaveRequestedB?.Invoke(this, args);
                 _swallowNextKeyUp.Add(vkCode);
+                RaiseAsync(SaveRequestedB, GetCurrentCursorArgs());
                 return (IntPtr)1;
             }
 
             if (IsKeyboardShortcutMatch(vkCode, settings.NavigateShortcutB))
             {
                 DebugLog.Write($"KeyboardHookService: NavigateRequestedB (vk=0x{vkCode:X2})");
-                var args = GetCurrentCursorArgs();
-                NavigateRequestedB?.Invoke(this, args);
                 _swallowNextKeyUp.Add(vkCode);
+                RaiseAsync(NavigateRequestedB, GetCurrentCursorArgs());
                 return (IntPtr)1;
             }
         }
@@ -221,6 +223,23 @@ internal sealed class KeyboardHookService : IDisposable
         if (shortcut.VirtualKeyCode == 0)
             return false;
         return vkCode == shortcut.VirtualKeyCode;
+    }
+
+    /// <summary>
+    /// 低レベルフックコールバックから重い処理を切り離すため、
+    /// イベント発火を UI スレッドの Dispatcher キューに常に投函する。
+    /// swallow セットへの追加・return 1 はフック側で同期完了させた後に呼ぶこと。
+    /// </summary>
+    private void RaiseAsync(EventHandler<MouseHookEventArgs>? handler, MouseHookEventArgs args)
+    {
+        if (handler is null) return;
+        var dispatcher = System.Windows.Application.Current?.Dispatcher;
+        if (dispatcher is null)
+        {
+            handler(this, args);
+            return;
+        }
+        dispatcher.BeginInvoke(new Action(() => handler(this, args)));
     }
 
     /// <summary>キーボードトリガー時はフック座標がないため、GetCursorPos で現在位置を取得する。</summary>

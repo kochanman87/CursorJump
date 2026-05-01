@@ -372,27 +372,30 @@ internal sealed class MouseHookService : IDisposable
                 var args = new MouseHookEventArgs(hookStruct.pt.X, hookStruct.pt.Y);
 
                 // 各アクションのショートカットを個別にチェック
+                // 通常パスのイベント発火は Dispatcher.BeginInvoke で UI スレッドへ逃がし、
+                // 低レベルフックの 300ms タイムアウトに引っかからないようにする。
+                // ただし DisplayDeleteRequested はフック内部状態 _deleteMode を書き換えるため同期のまま据え置く。
                 if (IsShortcutMatch(pressedButton.Value, settings.SaveShortcut))
                 {
                     DebugLog.Write($"HookCallback: SaveRequested matched (button={pressedButton.Value})");
-                    SaveRequested?.Invoke(this, args);
                     SetSwallowUpFlag(pressedButton.Value);
+                    RaiseAsync(SaveRequested, args);
                     return (IntPtr)1;
                 }
 
                 if (IsShortcutMatch(pressedButton.Value, settings.NavigateShortcut))
                 {
                     DebugLog.Write($"HookCallback: NavigateRequested matched (button={pressedButton.Value})");
-                    NavigateRequested?.Invoke(this, args);
                     SetSwallowUpFlag(pressedButton.Value);
+                    RaiseAsync(NavigateRequested, args);
                     return (IntPtr)1;
                 }
 
                 if (IsShortcutMatch(pressedButton.Value, settings.NavigateCurrentMonitorShortcut))
                 {
                     DebugLog.Write($"HookCallback: NavigateCurrentMonitorRequested matched (button={pressedButton.Value})");
-                    NavigateCurrentMonitorRequested?.Invoke(this, args);
                     SetSwallowUpFlag(pressedButton.Value);
+                    RaiseAsync(NavigateCurrentMonitorRequested, args);
                     return (IntPtr)1;
                 }
 
@@ -408,16 +411,16 @@ internal sealed class MouseHookService : IDisposable
                 if (IsShortcutMatch(pressedButton.Value, settings.SaveShortcutB))
                 {
                     DebugLog.Write($"HookCallback: SaveRequestedB matched (button={pressedButton.Value})");
-                    SaveRequestedB?.Invoke(this, args);
                     SetSwallowUpFlag(pressedButton.Value);
+                    RaiseAsync(SaveRequestedB, args);
                     return (IntPtr)1;
                 }
 
                 if (IsShortcutMatch(pressedButton.Value, settings.NavigateShortcutB))
                 {
                     DebugLog.Write($"HookCallback: NavigateRequestedB matched (button={pressedButton.Value})");
-                    NavigateRequestedB?.Invoke(this, args);
                     SetSwallowUpFlag(pressedButton.Value);
+                    RaiseAsync(NavigateRequestedB, args);
                     return (IntPtr)1;
                 }
             }
@@ -725,6 +728,23 @@ internal sealed class MouseHookService : IDisposable
             if (AreModifiersHeld(sc.Modifiers)) return sc;
         }
         return null;
+    }
+
+    /// <summary>
+    /// 低レベルフックコールバックから重い WPF/I/O 処理を切り離すため、
+    /// イベント発火を UI スレッドの Dispatcher キューに常に投函する。
+    /// swallow フラグ・return 1 はフック側で同期完了させた後に呼ぶこと。
+    /// </summary>
+    private void RaiseAsync(EventHandler<MouseHookEventArgs>? handler, MouseHookEventArgs args)
+    {
+        if (handler is null) return;
+        var dispatcher = Application.Current?.Dispatcher;
+        if (dispatcher is null)
+        {
+            handler(this, args);
+            return;
+        }
+        dispatcher.BeginInvoke(new Action(() => handler(this, args)));
     }
 
     private void FireShortcutOnUiThread(ActionShortcut sc, AppSettings s, MouseHookEventArgs args)

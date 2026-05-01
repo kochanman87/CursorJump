@@ -104,6 +104,7 @@
     <!-- MessageBox -->
     <sys:String x:Key="Str.MessageBox.MouseHookFailedFormat">Failed to install the mouse hook: {0}</sys:String>
     <sys:String x:Key="Str.MessageBox.KeyboardHookFailedFormat">Failed to install the keyboard hook: {0}</sys:String>
+    <sys:String x:Key="Str.MessageBox.SettingsSaveFailed">Failed to save settings. Check the disk space and write permissions.</sys:String>
 
     <!-- Overlay (delete mode) -->
     <sys:String x:Key="Str.Overlay.DeleteMode.Title">Coordinate delete mode</sys:String>

@@ -40,10 +40,8 @@ public sealed class SettingsService
         }
     }
 
-    public void Save(AppSettings settings)
+    public bool Save(AppSettings settings)
     {
-        Current = settings;
-
         try
         {
             Directory.CreateDirectory(SettingsDir);
@@ -56,8 +54,11 @@ public sealed class SettingsService
         catch (Exception ex)
         {
             DebugLog.Write($"SettingsService.Save failed: {ex.GetType().Name}: {ex.Message}");
+            return false;
         }
 
+        Current = settings;
         SettingsChanged?.Invoke();
+        return true;
     }
 }
