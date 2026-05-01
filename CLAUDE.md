@@ -30,9 +30,13 @@ src/CursorJump.App/
 ├── Styles/
 │   └── ModernTheme.xaml            # Fluent風共通スタイル（カード、チップ、トグルスイッチ、ボタン等）
 ├── ThemeManager.cs                 # Light/Dark テーマの ResourceDictionary 差し替え
+├── Localization/
+│   ├── StringsJa.xaml              # 日本語 UI 文字列（ResourceDictionary）
+│   └── StringsEn.xaml              # 英語 UI 文字列（同キー）
+├── LocalizationManager.cs          # 言語の ResourceDictionary 差し替え + Loc.Get ヘルパー
 ├── MainWindow.xaml / .cs           # 不可視ウィンドウ（フック管理）
 ├── Models/
-│   ├── AppSettings.cs              # 設定データモデル（ActionShortcut, TriggerType, ModifierKeyFlags, UiTheme等）
+│   ├── AppSettings.cs              # 設定データモデル（ActionShortcut, TriggerType, ModifierKeyFlags, UiTheme, UiLanguage等）
 │   └── SavedCoordinate.cs          # 保存座標 record
 ├── NativeMethods.cs                # Win32 P/Invoke（マウス/キーボードフック、カーソル等）
 ├── MouseHookService.cs             # WH_MOUSE_LL低レベルフック + 座標表示モード（WH_KEYBOARD_LL併用）
@@ -80,6 +84,20 @@ src/CursorJump.App/
 - **SettingsWindow のタブ切替**: `RadioButton` + `GroupName` で排他制御。`Checked` イベントで `ScrollViewer` の `Visibility` を切替
 - **起動時テーマ適用**: `App.OnStartup` → `SettingsService.Load()` → `ThemeManager.Apply(Current.UiTheme)` の順
 - **キャンセル時のテーマロールバック**: SettingsWindow で Dark に切替 → キャンセルすると元のテーマに戻すため、`OnCancelClick` で `ThemeManager.Apply(_settingsService.Current.UiTheme)` を呼ぶ
+
+### ローカライズシステム（日本語/English）
+- **App.xaml の `MergedDictionaries[1]` が言語辞書**（index 0 はテーマ、index 2 は ModernTheme.xaml）。`LocalizationManager.Apply(UiLanguage)` が `Localization/StringsJa.xaml` / `Localization/StringsEn.xaml` を差し替える。テーマシステムと同じ構造で、`DynamicResource` 参照により全 UI が即時再評価される
+- **全 UI 文字列は `{DynamicResource Str.Xxx}` で参照**。XAML に直書きしてはいけない（言語切替に追従できなくなる）
+- **C# からの取得は `Loc.Get("Str.Xxx")`**: 内部で `Application.Current.TryFindResource` を使用。UI スレッド外からの呼出は `Dispatcher.Invoke` で UI スレッドに復帰してから取得する。キーが見つからない場合はキー文字列自体を返す（デバッグ用）
+- **キー命名規約**: 階層を `.` 区切り、先頭は常に `Str.`。例: `Str.Settings.Card.Save`、`Str.Button.Left`、`Str.MessageBox.MouseHookFailedFormat`、`Str.Overlay.DeleteMode.Title`
+- **`UiLanguage` enum**: `Auto / Japanese / English`。`Auto` は `LocalizationManager.Resolve()` が `CultureInfo.CurrentUICulture.TwoLetterISOLanguageName == "ja"` で日本語、それ以外で英語にフォールバック解決する。設定画面のラジオは「日本語 / English」の2択のみ表示し、`Auto` は明示的にラジオを選ばない場合（=既存設定の維持）にのみ使う
+- **言語切替時の即時反映**: `LocalizationManager.LanguageChanged` イベントが発火される。`TrayIconService` がこれを購読し WinForms の `ToolStripMenuItem.Text` を再設定（DynamicResource が効かないため）。`SettingsWindow` も同イベントで `Title` を再生成し、ボタン名 ComboBox を強制リフレッシュする
+- **ボタン名 ComboBox は `ButtonOption` クラス経由**: `ToString()` が現在言語の `Loc.Get(ResourceKey)` を返す wrapper。enum 値 (`MouseButtonType`) と表示文字列を分離し、保存・復元は enum で行う。言語切替時は `ItemsSource` を一度 null にしてから再代入することで ComboBox の表示を強制更新する
+- **MessageBox 文言は `string.Format(Loc.Get("Str.Xxx.Format"), arg)` のパターン**: プレースホルダ `{0}` は例外メッセージ等の挿入用（例: `Str.MessageBox.MouseHookFailedFormat`）
+- **削除モードヘルプの compact ボタン名**: `ShortcutFormatter.FormatForDeleteMode` は通常名 (`左クリック` / `Left click`) を使うが、Chord/多重クリック由来の物理ボタン名は別キー (`Str.Button.Compact.MiddleLeftChord` 等) で短縮表示する
+- **キャンセル時の言語ロールバック**: `OnCancelClick` で `LocalizationManager.Apply(_settingsService.Current.UiLanguage)` を呼ぶ（テーマと同じ）
+- **起動時の適用順**: `App.OnStartup` → `SettingsService.Load()` → `ThemeManager.Apply(...)` → `LocalizationManager.Apply(...)` → `MainWindow` 生成
+- **キーボードトリガーの修飾キー表記**: `KeyboardHookService` は `VirtualKeyCode` 単独一致で発火するため、UI 上で「Ctrl+F15」と表示されていても実挙動は F15 単独。これは仕様（VIA マクロで修飾キー同時押下を保証できないため）
 
 ### 座標表示/編集モードのアーキテクチャ
 - **オーバーレイは表示専用**: clickThrough=true。フォーカス取得しない
