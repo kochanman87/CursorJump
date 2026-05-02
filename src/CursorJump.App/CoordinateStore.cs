@@ -49,8 +49,7 @@ internal sealed class CoordinateStore
         if (indices.Count == 0) return null;
 
         // モニタ別インデックスを取得（未登録なら -1 から開始）
-        _monitorIndices.TryGetValue(monitorDeviceName, out int lastRawIndex);
-        if (!_monitorIndices.ContainsKey(monitorDeviceName))
+        if (!_monitorIndices.TryGetValue(monitorDeviceName, out int lastRawIndex))
             lastRawIndex = -1;
 
         // 次のインデックス位置を循環

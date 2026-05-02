@@ -1,148 +1,196 @@
 # CursorJump 再レビュー結果
 
-## Finding 1: [P1] 削除モード系の同期イベント発火がまだ残っている
+## Finding 1: [P1] 中ボタン Chord 成立時だけ同期発火が残っている
 
 対象:
-- `src/CursorJump.App/MouseHookService.cs:255-277`
-- `src/CursorJump.App/MouseHookService.cs:402-407`
+- `src/CursorJump.App/MouseHookService.cs:603-605`
+- `src/CursorJump.App/MouseHookService.cs:757-770`
 
 問題:
-削除モード中の以下イベントが、まだ低レベルマウスフックコールバック内から直接発火されている。
+通常クリック系は `RaiseAsync` に寄せられているが、`MiddleLeftChord` / `MiddleRightChord` 成立時だけ別経路になっている。
 
-- `DeleteAllConfirmRequested`
-- `DeleteModeClicked`
-- `DeleteModeEscPressed`
+現在の流れ:
+```csharp
+FireShortcutOnUiThread(sc, settings, args);
+```
 
-また、通常モードの `DisplayDeleteRequested` も直接発火されている。
+`FireShortcutOnUiThread()` は以下のように、Dispatcher 上で呼ばれた場合に即 `fire()` する。
 
-該当箇所では、イベント発火後に呼び先で以下の重い処理が走る可能性がある。
+```csharp
+if (dispatcher is null || dispatcher.CheckAccess()) fire();
+else dispatcher.BeginInvoke(fire);
+```
 
-- 削除モードオーバーレイ生成
-- `EnterDeleteMode` / `ExitDeleteMode`
-- マーカー再構築
-- 座標追加/削除
-- `settings.json` 保存
+低レベルフックはインストール元スレッドに配送され得るため、WPF Dispatcher スレッド上で `TryHandleMiddleChord()` が動く可能性がある。
+その場合、`SaveRequested` / `NavigateRequested` / `DisplayDeleteRequested` などの呼び先で、座標保存、`settings.json` 書き込み、オーバーレイ生成がフック内で同期実行される。
 
-低レベルフックは短時間で戻る必要があるため、このままだと入力遅延や Windows によるフック無効化のリスクが残る。
+これは、これまで修正してきた「低レベルフック内では重い処理をしない」という方針から漏れている。
 
 修正方針:
-これらも通常の `SaveRequested` / `NavigateRequested` と同じように `RaiseAsync` へ統一する。
-
-フックコールバック内で同期実行するのは以下だけにする。
-
-- ショートカットのマッチ判定
-- swallow フラグ設定
-- 必要な座標・イベント情報の確定
-- `return (IntPtr)1`
-
-例:
-```csharp
-SetSwallowUpFlag(pressedButton.Value);
-RaiseAsync(DeleteModeClicked, args);
-return (IntPtr)1;
-```
-
-`EventArgs.Empty` 用のイベントについては、`EventHandler` 向けの `RaiseAsync` overload を追加する。
-
-優先度:
-P1
-
-## Finding 2: [P1] キーボード削除モード系も同期発火のまま
-
-対象:
-- `src/CursorJump.App/KeyboardHookService.cs:129-154`
-- `src/CursorJump.App/KeyboardHookService.cs:189-195`
-
-問題:
-`KeyboardHookService` 側でも、削除モード中の以下イベントが直接発火されている。
-
-- `DeleteAllConfirmRequested`
-- `DeleteModeClicked`
-- `DeleteModeEscPressed`
-
-また、通常モードの `DisplayDeleteRequested` も直接発火されている。
-
-マウス側と同じく、呼び先で削除モード UI や永続化処理が走る可能性があり、低レベルキーボードフック内で重い処理を実行するリスクが残っている。
-
-修正方針:
-`MouseHookService` と同じ方針で、削除モード関連イベントも非同期 dispatch する。
-
-`MouseHookEventArgs` を持つイベント:
-```csharp
-_swallowNextKeyUp.Add(vkCode);
-RaiseAsync(DeleteModeClicked, args);
-return (IntPtr)1;
-```
-
-`EventArgs.Empty` のイベント:
-```csharp
-_swallowNextKeyUp.Add(vkCode);
-RaiseAsync(DeleteModeEscPressed);
-return (IntPtr)1;
-```
-
-`EventHandler` 用の `RaiseAsync` overload を追加する。
-
-優先度:
-P1
-
-## Finding 3: [P2] 保存失敗時の状態不整合はログ追加だけで残っている
-
-対象:
-- `src/CursorJump.App/MainWindow.xaml.cs:40-51`
-
-問題:
-`SettingsService.Save()` の戻り値を見るようにはなったが、依然として `_settingsService.Current.SavedCoordinatesA/B` を先に直接書き換えてから保存している。
-
-現在の処理:
-```csharp
-_settingsService.Current.SavedCoordinatesA = _coordinateStore.GetAll().ToList();
-if (!_settingsService.Save(_settingsService.Current))
-    DebugLog.Write("MainWindow: SavedCoordinatesA persistence failed ...");
-```
-
-```csharp
-_settingsService.Current.SavedCoordinatesB = _coordinateStoreB.GetAll().ToList();
-if (!_settingsService.Save(_settingsService.Current))
-    DebugLog.Write("MainWindow: SavedCoordinatesB persistence failed ...");
-```
-
-このため、保存失敗時には以下の状態になる。
-
-- `CoordinateStore` は変更済み
-- `_settingsService.Current.SavedCoordinatesA/B` も変更済み
-- しかし `settings.json` は未更新
-
-ログ追加により失敗は記録されるが、`Current` と永続化ファイルの不整合自体は解消されていない。
-
-修正方針:
-保存用コピーを作り、成功時だけ `SettingsService.Current` が差し替わる構造にする。
+フック由来の Chord 成立経路では、常に Dispatcher キューへ投げる。
 
 推奨:
-- `AppSettings` のコピー helper を用意する
-- 現在設定をコピーする
-- コピー側の `SavedCoordinatesA/B` だけ差し替える
-- `_settingsService.Save(copy)` を呼ぶ
-- `Save()` が成功したときだけ `Current` が更新される
+- `FireShortcutOnUiThread()` から `dispatcher.CheckAccess()` 即時実行分岐をなくす
+- `dispatcher` がある場合は常に `BeginInvoke`
+- もしくは `FireShortcutAsync` のような名前に変えて、必ず非同期 dispatch する helper にする
 
 例:
 ```csharp
-var settings = _settingsService.Current.Clone();
-settings.SavedCoordinatesA = _coordinateStore.GetAll().ToList();
-
-if (!_settingsService.Save(settings))
+if (dispatcher is null)
 {
-    DebugLog.Write("MainWindow: SavedCoordinatesA persistence failed. Coordinates may be lost on next app restart.");
+    fire();
+}
+else
+{
+    dispatcher.BeginInvoke(fire);
 }
 ```
 
 注意:
-座標追加/削除はすでに `CoordinateStore` 側で起きた後なので、保存失敗時に UI 上の座標を巻き戻すかどうかは別設計でよい。
+`OnMiddleDeferElapsed()` は ThreadPool タイマーから呼ばれるため現状でも `BeginInvoke` になりやすいが、`TryHandleMiddleChord()` はマウスフックコールバック内から直接呼ばれるため、こちらが問題。
 
-最低限、`_settingsService.Current` を保存前に直接 mutate しないこと。
+優先度:
+P1
+
+## Finding 2: [P1] 削除モードの mousemove がフック内で UI 更新している
+
+対象:
+- `src/CursorJump.App/MouseHookService.cs:198-203`
+- `src/CursorJump.App/OverlayService.cs:332-358`
+
+問題:
+削除モード中の `WM_MOUSEMOVE` で `DeleteModeMoved` を直接発火している。
+
+現在の処理:
+```csharp
+if (msg == NativeMethods.WM_MOUSEMOVE)
+{
+    DeleteModeMoved?.Invoke(this, new MouseHookEventArgs(hookStruct.pt.X, hookStruct.pt.Y));
+    return NativeMethods.CallNextHookEx(_hookHandle, nCode, wParam, lParam);
+}
+```
+
+呼び先の `OverlayService.OnDeleteModeMoved()` は以下の WPF UI 更新を行う。
+
+- 前回ハイライトの `StrokeThickness` / `Stroke` 更新
+- 近傍マーカー検索
+- 新しいハイライトの `StrokeThickness` / `Stroke` 更新
+- ヘルプパネルのモニタ追従・再配置
+
+`WM_MOUSEMOVE` は非常に高頻度に発生するため、フック内同期実行のリスクが通常クリックより大きい。
+単純に `RaiseAsync(DeleteModeMoved, args)` へ置き換えるだけだと、今度は Dispatcher キューに mousemove が大量に積まれる可能性がある。
+
+修正方針:
+mousemove は coalesce / throttle する。
+
+推奨:
+- `MouseHookService` 側で最新座標だけ保持する
+- Dispatcher への投函が未処理の間は追加投函しない
+- Dispatcher 側で最新座標を1回だけ `DeleteModeMoved` として発火する
+
+イメージ:
+```csharp
+_pendingDeleteMove = new MouseHookEventArgs(x, y);
+if (_deleteMoveDispatchQueued) return CallNextHookEx(...);
+
+_deleteMoveDispatchQueued = true;
+dispatcher.BeginInvoke(() =>
+{
+    var latest = _pendingDeleteMove;
+    _deleteMoveDispatchQueued = false;
+    DeleteModeMoved?.Invoke(this, latest);
+});
+```
+
+注意:
+座標は最新値だけ処理できればハイライト用途として十分。
+全 mousemove を忠実に処理する必要はない。
+
+優先度:
+P1
+
+## Finding 3: [P2] 削除モード突入時の ESC 用キーボードフック失敗を無視している
+
+対象:
+- `src/CursorJump.App/MouseHookService.cs:127-143`
+
+問題:
+`EnterDeleteMode()` で ESC 検出用の `WH_KEYBOARD_LL` をインストールしているが、`SetWindowsHookEx` の戻り値が `IntPtr.Zero` でも失敗扱いしていない。
+
+現在の処理:
+```csharp
+_keyboardHookHandle = NativeMethods.SetWindowsHookEx(
+    NativeMethods.WH_KEYBOARD_LL,
+    _keyboardHookProc,
+    moduleHandle,
+    0);
+DebugLog.Write($"KeyboardHook installed: handle={_keyboardHookHandle}");
+```
+
+`SetWindowsHookEx` が失敗すると、`_deleteMode` は `true` のまま、マーカーオーバーレイも表示されるが、ESC キーで削除モードを抜けられない。
+ユーザーは別ショートカットで抜けられる場合もあるが、UI 上 ESC を終了手段として案内しているため、失敗を無視するのは品質上弱い。
+
+修正方針:
+`SetWindowsHookEx` 失敗時は明示的に扱う。
+
+候補:
+- `Marshal.GetLastWin32Error()` をログに出す
+- ESC フックなしでも操作継続するなら、ヘルプ表示で ESC を案内しない
+- 失敗時に削除モードへ入らない設計にする
+- 少なくとも `_keyboardHookHandle == IntPtr.Zero` を検知し、`DebugLog` に warning と Win32 error を残す
+
+最低限:
+```csharp
+if (_keyboardHookHandle == IntPtr.Zero)
+{
+    DebugLog.Write($"KeyboardHook install failed: {Marshal.GetLastWin32Error()}");
+}
+```
+
+より安全にするなら、`EnterDeleteMode()` の戻り値を `bool` にして、失敗時はオーバーレイ表示側へ伝える。
 
 優先度:
 P2
+
+## Finding 4: [P3] キーボード DisplayDelete の KEYUP 消費が削除モード突入で消える可能性がある
+
+対象:
+- `src/CursorJump.App/KeyboardHookService.cs:82-87`
+- `src/CursorJump.App/KeyboardHookService.cs:189-194`
+
+問題:
+通常モードでキーボードの `DisplayDeleteShortcut` が押されると、KEYDOWN 側で `_swallowNextKeyUp.Add(vkCode)` してから `DisplayDeleteRequested` を非同期発火する。
+
+```csharp
+_swallowNextKeyUp.Add(vkCode);
+RaiseAsync(DisplayDeleteRequested, args);
+return (IntPtr)1;
+```
+
+その後、`DisplayDeleteRequested` の呼び先で削除モードに入ると、`KeyboardHookService.EnterDeleteMode()` が `_swallowNextKeyUp.Clear()` を実行する。
+
+```csharp
+public void EnterDeleteMode()
+{
+    _deleteMode = true;
+    _swallowNextKeyUp.Clear();
+}
+```
+
+このタイミングが KEYUP より前だと、本来消費すべき `DisplayDeleteShortcut` の KEYUP が消費されず、フォーカス中のアプリへ KEYUP だけ通る可能性がある。
+
+F13-F24 では実害が小さいケースが多いが、低レベルキーボードフックとしては DOWN だけ消費して UP を通す不整合になる。
+
+修正方針:
+削除モード突入時に `_swallowNextKeyUp` を無条件 Clear しない。
+
+候補:
+- `EnterDeleteMode()` では clear しない
+- clear が必要な理由があるなら、少なくとも直前に消費した DisplayDelete の keyup は保持する
+- `Suspend()` と `EnterDeleteMode()` で同じ clear 方針にしてよいか再検討する
+
+優先度:
+P3
 
 ## 確認結果
 
@@ -156,96 +204,116 @@ dotnet build CursorJump.sln
 - エラー 0
 - 警告 0
 
-## レビュー対象外にした事項
+## 補足
+
+前回指摘した以下は改善されている。
+
+- マウス削除モードのクリック/キー系イベントは `RaiseAsync` 化済み
+- キーボード削除モードのクリック相当イベントは `RaiseAsync` 化済み
+- `MainWindow` の座標保存は `AppSettings.Clone()` 経由になり、`SettingsService.Current` の保存前直接 mutate は解消済み
 
 全削除が確認なしで即実行される挙動は、ユーザーの意図した設計として扱う。
 そのため、今回の修正対象からは除外する。
 
 ---
 
-## 対応記録 (v1.2.1)
+## 対応記録 (v1.2.2)
 
-Finding 1・2・3 をすべて修正済み。コミット: `fix: フック内同期イベント発火を RaiseAsync に統一・Clone パターンで保存整合性を強化 (v1.2.1)`
+Finding 1–4 および自己分析①–④をすべて修正済み。コミット: `fix: Chord同期発火・mousemove throttle・volatile・デッドコード除去 (v1.2.2)`
 
-### Finding 1 対応 — MouseHookService.cs
+### Finding 1 対応 — FireShortcutOnUiThread の CheckAccess() 除去
 
-`RaiseAsync(EventHandler?)` overload を追加（`DeleteModeEscPressed` など `EventArgs.Empty` 用）:
-
-```csharp
-private void RaiseAsync(EventHandler? handler)
-{
-    if (handler is null) return;
-    var dispatcher = Application.Current?.Dispatcher;
-    if (dispatcher is null) { handler(this, EventArgs.Empty); return; }
-    dispatcher.BeginInvoke(new Action(() => handler(this, EventArgs.Empty)));
-}
-```
-
-以下5箇所を `RaiseAsync` に統一:
-
-| 箇所 | イベント |
-|---|---|
-| `KeyboardHookCallback` (ESC 検知) | `DeleteModeEscPressed` |
-| 削除モード優先1 | `DeleteAllConfirmRequested` |
-| 削除モード優先2 | `DeleteModeClicked` |
-| 削除モード優先3 | `DeleteModeEscPressed` |
-| 通常モード DisplayDelete | `DisplayDeleteRequested` |
-
-`SetSwallowUpFlag` / `_swallowNextKeyUp.Add` は `RaiseAsync` の**前**に移動し、
-swallow 設定が常に同期で完了することを保証している。
-
-`FireShortcutOnUiThread`（タイマー経由の Chord 発火パス）内の `DisplayDeleteRequested?.Invoke` は
-既に `dispatcher.BeginInvoke` の中で実行されているため変更していない。
-
-### Finding 2 対応 — KeyboardHookService.cs
-
-MouseHookService と同じ方針で対応。`RaiseAsync(EventHandler?)` overload を追加し、以下4箇所を統一:
-
-| 箇所 | イベント |
-|---|---|
-| 削除モード優先1 | `DeleteAllConfirmRequested` |
-| 削除モード優先2 | `DeleteModeClicked` |
-| 削除モード優先3 | `DeleteModeEscPressed` |
-| 通常モード DisplayDelete | `DisplayDeleteRequested` |
-
-### Finding 3 対応 — AppSettings.cs + MainWindow.xaml.cs
-
-`AppSettings.Clone()` を追加:
-
-```csharp
-public AppSettings Clone()
-{
-    var c = (AppSettings)MemberwiseClone();
-    c.SavedCoordinatesA = new List<SavedCoordinate>(SavedCoordinatesA);
-    c.SavedCoordinatesB = new List<SavedCoordinate>(SavedCoordinatesB);
-    return c;
-}
-```
-
-`MemberwiseClone` でスカラー・参照型フィールドを浅くコピーし、
-座標リストのみ新しいインスタンスに複製する。`ActionShortcut` 等の参照型フィールドは
-`OnCoordinateStoreAChanged` が差し替えないため浅いコピーで問題なし。
-
-`MainWindow.xaml.cs` の `OnCoordinateStoreAChanged` / `OnCoordinateStoreBChanged` を Clone パターンに変更:
+`MouseHookService.FireShortcutOnUiThread()` の `dispatcher.CheckAccess()` による即時実行分岐を除去。
 
 ```csharp
 // 変更後
-private void OnCoordinateStoreAChanged()
+if (dispatcher is null) fire();
+else dispatcher.BeginInvoke(fire);
+```
+
+Chord 発火パス（`TryHandleMiddleChord` → `FireShortcutOnUiThread`）が WPF Dispatcher スレッドから
+呼ばれた場合でも、常に `BeginInvoke` でキューに投函される。
+
+### Finding 2 対応 — WM_MOUSEMOVE の throttle 実装
+
+`volatile` フィールド 2 本を追加し、Dispatcher キューに積み過ぎを防ぐ:
+
+```csharp
+private volatile MouseHookEventArgs? _pendingDeleteMove;
+private volatile bool _deleteMoveDispatchQueued;
+```
+
+フックスレッドは最新座標を `_pendingDeleteMove` に書き込み、未処理ディスパッチがなければ
+`_deleteMoveDispatchQueued = true` にして `BeginInvoke` する。
+UI スレッドはフラグを `false` に戻してから `DeleteModeMoved` を 1 回だけ発火する。
+
+`ExitDeleteMode()` で `_pendingDeleteMove = null; _deleteMoveDispatchQueued = false;` をリセット。
+
+### Finding 3 対応 — EnterDeleteMode キーボードフック失敗ログ
+
+`SetWindowsHookEx` の直後に `IntPtr.Zero` チェックを追加:
+
+```csharp
+if (_keyboardHookHandle == IntPtr.Zero)
+    DebugLog.Write($"KeyboardHook install failed: Win32Error={Marshal.GetLastWin32Error()}");
+```
+
+失敗してもオーバーレイ表示は続行（ESC 以外の終了手段が存在するため）。
+失敗時は debug.log に Win32 エラーコードが記録される。
+
+### Finding 4 対応 — KeyboardHookService.EnterDeleteMode の Clear() 除去
+
+`_swallowNextKeyUp.Clear()` を `EnterDeleteMode()` から削除。
+
+理由: `DisplayDeleteRequested` が非同期発火（`RaiseAsync`）になったことで、
+KEYDOWN で `_swallowNextKeyUp.Add(vkCode)` してから `EnterDeleteMode()` が呼ばれるまでに
+物理 KEYUP が来る可能性がある。`Clear()` があるとその KEYUP を消費できず
+アプリへ素通りする。`Suspend()` 側の `Clear()` は設定画面オープン時の意図的なリセットのため変更しない。
+
+### ① volatile 追加
+
+フックスレッド（読み取り）と UI スレッド（書き込み）を跨ぐフィールドに `volatile` を付与:
+
+| ファイル | フィールド |
+|---|---|
+| `MouseHookService.cs` | `_deleteMode`, `_suspended`, `_pendingDeleteMove`, `_deleteMoveDispatchQueued` |
+| `KeyboardHookService.cs` | `_deleteMode`, `_suspended` |
+| `SettingsService.cs` | `_current`（自動プロパティを明示バッキングフィールドに変換） |
+
+`SettingsService` は `public AppSettings Current { get; private set; }` を
+`private volatile AppSettings _current` + `public AppSettings Current => _current;` に変換。
+
+### ② SettingsChanged 除去
+
+`SettingsService.SettingsChanged` イベントはプロジェクト全体で購読箇所がなかったため削除。
+`Save()` 内の `SettingsChanged?.Invoke()` も合わせて除去。
+
+### ③ GetNextInMonitor ダブルルックアップ修正
+
+```csharp
+// 変更前
+_monitorIndices.TryGetValue(monitorDeviceName, out int lastRawIndex);
+if (!_monitorIndices.ContainsKey(monitorDeviceName))
+    lastRawIndex = -1;
+
+// 変更後
+if (!_monitorIndices.TryGetValue(monitorDeviceName, out int lastRawIndex))
+    lastRawIndex = -1;
+```
+
+### ④ .tmp ファイルクリーンアップ
+
+`SettingsService.Save()` の `tempPath` 宣言を `try` の外に移動し、`catch` 内で削除を試みる:
+
+```csharp
+string tempPath = SettingsPath + ".tmp";
+try { ... }
+catch (Exception ex)
 {
-    var snap = _settingsService.Current.Clone();
-    snap.SavedCoordinatesA = _coordinateStore.GetAll().ToList();
-    if (!_settingsService.Save(snap))
-        DebugLog.Write("...");
+    DebugLog.Write(...);
+    try { File.Delete(tempPath); } catch { }
+    return false;
 }
 ```
 
-`SettingsService.Save(AppSettings settings)` は成功時のみ内部で `Current = settings` を実行する実装
-（`SettingsService.cs:60`）のため、呼び出し側での追加代入は不要。
-保存失敗時は `Current` が変更前のスナップショットを保持したままになる。
-
-### 備考
-
-`DisplayDeleteRequested` を非同期化すると、`EnterDeleteMode()` で立てる `_deleteMode` フラグが
-非同期で設定されることになる。フックコールバックが `_deleteMode = true` より先に発火する
-狭いレースウィンドウが理論上存在するが、実用上は無害と判断して対応した。
-（既存の Chord → `BeginInvoke` → `EnterDeleteMode` パスと同じ構造であり、以前から許容されている）
+`File.WriteAllText` 成功・`File.Move` 失敗のケースで残留する `.tmp` ファイルを回収する。

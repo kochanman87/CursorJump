@@ -16,10 +16,10 @@ internal sealed class KeyboardHookService : IDisposable
     private IntPtr _hookHandle;
     private readonly NativeMethods.LowLevelKeyboardProc _hookProc;
     private bool _disposed;
-    private bool _suspended;
+    private volatile bool _suspended;
 
     // 削除モード中はトリガーキーを無視する
-    private bool _deleteMode;
+    private volatile bool _deleteMode;
 
     // KEYDOWNを消費した後、対応するKEYUPも消費するためのキーコードセット
     private readonly HashSet<int> _swallowNextKeyUp = new();
@@ -83,7 +83,8 @@ internal sealed class KeyboardHookService : IDisposable
     {
         DebugLog.Write("KeyboardHookService: EnterDeleteMode()");
         _deleteMode = true;
-        _swallowNextKeyUp.Clear();
+        // Clear しない: DisplayDelete KEYDOWN で登録した swallow が KEYUP 前に
+        // 消えると、UP がアプリへ素通りする（非同期 RaiseAsync 経由の競合）
     }
 
     /// <summary>削除モードを終了し、キーボードトリガーを再度受け付ける。</summary>

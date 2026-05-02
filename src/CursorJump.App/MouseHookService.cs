@@ -23,12 +23,16 @@ internal sealed class MouseHookService : IDisposable
     private IntPtr _hookHandle;
     private readonly NativeMethods.LowLevelMouseProc _hookProc;
     private bool _disposed;
-    private bool _suspended;
+    private volatile bool _suspended;
 
     // 削除モード関連
-    private bool _deleteMode;
+    private volatile bool _deleteMode;
     private IntPtr _keyboardHookHandle;
     private readonly NativeMethods.LowLevelKeyboardProc _keyboardHookProc;
+
+    // 削除モード mousemove throttle（フックスレッド書き込み / UI スレッド読み取り）
+    private volatile MouseHookEventArgs? _pendingDeleteMove;
+    private volatile bool _deleteMoveDispatchQueued;
 
     // DOWNイベントを消費した後、対応するUPイベントも消費するためのフラグ
     private bool _swallowNextLeftUp;
@@ -141,6 +145,8 @@ internal sealed class MouseHookService : IDisposable
             moduleHandle,
             0);
         DebugLog.Write($"KeyboardHook installed: handle={_keyboardHookHandle}");
+        if (_keyboardHookHandle == IntPtr.Zero)
+            DebugLog.Write($"KeyboardHook install failed: Win32Error={Marshal.GetLastWin32Error()}");
     }
 
     /// <summary>
@@ -150,6 +156,8 @@ internal sealed class MouseHookService : IDisposable
     {
         DebugLog.Write("MouseHookService: ExitDeleteMode()");
         _deleteMode = false;
+        _pendingDeleteMove = null;
+        _deleteMoveDispatchQueued = false;
         // 注: swallow フラグは EnterDeleteMode と同じ理由でクリアしない。
 
         // キーボードフックをアンインストール
@@ -199,7 +207,20 @@ internal sealed class MouseHookService : IDisposable
             // 削除モード: マウス移動 → ハイライト用イベント（消費しない）
             if (msg == NativeMethods.WM_MOUSEMOVE)
             {
-                DeleteModeMoved?.Invoke(this, new MouseHookEventArgs(hookStruct.pt.X, hookStruct.pt.Y));
+                _pendingDeleteMove = new MouseHookEventArgs(hookStruct.pt.X, hookStruct.pt.Y);
+                if (!_deleteMoveDispatchQueued)
+                {
+                    var moveDispatcher = Application.Current?.Dispatcher;
+                    if (moveDispatcher is not null)
+                    {
+                        _deleteMoveDispatchQueued = true;
+                        moveDispatcher.BeginInvoke(() =>
+                        {
+                            _deleteMoveDispatchQueued = false;
+                            DeleteModeMoved?.Invoke(this, _pendingDeleteMove!);
+                        });
+                    }
+                }
                 return NativeMethods.CallNextHookEx(_hookHandle, nCode, wParam, lParam);
             }
 
@@ -766,7 +787,7 @@ internal sealed class MouseHookService : IDisposable
             else if (ReferenceEquals(sc, s.SaveShortcutB)) SaveRequestedB?.Invoke(this, args);
             else if (ReferenceEquals(sc, s.NavigateShortcutB)) NavigateRequestedB?.Invoke(this, args);
         };
-        if (dispatcher is null || dispatcher.CheckAccess()) fire();
+        if (dispatcher is null) fire();
         else dispatcher.BeginInvoke(fire);
     }
 

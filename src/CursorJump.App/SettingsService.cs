@@ -19,9 +19,8 @@ public sealed class SettingsService
         Converters = { new System.Text.Json.Serialization.JsonStringEnumConverter() }
     };
 
-    public AppSettings Current { get; private set; } = new();
-
-    public event Action? SettingsChanged;
+    private volatile AppSettings _current = new();
+    public AppSettings Current => _current;
 
     public void Load()
     {
@@ -30,23 +29,23 @@ public sealed class SettingsService
             if (File.Exists(SettingsPath))
             {
                 string json = File.ReadAllText(SettingsPath);
-                Current = JsonSerializer.Deserialize<AppSettings>(json, JsonOptions) ?? new AppSettings();
+                _current = JsonSerializer.Deserialize<AppSettings>(json, JsonOptions) ?? new AppSettings();
             }
         }
         catch (Exception ex)
         {
             DebugLog.Write($"SettingsService.Load failed: {ex.GetType().Name}: {ex.Message}");
-            Current = new AppSettings();
+            _current = new AppSettings();
         }
     }
 
     public bool Save(AppSettings settings)
     {
+        string tempPath = SettingsPath + ".tmp";
         try
         {
             Directory.CreateDirectory(SettingsDir);
             string json = JsonSerializer.Serialize(settings, JsonOptions);
-            string tempPath = SettingsPath + ".tmp";
             File.WriteAllText(tempPath, json);
             File.Move(tempPath, SettingsPath, overwrite: true);
             DebugLog.Write($"SettingsService.Save: OK → {SettingsPath}");
@@ -54,11 +53,11 @@ public sealed class SettingsService
         catch (Exception ex)
         {
             DebugLog.Write($"SettingsService.Save failed: {ex.GetType().Name}: {ex.Message}");
+            try { File.Delete(tempPath); } catch { }
             return false;
         }
 
-        Current = settings;
-        SettingsChanged?.Invoke();
+        _current = settings;
         return true;
     }
 }
