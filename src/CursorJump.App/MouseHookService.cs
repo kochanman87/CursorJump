@@ -130,6 +130,14 @@ internal sealed class MouseHookService : IDisposable
     /// </summary>
     public void EnterDeleteMode()
     {
+        // 再入ガード: 非同期 RaiseAsync 経由で複数回キューに積まれた場合に
+        // キーボードフックを二重インストールしてハンドルを失うのを防ぐ。
+        if (_deleteMode)
+        {
+            DebugLog.Write("MouseHookService: EnterDeleteMode() ignored (already in delete mode)");
+            return;
+        }
+
         DebugLog.Write("MouseHookService: EnterDeleteMode()");
         _deleteMode = true;
         // 注: _swallowNextLeftUp/_swallowNextRightUp はここでクリアしない。
@@ -144,9 +152,11 @@ internal sealed class MouseHookService : IDisposable
             _keyboardHookProc,
             moduleHandle,
             0);
+        // GetLastWin32Error は API 直後に保存する（後続の DebugLog.Write が上書きするため）
+        int hookError = _keyboardHookHandle == IntPtr.Zero ? Marshal.GetLastWin32Error() : 0;
         DebugLog.Write($"KeyboardHook installed: handle={_keyboardHookHandle}");
         if (_keyboardHookHandle == IntPtr.Zero)
-            DebugLog.Write($"KeyboardHook install failed: Win32Error={Marshal.GetLastWin32Error()}");
+            DebugLog.Write($"KeyboardHook install failed: Win32Error={hookError}");
     }
 
     /// <summary>
