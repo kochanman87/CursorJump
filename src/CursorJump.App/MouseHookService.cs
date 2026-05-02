@@ -518,38 +518,21 @@ internal sealed class MouseHookService : IDisposable
         return AreModifiersHeld(shortcut.Modifiers);
     }
 
+    // 完全一致判定: required に含まれるキーが押下されており、かつ含まれないキーが押下されていないこと。
+    // Win+Alt 時に OS が VK_LMENU/VK_RMENU の async 状態をクリアする場合があるため、
+    // Alt 判定は汎用 VK_MENU もフォールバックとして含める。
     private static bool AreModifiersHeld(ModifierKeyFlags required)
     {
-        if (required == ModifierKeyFlags.None)
-            return true; // 「修飾キー不要」を意味する（XButton用）
+        bool ctrlDown  = IsKeyDown(NativeMethods.VK_LCONTROL) || IsKeyDown(NativeMethods.VK_RCONTROL);
+        bool altDown   = IsKeyDown(NativeMethods.VK_LMENU)    || IsKeyDown(NativeMethods.VK_RMENU)
+                      || IsKeyDown(NativeMethods.VK_MENU);
+        bool shiftDown = IsKeyDown(NativeMethods.VK_LSHIFT)   || IsKeyDown(NativeMethods.VK_RSHIFT);
+        bool winDown   = IsKeyDown(NativeMethods.VK_LWIN)     || IsKeyDown(NativeMethods.VK_RWIN);
 
-        if (required.HasFlag(ModifierKeyFlags.Control))
-        {
-            if (!IsKeyDown(NativeMethods.VK_LCONTROL) && !IsKeyDown(NativeMethods.VK_RCONTROL))
-                return false;
-        }
-
-        if (required.HasFlag(ModifierKeyFlags.Alt))
-        {
-            // Win+Alt 組み合わせ時に OS（Xbox Game Bar 等）が VK_LMENU/VK_RMENU の
-            // async 状態をクリアする場合があるため、汎用 VK_MENU もフォールバックとして検査する。
-            if (!IsKeyDown(NativeMethods.VK_LMENU) && !IsKeyDown(NativeMethods.VK_RMENU)
-                && !IsKeyDown(NativeMethods.VK_MENU))
-                return false;
-        }
-
-        if (required.HasFlag(ModifierKeyFlags.Shift))
-        {
-            if (!IsKeyDown(NativeMethods.VK_LSHIFT) && !IsKeyDown(NativeMethods.VK_RSHIFT))
-                return false;
-        }
-
-        if (required.HasFlag(ModifierKeyFlags.Windows))
-        {
-            if (!IsKeyDown(NativeMethods.VK_LWIN) && !IsKeyDown(NativeMethods.VK_RWIN))
-                return false;
-        }
-
+        if (ctrlDown  != required.HasFlag(ModifierKeyFlags.Control))  return false;
+        if (altDown   != required.HasFlag(ModifierKeyFlags.Alt))      return false;
+        if (shiftDown != required.HasFlag(ModifierKeyFlags.Shift))    return false;
+        if (winDown   != required.HasFlag(ModifierKeyFlags.Windows))  return false;
         return true;
     }
 
