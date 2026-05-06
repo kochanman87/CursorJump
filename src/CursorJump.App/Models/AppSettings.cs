@@ -105,6 +105,14 @@ public sealed class AppSettings
     /// <summary>UI 言語。Auto は OS の UI 言語から自動判定する。</summary>
     public UiLanguage UiLanguage { get; set; } = UiLanguage.Auto;
 
+    // ── 自動更新設定 ──
+    /// <summary>起動時に GitHub Releases へ更新確認を行うか。旧 settings.json では未定義 → true 扱い。</summary>
+    public bool AutoUpdateEnabled { get; set; } = true;
+    /// <summary>最後に更新確認を行った UTC 時刻（ISO 8601）。空文字は未確認。デバッグ・UI 表示用。</summary>
+    public string LastUpdateCheckUtc { get; set; } = "";
+    /// <summary>「このバージョンをスキップ」で記録された対象バージョン文字列。一致する版は通知しない。</summary>
+    public string SkippedVersion { get; set; } = "";
+
     public AppSettings Clone()
     {
         var c = (AppSettings)MemberwiseClone();

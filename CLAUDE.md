@@ -5,7 +5,7 @@
 ## 技術スタック
 - .NET 8.0 (WPF + WinForms)
 - C#, WinExe, PerMonitorV2 DPI対応
-- 外部NuGetパッケージなし
+- 外部NuGetパッケージは [Velopack](https://github.com/velopack/velopack)（自動更新）のみ
 
 ## バージョニング
 - バージョンは `src/CursorJump.App/CursorJump.App.csproj` の `<Version>` で `MAJOR.MINOR.PATCH`（例: `1.1.0`）形式で管理する
@@ -55,8 +55,10 @@ src/CursorJump.App/
 ├── OverlayWindow.xaml / .cs        # 透明オーバーレイウィンドウ基盤
 ├── DebugLog.cs                     # デバッグログ（%APPDATA%/CursorJump/debug.log）
 ├── SettingsService.cs              # 設定のJSON読み書き（%APPDATA%/CursorJump/settings.json）
-├── SettingsWindow.xaml / .cs       # 設定画面UI
-├── TrayIconService.cs              # タスクトレイアイコン管理
+├── SettingsWindow.xaml / .cs       # 設定画面UI（設定 / 使い方 / 情報 タブ）
+├── UpdateService.cs                # Velopack による GitHub Releases 自動更新
+├── UpdateDialog.xaml / .cs         # 新版検出時の確認ダイアログ
+├── TrayIconService.cs              # タスクトレイアイコン管理（更新確認メニュー含む）
 ├── app.manifest                    # DPI設定、実行レベル
 └── CursorJump.App.csproj
 ```
@@ -157,4 +159,31 @@ public sealed class ActionShortcut
 - 既存の `NavigateShortcut`（全座標循環）と独立して動作
 - `CoordinateStore.GetNextInMonitor(deviceName)`: モニタ別インデックス（`Dictionary<string,int>`）で循環管理。該当モニタ座標が0個の場合 `null` を返す（フォールバックなし）
 - `Screen.FromPoint` / `Screen.DeviceName` は物理ピクセル座標ベースで安全に使用可能（DPI変換不要）
+
+## 自動更新（Velopack + GitHub Releases）
+
+GitHub Releases を配布チャネルとし、起動時に新版を検出してユーザー確認後にダウンロード→再起動する仕組み。実装は `UpdateService` + `UpdateDialog` + `Velopack` ライブラリ。
+
+### コンポーネント
+- **`UpdateService`** (`src/CursorJump.App/UpdateService.cs`): `Velopack.UpdateManager` を `GithubSource("https://github.com/kochanman87/CursorJump")` で初期化。`CheckForUpdatesAsync()` は新版があれば `UpdateInfo`、無ければ null。例外（オフライン・GitHub障害・未インストール=`IsInstalled==false`）は内部で握りつぶして null を返し `DebugLog` に記録する（呼出側で起動を妨げない設計）。チェック完了時に `AppSettings.LastUpdateCheckUtc` を ISO 8601 で更新する
+- **`UpdateDialog`** (`src/CursorJump.App/UpdateDialog.xaml`): 現在版/新版/リリースノート（Markdown生表示）+ 「今すぐ更新」「後で」「このバージョンをスキップ」の3ボタン。「スキップ」は `AppSettings.SkippedVersion` に対象バージョンを書き込み、起動時通知を抑制する
+- **起動時チェック** (`App.xaml.cs OnStartup`): `_settingsService.Current.AutoUpdateEnabled` が true のとき `Task.Run` で fire-and-forget チェック。新版があり、かつ `SkippedVersion` と一致しなければ Dispatcher 経由で `UpdateDialog.ShowDialog()`
+- **手動チェック**: 設定画面「情報」タブの「今すぐ更新を確認」ボタン、およびトレイメニューの「更新を確認」項目から呼び出せる
+
+### Velopack 統合の要点
+- **`VelopackApp.Build().Run()` を `OnStartup` の最先頭で呼ぶ**: Velopack はインストーラ・アップデータが本体 exe を `--veloapp-install` 等の引数で起動して短命に終了させるサブプロセスを使う。Run() がこの引数を検出するとフックを実行して即 `Environment.Exit` する。**Mutex 取得より前**に置く必要がある（インストーラ呼び出しは独自プロセスで Mutex 競合させたくない）
+- **開発実行（`dotnet run` / `bin\Debug` 直起動）では `UpdateManager.IsInstalled == false`**: この状態で `CheckForUpdatesAsync` を呼ぶと例外。`UpdateService` 側で `IsInstalled` チェックを行い、インストール経由でない場合は静かに null を返す
+- **設定の永続化**: `LastUpdateCheckUtc` / `SkippedVersion` は `UpdateService` が直接 `_settingsService.Save(Clone())` で書き込む。`SettingsWindow.OnSaveClick` でも `Current` 側の値を `AppSettings` に維持コピーすることで、設定画面保存と並行した書き込み競合を避ける（`AutoUpdateEnabled` のみ UI から反映）
+
+### リリース手順（手動）
+1. `<Version>` を更新してコミット（CLAUDE.md の バージョニング 規約に従う）
+2. `dotnet tool install -g vpk`（初回のみ）
+3. `dotnet publish src/CursorJump.App/CursorJump.App.csproj -c Release -r win-x64 --self-contained -o publish/`
+4. `vpk pack --packId CursorJump --packVersion 1.3.0 --packDir publish/ --mainExe CursorJump.App.exe`
+5. 生成された `Releases/Setup.exe` と `*-full.nupkg` と `RELEASES` を GitHub Releases にアップロード（タグは `v1.3.0` 形式）
+6. リリースノートを Markdown で記述（Velopack が `NotesMarkdown` として取得し `UpdateDialog` に表示する）
+
+### 設計上の注意
+- **コード署名なし → SmartScreen 警告**: 初回ダウンロード時に Microsoft Defender SmartScreen が「不明な発行元」警告を出す。回避にはコード署名証明書（年額数万円〜）が必要。導入は別タスク
+- **AutoUpdate デフォルトは ON**: 旧 `settings.json` には `AutoUpdateEnabled` が無いため、`Deserialize` のデフォルトで true になる（C# プロパティ初期化値）。OFF にしたいユーザーは情報タブで切替
 

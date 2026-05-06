@@ -1,7 +1,9 @@
 using System;
 using System.Threading;
+using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Interop;
+using Velopack;
 
 namespace CursorJump.App;
 
@@ -12,6 +14,7 @@ public partial class App : Application
     private TrayIconService? _trayIconService;
     private MainWindow? _mainWindow;
     private SettingsService? _settingsService;
+    private UpdateService? _updateService;
     private Mutex? _singleInstanceMutex;
     private bool _ownsSingleInstanceMutex;
 
@@ -21,10 +24,16 @@ public partial class App : Application
     }
 
     internal SettingsService? SettingsService => _settingsService;
+    internal UpdateService? UpdateService => _updateService;
 
     protected override void OnStartup(StartupEventArgs e)
     {
         base.OnStartup(e);
+
+        // Velopack: --veloapp-* 引数を伴うインストーラ/アップデータ呼び出しを処理して即終了する
+        // ためのフック。Mutex 取得より前に必ず実行する（インストーラ呼び出しは別プロセスで
+        // 短命に走るため、Mutex 競合させない）。
+        VelopackApp.Build().Run();
 
         _singleInstanceMutex = new Mutex(initiallyOwned: true, SingleInstanceMutexName, out bool createdNew);
         if (!createdNew)
@@ -61,7 +70,9 @@ public partial class App : Application
             var helper = new WindowInteropHelper(_mainWindow);
             helper.EnsureHandle();
 
-            _trayIconService = new TrayIconService(_settingsService);
+            _updateService = new UpdateService(_settingsService);
+
+            _trayIconService = new TrayIconService(_settingsService, _updateService);
             _trayIconService.Initialize();
         }
         catch (Exception ex)
@@ -72,6 +83,41 @@ public partial class App : Application
         }
 
         Exit += OnApplicationExit;
+
+        // 起動時の更新チェック（設定 ON のときのみ）。例外は UpdateService 内で握り潰されるので
+        // ここでは fire-and-forget で良い。Velopack インストーラ経由でない開発実行では
+        // IsInstalled=false となり何も起きない。
+        if (_settingsService != null && _settingsService.Current.AutoUpdateEnabled)
+        {
+            _ = Task.Run(RunStartupUpdateCheckAsync);
+        }
+    }
+
+    private async Task RunStartupUpdateCheckAsync()
+    {
+        try
+        {
+            if (_updateService == null) return;
+            var info = await _updateService.CheckForUpdatesAsync();
+            if (info == null) return;
+
+            string newVersion = info.TargetFullRelease.Version.ToString();
+            if (_updateService.IsSkipped(newVersion))
+            {
+                DebugLog.Write($"RunStartupUpdateCheckAsync: version {newVersion} is skipped by user");
+                return;
+            }
+
+            await Dispatcher.InvokeAsync(() =>
+            {
+                var dlg = new UpdateDialog(_updateService!, info);
+                dlg.ShowDialog();
+            });
+        }
+        catch (Exception ex)
+        {
+            DebugLog.Write($"RunStartupUpdateCheckAsync failed: {ex.GetType().Name}: {ex.Message}");
+        }
     }
 
     protected override void OnExit(ExitEventArgs e)

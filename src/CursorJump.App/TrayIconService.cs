@@ -12,13 +12,16 @@ public sealed class TrayIconService : IDisposable
 {
     private readonly NotifyIcon _notifyIcon;
     private readonly SettingsService _settingsService;
+    private readonly UpdateService _updateService;
     private ToolStripMenuItem? _settingsItem;
+    private ToolStripMenuItem? _checkUpdatesItem;
     private ToolStripMenuItem? _exitItem;
     private bool _disposed;
 
-    public TrayIconService(SettingsService settingsService)
+    public TrayIconService(SettingsService settingsService, UpdateService updateService)
     {
         _settingsService = settingsService;
+        _updateService = updateService;
         _notifyIcon = new NotifyIcon();
     }
 
@@ -43,6 +46,10 @@ public sealed class TrayIconService : IDisposable
         _settingsItem.Click += HandleSettingsClick;
         contextMenu.Items.Add(_settingsItem);
 
+        _checkUpdatesItem = new ToolStripMenuItem(Loc.Get("Str.Tray.CheckForUpdates"));
+        _checkUpdatesItem.Click += HandleCheckUpdatesClick;
+        contextMenu.Items.Add(_checkUpdatesItem);
+
         contextMenu.Items.Add(new ToolStripSeparator());
 
         _exitItem = new ToolStripMenuItem(Loc.Get("Str.Tray.Exit"));
@@ -61,6 +68,7 @@ public sealed class TrayIconService : IDisposable
         // メニュー項目のテキストを現在言語に更新
         _notifyIcon.Text = Loc.Get("Str.AppName");
         if (_settingsItem is not null) _settingsItem.Text = Loc.Get("Str.Tray.Settings");
+        if (_checkUpdatesItem is not null) _checkUpdatesItem.Text = Loc.Get("Str.Tray.CheckForUpdates");
         if (_exitItem is not null) _exitItem.Text = Loc.Get("Str.Tray.Exit");
     }
 
@@ -70,8 +78,31 @@ public sealed class TrayIconService : IDisposable
 
         System.Windows.Application.Current?.Dispatcher.Invoke(() =>
         {
-            var window = new SettingsWindow(_settingsService);
+            var window = new SettingsWindow(_settingsService, _updateService);
             window.ShowDialog();
+        });
+    }
+
+    private async void HandleCheckUpdatesClick(object? sender, EventArgs e)
+    {
+        if (_disposed) return;
+
+        var info = await _updateService.CheckForUpdatesAsync();
+
+        System.Windows.Application.Current?.Dispatcher.Invoke(() =>
+        {
+            if (info == null)
+            {
+                System.Windows.MessageBox.Show(
+                    Loc.Get("Str.Update.NoUpdate"),
+                    Loc.Get("Str.AppName"),
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Information);
+                return;
+            }
+
+            var dlg = new UpdateDialog(_updateService, info);
+            dlg.ShowDialog();
         });
     }
 
@@ -102,6 +133,7 @@ public sealed class TrayIconService : IDisposable
             {
                 item.Click -= HandleExitClick;
                 item.Click -= HandleSettingsClick;
+                item.Click -= HandleCheckUpdatesClick;
             }
         }
 

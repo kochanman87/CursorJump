@@ -29,6 +29,14 @@ Windowsのカーソル操作ユーティリティ。タスクトレイに常駐�
 - 左/右/ホイールは修飾キーが1つ以上必要（誤動作防止）
 - アニメーション色のカスタマイズ（カラーピッカーで選択）
 
+### 自動更新
+
+GitHub Releases に新版がリリースされるとアプリ起動時に検出し、リリースノートとともに更新ダイアログを表示します（[Velopack](https://github.com/velopack/velopack) 利用）。「今すぐ更新」を選択するとバックグラウンドでダウンロード後、自動的に再起動して新版に切り替わります。
+
+- 設定画面の「情報」タブで自動更新の ON/OFF 切替、バージョン表示、手動チェックが可能
+- トレイメニューの「更新を確認」からも手動チェックできます
+- 「このバージョンをスキップ」を選ぶと、当該バージョンは起動時通知から除外されます
+
 ## 動作環境
 
 - Windows 10 / 11
@@ -49,6 +57,24 @@ dotnet run --project src/CursorJump.App/CursorJump.App.csproj
 4. トレイアイコンを右クリックして「終了」でアプリを終了します
 
 設定ファイルは `%APPDATA%/CursorJump/settings.json` に保存されます。
+
+## リリース手順（メンテナ向け）
+
+GitHub Releases へ自動更新可能なパッケージを公開する手順:
+
+```bash
+# 1. csproj の <Version> を更新（例: 1.3.0）してコミット
+# 2. Velopack CLI を導入（初回のみ）
+dotnet tool install -g vpk
+
+# 3. self-contained ビルド
+dotnet publish src/CursorJump.App/CursorJump.App.csproj -c Release -r win-x64 --self-contained -o publish/
+
+# 4. Velopack パッケージング
+vpk pack --packId CursorJump --packVersion 1.3.0 --packDir publish/ --mainExe CursorJump.App.exe
+```
+
+`Releases/Setup.exe`、`*-full.nupkg`、`RELEASES` を GitHub Releases にアップロードします（タグ `v1.3.0`）。リリースノートの Markdown が更新ダイアログにそのまま表示されます。
 
 ## ライセンス
 

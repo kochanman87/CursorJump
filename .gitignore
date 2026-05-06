@@ -2,6 +2,8 @@
 bin/
 obj/
 tempcursorjump-build/
+publish/
+Releases/
 
 # Claude Code local settings
 .claude/

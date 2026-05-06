@@ -8,7 +8,26 @@
 
     <!-- Tray menu -->
     <sys:String x:Key="Str.Tray.Settings">Settings</sys:String>
+    <sys:String x:Key="Str.Tray.CheckForUpdates">Check for updates</sys:String>
     <sys:String x:Key="Str.Tray.Exit">Exit</sys:String>
+
+    <!-- About tab / auto update -->
+    <sys:String x:Key="Str.Tab.About">About</sys:String>
+    <sys:String x:Key="Str.About.Version">Version: {0}</sys:String>
+    <sys:String x:Key="Str.About.AutoUpdate">Check for updates on startup</sys:String>
+    <sys:String x:Key="Str.About.CheckNow">Check for updates now</sys:String>
+    <sys:String x:Key="Str.About.LastChecked">Last checked: {0}</sys:String>
+    <sys:String x:Key="Str.About.GitHubRepo">GitHub repository</sys:String>
+
+    <!-- Update dialog -->
+    <sys:String x:Key="Str.Update.DialogTitle">Update available</sys:String>
+    <sys:String x:Key="Str.Update.CurrentVersion">Current: {0}</sys:String>
+    <sys:String x:Key="Str.Update.NewVersion">New version: {0}</sys:String>
+    <sys:String x:Key="Str.Update.UpdateNow">Update now</sys:String>
+    <sys:String x:Key="Str.Update.Later">Later</sys:String>
+    <sys:String x:Key="Str.Update.Skip">Skip this version</sys:String>
+    <sys:String x:Key="Str.Update.NoUpdate">You're on the latest version.</sys:String>
+    <sys:String x:Key="Str.Update.CheckFailed">Update check failed: {0}</sys:String>
 
     <!-- Settings window general -->
     <sys:String x:Key="Str.Settings.Title">CursorJump Settings</sys:String>

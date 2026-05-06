@@ -49,6 +49,16 @@
                             <TextBlock Text="{DynamicResource Str.Settings.Tab.Usage}" VerticalAlignment="Center"/>
                         </StackPanel>
                     </RadioButton>
+                    <RadioButton x:Name="TabAbout" GroupName="PageTabs"
+                                 Style="{StaticResource PillTabStyle}"
+                                 Checked="OnTabAboutChecked">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Style="{StaticResource FluentIcon}" Text="&#xE946;"
+                                       Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=RadioButton}}"
+                                       FontSize="13" Margin="0,0,6,0"/>
+                            <TextBlock Text="{DynamicResource Str.Tab.About}" VerticalAlignment="Center"/>
+                        </StackPanel>
+                    </RadioButton>
                 </StackPanel>
             </Border>
 
@@ -916,6 +926,72 @@
                             <TextBlock TextWrapping="Wrap" LineHeight="22"
                                        Foreground="{DynamicResource TextSecondaryBrush}" FontSize="13"
                                        Text="{DynamicResource Str.Usage.MonitorNav.Body}"/>
+                        </StackPanel>
+                    </Border>
+
+                </StackPanel>
+            </ScrollViewer>
+
+            <!-- ====== 情報ページ ====== -->
+            <ScrollViewer x:Name="PageAbout" VerticalScrollBarVisibility="Auto"
+                          HorizontalScrollBarVisibility="Disabled"
+                          Padding="20,4,20,8"
+                          Visibility="Collapsed">
+                <StackPanel>
+
+                    <!-- アプリ情報カード -->
+                    <Border Style="{StaticResource CardBorder}">
+                        <StackPanel>
+                            <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                                <Border Style="{StaticResource CardIconBox}">
+                                    <TextBlock Style="{StaticResource FluentIcon}" Text="&#xE946;"/>
+                                </Border>
+                                <TextBlock Style="{StaticResource CardHeaderText}" Text="{DynamicResource Str.AppName}" Margin="10,0,0,0"/>
+                            </StackPanel>
+                            <TextBlock x:Name="AboutVersionText" FontSize="13"
+                                       Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,0,0,4"/>
+                            <TextBlock FontSize="12" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,0,0,2">
+                                <Hyperlink x:Name="GitHubLink" NavigateUri="https://github.com/kochanman87/CursorJump"
+                                           RequestNavigate="OnHyperlinkRequestNavigate">
+                                    <TextBlock Text="{DynamicResource Str.About.GitHubRepo}"/>
+                                </Hyperlink>
+                            </TextBlock>
+                            <TextBlock Text="MIT License" FontSize="12"
+                                       Foreground="{DynamicResource TextMutedBrush}"/>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- 自動更新カード -->
+                    <Border Style="{StaticResource CardBorder}">
+                        <StackPanel>
+                            <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
+                                <Border Style="{StaticResource CardIconBox}">
+                                    <TextBlock Style="{StaticResource FluentIcon}" Text="&#xE777;"/>
+                                </Border>
+                                <TextBlock Style="{StaticResource CardHeaderText}" Text="{DynamicResource Str.About.AutoUpdate}" Margin="10,0,0,0"/>
+                            </StackPanel>
+
+                            <Grid Margin="0,0,0,12">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                                    <TextBlock Text="{DynamicResource Str.About.AutoUpdate}" FontSize="13"
+                                               Foreground="{DynamicResource TextPrimaryBrush}" FontWeight="SemiBold"/>
+                                    <TextBlock x:Name="AboutLastCheckedText" FontSize="11"
+                                               Foreground="{DynamicResource TextMutedBrush}" Margin="0,2,0,0"/>
+                                </StackPanel>
+                                <CheckBox x:Name="AutoUpdateToggle" Grid.Column="1"
+                                          Style="{StaticResource ToggleSwitchStyle}"
+                                          VerticalAlignment="Center"/>
+                            </Grid>
+
+                            <Button x:Name="CheckNowButton"
+                                    Content="{DynamicResource Str.About.CheckNow}"
+                                    Style="{StaticResource SecondaryButtonStyle}"
+                                    HorizontalAlignment="Left"
+                                    Click="OnCheckNowClick"/>
                         </StackPanel>
                     </Border>
 

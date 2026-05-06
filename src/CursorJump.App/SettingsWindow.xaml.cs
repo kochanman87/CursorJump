@@ -1,10 +1,13 @@
 using System;
+using System.Diagnostics;
+using System.Globalization;
 using System.Reflection;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Input;
 using System.Windows.Media;
+using System.Windows.Navigation;
 using System.Windows.Shapes;
 using CursorJump.App.Models;
 
@@ -13,6 +16,7 @@ namespace CursorJump.App;
 public partial class SettingsWindow : Window
 {
     private readonly SettingsService _settingsService;
+    private readonly UpdateService? _updateService;
 
     /// <summary>
     /// ComboBox の表示用 wrapper。enum 値を保持しつつ、ToString() で現在言語のリソース名を返すため、
@@ -66,9 +70,12 @@ public partial class SettingsWindow : Window
 
     private bool _initialized;
 
-    public SettingsWindow(SettingsService settingsService)
+    public SettingsWindow(SettingsService settingsService) : this(settingsService, null) { }
+
+    public SettingsWindow(SettingsService settingsService, UpdateService? updateService)
     {
         _settingsService = settingsService;
+        _updateService = updateService;
         InitializeComponent();
         var v = Assembly.GetExecutingAssembly().GetName().Version;
         if (v is not null)
@@ -210,6 +217,42 @@ public partial class SettingsWindow : Window
         {
             LangJa.IsChecked = true;
         }
+
+        // 情報タブ
+        LoadAboutSection(s);
+    }
+
+    private void LoadAboutSection(AppSettings s)
+    {
+        var v = Assembly.GetExecutingAssembly().GetName().Version;
+        AboutVersionText.Text = string.Format(
+            CultureInfo.CurrentCulture,
+            Loc.Get("Str.About.Version"),
+            v is null ? "-" : $"{v.Major}.{v.Minor}.{v.Build}");
+
+        AutoUpdateToggle.IsChecked = s.AutoUpdateEnabled;
+        UpdateLastCheckedLabel(s.LastUpdateCheckUtc);
+    }
+
+    private void UpdateLastCheckedLabel(string isoUtc)
+    {
+        if (string.IsNullOrEmpty(isoUtc))
+        {
+            AboutLastCheckedText.Text = string.Format(CultureInfo.CurrentCulture, Loc.Get("Str.About.LastChecked"), "-");
+            return;
+        }
+        if (DateTime.TryParse(isoUtc, CultureInfo.InvariantCulture,
+                DateTimeStyles.RoundtripKind, out var dt))
+        {
+            AboutLastCheckedText.Text = string.Format(
+                CultureInfo.CurrentCulture,
+                Loc.Get("Str.About.LastChecked"),
+                dt.ToLocalTime().ToString("yyyy-MM-dd HH:mm", CultureInfo.CurrentCulture));
+        }
+        else
+        {
+            AboutLastCheckedText.Text = string.Format(CultureInfo.CurrentCulture, Loc.Get("Str.About.LastChecked"), isoUtc);
+        }
     }
 
     private void UpdateTrailValueLabels()
@@ -291,6 +334,7 @@ public partial class SettingsWindow : Window
         if (PageSettings is null) return;
         PageSettings.Visibility = Visibility.Visible;
         PageUsage.Visibility = Visibility.Collapsed;
+        if (PageAbout is not null) PageAbout.Visibility = Visibility.Collapsed;
     }
 
     private void OnTabUsageChecked(object sender, RoutedEventArgs e)
@@ -298,6 +342,56 @@ public partial class SettingsWindow : Window
         if (PageSettings is null) return;
         PageSettings.Visibility = Visibility.Collapsed;
         PageUsage.Visibility = Visibility.Visible;
+        if (PageAbout is not null) PageAbout.Visibility = Visibility.Collapsed;
+    }
+
+    private void OnTabAboutChecked(object sender, RoutedEventArgs e)
+    {
+        if (PageSettings is null || PageAbout is null) return;
+        PageSettings.Visibility = Visibility.Collapsed;
+        PageUsage.Visibility = Visibility.Collapsed;
+        PageAbout.Visibility = Visibility.Visible;
+    }
+
+    private async void OnCheckNowClick(object sender, RoutedEventArgs e)
+    {
+        if (_updateService == null) return;
+        CheckNowButton.IsEnabled = false;
+        try
+        {
+            var info = await _updateService.CheckForUpdatesAsync();
+            UpdateLastCheckedLabel(_settingsService.Current.LastUpdateCheckUtc);
+
+            if (info == null)
+            {
+                MessageBox.Show(
+                    Loc.Get("Str.Update.NoUpdate"),
+                    Loc.Get("Str.AppName"),
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Information);
+                return;
+            }
+
+            var dlg = new UpdateDialog(_updateService, info);
+            dlg.ShowDialog();
+        }
+        finally
+        {
+            CheckNowButton.IsEnabled = true;
+        }
+    }
+
+    private void OnHyperlinkRequestNavigate(object sender, RequestNavigateEventArgs e)
+    {
+        try
+        {
+            Process.Start(new ProcessStartInfo(e.Uri.AbsoluteUri) { UseShellExecute = true });
+            e.Handled = true;
+        }
+        catch (Exception ex)
+        {
+            DebugLog.Write($"OnHyperlinkRequestNavigate failed: {ex.GetType().Name}: {ex.Message}");
+        }
     }
 
     // ==== テーマ切替 ====
@@ -439,6 +533,11 @@ public partial class SettingsWindow : Window
             SavedCoordinatesB = _settingsService.Current.SavedCoordinatesB,
             UiTheme = _currentTheme,
             UiLanguage = _currentLanguage,
+            // 自動更新（情報タブのトグル）。LastUpdateCheckUtc / SkippedVersion は
+            // UpdateService が書き込む内部状態なので Current から維持する。
+            AutoUpdateEnabled = AutoUpdateToggle.IsChecked == true,
+            LastUpdateCheckUtc = _settingsService.Current.LastUpdateCheckUtc,
+            SkippedVersion = _settingsService.Current.SkippedVersion,
         };
 
         if (!_settingsService.Save(settings))

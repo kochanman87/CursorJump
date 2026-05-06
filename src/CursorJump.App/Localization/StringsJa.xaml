@@ -8,7 +8,26 @@
 
     <!-- トレイメニュー -->
     <sys:String x:Key="Str.Tray.Settings">設定</sys:String>
+    <sys:String x:Key="Str.Tray.CheckForUpdates">更新を確認</sys:String>
     <sys:String x:Key="Str.Tray.Exit">終了</sys:String>
+
+    <!-- 情報タブ / 自動更新 -->
+    <sys:String x:Key="Str.Tab.About">情報</sys:String>
+    <sys:String x:Key="Str.About.Version">バージョン: {0}</sys:String>
+    <sys:String x:Key="Str.About.AutoUpdate">起動時に更新を確認</sys:String>
+    <sys:String x:Key="Str.About.CheckNow">今すぐ更新を確認</sys:String>
+    <sys:String x:Key="Str.About.LastChecked">前回確認: {0}</sys:String>
+    <sys:String x:Key="Str.About.GitHubRepo">GitHub リポジトリ</sys:String>
+
+    <!-- 更新ダイアログ -->
+    <sys:String x:Key="Str.Update.DialogTitle">更新が利用可能です</sys:String>
+    <sys:String x:Key="Str.Update.CurrentVersion">現在: {0}</sys:String>
+    <sys:String x:Key="Str.Update.NewVersion">新バージョン: {0}</sys:String>
+    <sys:String x:Key="Str.Update.UpdateNow">今すぐ更新</sys:String>
+    <sys:String x:Key="Str.Update.Later">後で</sys:String>
+    <sys:String x:Key="Str.Update.Skip">このバージョンをスキップ</sys:String>
+    <sys:String x:Key="Str.Update.NoUpdate">最新版です。</sys:String>
+    <sys:String x:Key="Str.Update.CheckFailed">更新の確認に失敗しました: {0}</sys:String>
 
     <!-- 設定ウィンドウ全般 -->
     <sys:String x:Key="Str.Settings.Title">CursorJump 設定</sys:String>
