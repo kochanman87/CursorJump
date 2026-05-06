@@ -359,21 +359,24 @@ public partial class SettingsWindow : Window
         CheckNowButton.IsEnabled = false;
         try
         {
-            var info = await _updateService.CheckForUpdatesAsync();
+            var (info, status) = await _updateService.CheckForUpdatesAsync();
             UpdateLastCheckedLabel(_settingsService.Current.LastUpdateCheckUtc);
 
-            if (info == null)
+            if (status == UpdateCheckStatus.UpdateAvailable && info != null)
             {
-                MessageBox.Show(
-                    Loc.Get("Str.Update.NoUpdate"),
-                    Loc.Get("Str.AppName"),
-                    MessageBoxButton.OK,
-                    MessageBoxImage.Information);
+                var dlg = new UpdateDialog(_updateService, info);
+                dlg.ShowDialog();
                 return;
             }
 
-            var dlg = new UpdateDialog(_updateService, info);
-            dlg.ShowDialog();
+            string msg = status switch
+            {
+                UpdateCheckStatus.UpToDate     => Loc.Get("Str.Update.NoUpdate"),
+                UpdateCheckStatus.NotInstalled => Loc.Get("Str.Update.NotInstalled"),
+                _                              => Loc.Get("Str.Update.NetworkError"),
+            };
+            MessageBox.Show(msg, Loc.Get("Str.AppName"), MessageBoxButton.OK,
+                status == UpdateCheckStatus.NetworkError ? MessageBoxImage.Warning : MessageBoxImage.Information);
         }
         finally
         {

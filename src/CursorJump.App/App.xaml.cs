@@ -98,8 +98,8 @@ public partial class App : Application
         try
         {
             if (_updateService == null) return;
-            var info = await _updateService.CheckForUpdatesAsync();
-            if (info == null) return;
+            var (info, status) = await _updateService.CheckForUpdatesAsync();
+            if (status != UpdateCheckStatus.UpdateAvailable || info == null) return;
 
             string newVersion = info.TargetFullRelease.Version.ToString();
             if (_updateService.IsSkipped(newVersion))

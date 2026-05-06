@@ -27,6 +27,8 @@
     <sys:String x:Key="Str.Update.Later">Later</sys:String>
     <sys:String x:Key="Str.Update.Skip">Skip this version</sys:String>
     <sys:String x:Key="Str.Update.NoUpdate">You're on the latest version.</sys:String>
+    <sys:String x:Key="Str.Update.NotInstalled">Skipped update check — not running as an installed build (dev run).</sys:String>
+    <sys:String x:Key="Str.Update.NetworkError">Failed to check for updates. Check your network connection or GitHub status. See debug.log for details.</sys:String>
     <sys:String x:Key="Str.Update.CheckFailed">Update check failed: {0}</sys:String>
 
     <!-- Settings window general -->

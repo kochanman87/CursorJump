@@ -5,10 +5,18 @@ using Velopack.Sources;
 
 namespace CursorJump.App;
 
+public enum UpdateCheckStatus
+{
+    UpToDate,
+    UpdateAvailable,
+    NotInstalled,
+    NetworkError,
+}
+
 /// <summary>
 /// GitHub Releases から自動更新を行うサービス。Velopack でインストールされていない
 /// 開発実行（dotnet run / 直接 bin\Debug 起動）では <see cref="IsInstalled"/> が false になり、
-/// チェックは常に null を返す（例外を呼び出し側に伝播させない設計）。
+/// チェックは <see cref="UpdateCheckStatus.NotInstalled"/> を返す（例外を呼び出し側に伝播させない設計）。
 /// </summary>
 public sealed class UpdateService
 {
@@ -31,18 +39,18 @@ public sealed class UpdateService
     public string? CurrentVersion => _manager.CurrentVersion?.ToString();
 
     /// <summary>
-    /// 新版の有無を確認する。新版があれば <see cref="UpdateInfo"/>、無ければ null。
-    /// 例外（オフライン・GitHub 障害・未インストール）は飲み込んで null を返し、
-    /// <see cref="DebugLog"/> に記録する。常に <see cref="AppSettings.LastUpdateCheckUtc"/> を更新する。
+    /// 新版の有無を確認する。
+    /// 例外（オフライン・GitHub 障害・未インストール）は飲み込んで <see cref="UpdateCheckStatus"/> で返し、
+    /// <see cref="DebugLog"/> に記録する。インストール済みの場合は常に <see cref="AppSettings.LastUpdateCheckUtc"/> を更新する。
     /// </summary>
-    public async Task<UpdateInfo?> CheckForUpdatesAsync()
+    public async Task<(UpdateInfo? Info, UpdateCheckStatus Status)> CheckForUpdatesAsync()
     {
         try
         {
             if (!_manager.IsInstalled)
             {
                 DebugLog.Write("UpdateService.CheckForUpdatesAsync: not installed (dev run) — skipping");
-                return null;
+                return (null, UpdateCheckStatus.NotInstalled);
             }
 
             var info = await _manager.CheckForUpdatesAsync().ConfigureAwait(false);
@@ -50,17 +58,18 @@ public sealed class UpdateService
             if (info == null)
             {
                 DebugLog.Write("UpdateService.CheckForUpdatesAsync: up-to-date");
+                return (null, UpdateCheckStatus.UpToDate);
             }
             else
             {
                 DebugLog.Write($"UpdateService.CheckForUpdatesAsync: new version {info.TargetFullRelease.Version}");
+                return (info, UpdateCheckStatus.UpdateAvailable);
             }
-            return info;
         }
         catch (Exception ex)
         {
             DebugLog.Write($"UpdateService.CheckForUpdatesAsync failed: {ex.GetType().Name}: {ex.Message}");
-            return null;
+            return (null, UpdateCheckStatus.NetworkError);
         }
     }
 

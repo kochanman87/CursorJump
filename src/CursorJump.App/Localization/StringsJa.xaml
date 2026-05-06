@@ -27,6 +27,8 @@
     <sys:String x:Key="Str.Update.Later">後で</sys:String>
     <sys:String x:Key="Str.Update.Skip">このバージョンをスキップ</sys:String>
     <sys:String x:Key="Str.Update.NoUpdate">最新版です。</sys:String>
+    <sys:String x:Key="Str.Update.NotInstalled">インストール版ではないため更新チェックをスキップしました（開発実行）。</sys:String>
+    <sys:String x:Key="Str.Update.NetworkError">更新の確認に失敗しました。ネットワーク接続または GitHub の状態を確認してください。詳細は debug.log を参照してください。</sys:String>
     <sys:String x:Key="Str.Update.CheckFailed">更新の確認に失敗しました: {0}</sys:String>
 
     <!-- 設定ウィンドウ全般 -->
