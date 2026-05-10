@@ -51,11 +51,14 @@ src/CursorJump.App/
 ├── KeyboardHookService.cs          # WH_KEYBOARD_LL常時フック（F13-F24キーボードトリガー）
 ├── CursorService.cs                # カーソル移動（任意座標ジャンプ）
 ├── CoordinateStore.cs              # 座標リスト管理（Add/GetNext循環/GetNextInMonitor/RemoveAt/Load/Changed）
+├── ShortcutFormatter.cs            # ショートカット表記（通常/削除モード用の compact 名対応）
 ├── OverlayService.cs               # オーバーレイアニメーション（収縮円、軌跡、マーカー）
 ├── OverlayWindow.xaml / .cs        # 透明オーバーレイウィンドウ基盤
 ├── DebugLog.cs                     # デバッグログ（%APPDATA%/CursorJump/debug.log）
 ├── SettingsService.cs              # 設定のJSON読み書き（%APPDATA%/CursorJump/settings.json）
-├── SettingsWindow.xaml / .cs       # 設定画面UI（設定 / 使い方 / 情報 タブ）
+├── SettingsWindow.xaml / .cs       # 設定画面UI（設定 / 使い方 / 情報 / ライセンス タブ）
+├── LicenseService.cs               # Free/Pro 判定（SHA256 ハッシュ比較）+ StatusChanged
+├── UpgradeDialog.xaml / .cs        # Pro 案内モーダル（Set B / 保存上限到達時）
 ├── UpdateService.cs                # Velopack による GitHub Releases 自動更新
 ├── UpdateDialog.xaml / .cs         # 新版検出時の確認ダイアログ
 ├── TrayIconService.cs              # タスクトレイアイコン管理（更新確認メニュー含む）
