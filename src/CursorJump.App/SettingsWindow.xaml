@@ -1074,7 +1074,7 @@
                     <Border Style="{StaticResource CardBorder}">
                         <StackPanel>
                             <TextBlock FontSize="12" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,0,0,8">
-                                <Hyperlink x:Name="BoothLink" NavigateUri="https://kochanman87.booth.pm/"
+                                <Hyperlink x:Name="BoothLink" NavigateUri="https://kochanman87.booth.pm/items/8344258"
                                            RequestNavigate="OnHyperlinkRequestNavigate">
                                     <TextBlock Text="{DynamicResource Str.License.BuyButton}"/>
                                 </Hyperlink>

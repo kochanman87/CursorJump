@@ -104,6 +104,8 @@ public partial class SettingsWindow : Window
         }
         // ButtonOption.ToString() は Loc.Get を呼ぶが、ComboBox は変更通知を受け取らないので強制リフレッシュ
         RefreshButtonComboBoxes();
+        // ライセンスステータステキストも DynamicResource ではなく Loc.Get で設定しているため再描画する
+        UpdateLicenseUI();
     }
 
     private void RefreshButtonComboBoxes()
