@@ -13,15 +13,18 @@ public sealed class TrayIconService : IDisposable
     private readonly NotifyIcon _notifyIcon;
     private readonly SettingsService _settingsService;
     private readonly UpdateService _updateService;
+    private readonly LicenseService _licenseService;
+    private ToolStripLabel? _editionLabel;
     private ToolStripMenuItem? _settingsItem;
     private ToolStripMenuItem? _checkUpdatesItem;
     private ToolStripMenuItem? _exitItem;
     private bool _disposed;
 
-    public TrayIconService(SettingsService settingsService, UpdateService updateService)
+    public TrayIconService(SettingsService settingsService, UpdateService updateService, LicenseService licenseService)
     {
         _settingsService = settingsService;
         _updateService = updateService;
+        _licenseService = licenseService;
         _notifyIcon = new NotifyIcon();
     }
 
@@ -42,6 +45,10 @@ public sealed class TrayIconService : IDisposable
 
         var contextMenu = new ContextMenuStrip();
 
+        _editionLabel = new ToolStripLabel(GetEditionText()) { Enabled = false };
+        contextMenu.Items.Add(_editionLabel);
+        contextMenu.Items.Add(new ToolStripSeparator());
+
         _settingsItem = new ToolStripMenuItem(Loc.Get("Str.Tray.Settings"));
         _settingsItem.Click += HandleSettingsClick;
         contextMenu.Items.Add(_settingsItem);
@@ -57,9 +64,11 @@ public sealed class TrayIconService : IDisposable
         contextMenu.Items.Add(_exitItem);
 
         _notifyIcon.ContextMenuStrip = contextMenu;
+        _notifyIcon.DoubleClick += HandleSettingsClick;
         _notifyIcon.Visible = true;
 
         LocalizationManager.LanguageChanged += OnLanguageChanged;
+        _licenseService.StatusChanged += OnLicenseStatusChanged;
     }
 
     private void OnLanguageChanged()
@@ -67,9 +76,26 @@ public sealed class TrayIconService : IDisposable
         if (_disposed) return;
         // メニュー項目のテキストを現在言語に更新
         _notifyIcon.Text = Loc.Get("Str.AppName");
+        if (_editionLabel is not null) _editionLabel.Text = GetEditionText();
         if (_settingsItem is not null) _settingsItem.Text = Loc.Get("Str.Tray.Settings");
         if (_checkUpdatesItem is not null) _checkUpdatesItem.Text = Loc.Get("Str.Tray.CheckForUpdates");
         if (_exitItem is not null) _exitItem.Text = Loc.Get("Str.Tray.Exit");
+    }
+
+    private void OnLicenseStatusChanged()
+    {
+        if (_disposed) return;
+        System.Windows.Application.Current?.Dispatcher.Invoke(() =>
+        {
+            if (_editionLabel is not null) _editionLabel.Text = GetEditionText();
+        });
+    }
+
+    private string GetEditionText()
+    {
+        return _licenseService.IsPro
+            ? $"{Loc.Get("Str.AppName")} — {Loc.Get("Str.Edition.Pro")}"
+            : $"{Loc.Get("Str.AppName")} — {Loc.Get("Str.Edition.Free")}";
     }
 
     private void HandleSettingsClick(object? sender, EventArgs e)
@@ -78,7 +104,7 @@ public sealed class TrayIconService : IDisposable
 
         System.Windows.Application.Current?.Dispatcher.Invoke(() =>
         {
-            var window = new SettingsWindow(_settingsService, _updateService);
+            var window = new SettingsWindow(_settingsService, _updateService, _licenseService);
             window.ShowDialog();
         });
     }
@@ -129,6 +155,7 @@ public sealed class TrayIconService : IDisposable
 
         _disposed = true;
         LocalizationManager.LanguageChanged -= OnLanguageChanged;
+        _licenseService.StatusChanged -= OnLicenseStatusChanged;
 
         var contextMenu = _notifyIcon.ContextMenuStrip;
         if (contextMenu is not null)
@@ -141,6 +168,7 @@ public sealed class TrayIconService : IDisposable
             }
         }
 
+        _notifyIcon.DoubleClick -= HandleSettingsClick;
         _notifyIcon.Visible = false;
         _notifyIcon.ContextMenuStrip = null;
         contextMenu?.Dispose();

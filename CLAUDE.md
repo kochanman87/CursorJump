@@ -160,6 +160,35 @@ public sealed class ActionShortcut
 - `CoordinateStore.GetNextInMonitor(deviceName)`: モニタ別インデックス（`Dictionary<string,int>`）で循環管理。該当モニタ座標が0個の場合 `null` を返す（フォールバックなし）
 - `Screen.FromPoint` / `Screen.DeviceName` は物理ピクセル座標ベースで安全に使用可能（DPI変換不要）
 
+## ライセンスシステム（Free / Pro 版）
+
+v1.4.0 で Pro/Free 版を導入。BOOTH 配布のライセンスキーを設定画面で適用すると Pro 化される。
+
+### Free 版の制限
+- 座標保存は **3 個まで**（`LicenseService.FreeMaxCoordinates`）。Set A のみが対象。上限到達時の追加要求は静かに無視（DebugLog のみ）。削除モードで 1 個削除すれば再保存可能
+- **Set B（第2座標セット）は機能無効**: `MainWindow.OnSaveRequestedB` / `OnNavigateRequestedB` で `IsPro == false` なら早期 return。設定画面で Set B のショートカットは編集可能だが、トリガーは反応しない（PRO バッジ + 案内テキストで明示）
+- 設定画面の Set B セクションに **`PRO` バッジ** と「Pro 版でのみ動作します」ロック通知が表示される（Pro 化で消える）
+
+### キー設計（秀丸方式 + ハッシュ埋め込み）
+- **キー文字列**: `<REDACTED-OLD-KEY>`（全購入者共通の固定値、BOOTH の .txt で配信）
+- **ソース埋め込み**: SHA256 ハッシュのみ（平文キーは置かない）。OSS リポでも安全
+  - `LicenseService.cs` 内 `private const string ProKeyHash = "69d6a90f54687b014099998699092c1ec9a8c746d31d83bab5eddb9c2be7be26"`
+  - 検証は `SHA256(UTF8(input.Trim())) → 小文字hex` を `ProKeyHash` と比較
+- **逆コンパイル耐性は限定的**（dnSpy で検証メソッドを `return true;` に書き換えれば突破可能）。これは受容する。難読化は将来の選択肢
+- **失効・再発行はしない**。リーク発覚時は次のメジャーバージョンで `ProKeyHash` を変更し、BOOTH のメッセージ機能で正規購入者に新キーを一斉通知する運用を想定
+
+### コンポーネント
+- **`LicenseService`** (`src/CursorJump.App/LicenseService.cs`): `IsPro`（bool）/ `Status`（NotEntered/Valid/Invalid）/ `Apply(string key)` / `Refresh()` / `Clear()` / `StatusChanged` イベント。`Apply` で Valid なら settings.json に `LicenseKey` を保存。Invalid/NotEntered の場合は保存しない（誤入力で既存ライセンスを潰さないため）
+- **`UpgradeDialog`** (`src/CursorJump.App/UpgradeDialog.xaml`): Pro 案内モーダル。`UpgradeReason.SetB` / `UpgradeReason.SaveLimit` で本文を切り替え。`OpenLicenseTabRequested` プロパティで呼出側がライセンスタブを開く判断材料を返す
+- **`SettingsWindow`**: 「ライセンス」タブ追加。ステータステキスト・キー入力・適用ボタン・BOOTH 購入リンクを配置。`UpdateLicenseUI()` で Pro/Free 状態を反映（PRO バッジの表示制御も含む）
+- **`AppSettings.LicenseKey`**: 入力されたキー文字列を永続化。`SettingsWindow.OnSaveClick` では `_settingsService.Current.LicenseKey` を維持して上書きしない（`LicenseService.Apply` が排他的に書き込む）
+- **`TrayIconService`**: コンテキストメニュー先頭に「CursorJump — Free 版 / Pro 版」のラベル（`ToolStripLabel` / Enabled=false）を表示。`LicenseService.StatusChanged` を購読して即時反映
+
+### 設計ポリシー
+- **Free 上限到達時の UX**: トースト・モーダルは出さず、保存もエフェクトも実行せず DebugLog のみ。理由は「作業中断を避ける」「設定画面の Free 表記とトレイのラベルで気付いてもらう」設計
+- **Set B 編集は技術的に許可**: PRO バッジ + ロック通知の静的表示で意図を伝え、リアルタイム変更傍受モーダルは実装しない（複数コントロールにまたがる傍受は複雑化の割に得るものが薄い）
+- **ライセンス検証の呼出**: 起動時に `LicenseService` コンストラクタ内で `Refresh()`、`Apply` 時に再評価。`StatusChanged` で `TrayIconService` のラベルが更新される
+
 ## 自動更新（Velopack + GitHub Releases）
 
 GitHub Releases を配布チャネルとし、起動時に新版を検出してユーザー確認後にダウンロード→再起動する仕組み。実装は `UpdateService` + `UpdateDialog` + `Velopack` ライブラリ。

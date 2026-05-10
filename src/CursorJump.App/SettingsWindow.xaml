@@ -59,6 +59,16 @@
                             <TextBlock Text="{DynamicResource Str.Tab.About}" VerticalAlignment="Center"/>
                         </StackPanel>
                     </RadioButton>
+                    <RadioButton x:Name="TabLicense" GroupName="PageTabs"
+                                 Style="{StaticResource PillTabStyle}"
+                                 Checked="OnTabLicenseChecked">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Style="{StaticResource FluentIcon}" Text="&#xE192;"
+                                       Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=RadioButton}}"
+                                       FontSize="13" Margin="0,0,6,0"/>
+                            <TextBlock Text="{DynamicResource Str.License.Tab}" VerticalAlignment="Center"/>
+                        </StackPanel>
+                    </RadioButton>
                 </StackPanel>
             </Border>
 
@@ -361,10 +371,21 @@
 
                     <!-- ==== 第2座標セット（独立 / Set B） ==== -->
                     <StackPanel Margin="0,12,0,4">
-                        <TextBlock Text="{DynamicResource Str.Settings.SetB.Header}" FontSize="14" FontWeight="SemiBold"
-                                   Foreground="{DynamicResource TextPrimaryBrush}"/>
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="{DynamicResource Str.Settings.SetB.Header}" FontSize="14" FontWeight="SemiBold"
+                                       Foreground="{DynamicResource TextPrimaryBrush}" VerticalAlignment="Center"/>
+                            <Border x:Name="SetBProBadge" Background="{DynamicResource AccentBrush}"
+                                    CornerRadius="4" Padding="6,1" Margin="8,0,0,0" VerticalAlignment="Center">
+                                <TextBlock Text="{DynamicResource Str.Settings.SetB.ProBadge}"
+                                           FontSize="10" FontWeight="Bold" Foreground="White"/>
+                            </Border>
+                        </StackPanel>
                         <TextBlock Text="{DynamicResource Str.Settings.SetB.Description}"
                                    Style="{StaticResource HintText}" TextWrapping="Wrap" Margin="0,2,0,0"/>
+                        <TextBlock x:Name="SetBProLockedNotice"
+                                   Text="{DynamicResource Str.Settings.SetB.ProLocked}"
+                                   Style="{StaticResource HintText}" TextWrapping="Wrap" Margin="0,4,0,0"
+                                   Foreground="{DynamicResource AccentBrush}"/>
                     </StackPanel>
                     <Grid>
                         <Grid.ColumnDefinitions>
@@ -992,6 +1013,71 @@
                                     Style="{StaticResource SecondaryButtonStyle}"
                                     HorizontalAlignment="Left"
                                     Click="OnCheckNowClick"/>
+                        </StackPanel>
+                    </Border>
+
+                </StackPanel>
+            </ScrollViewer>
+
+            <!-- ====== ライセンスページ ====== -->
+            <ScrollViewer x:Name="PageLicense" VerticalScrollBarVisibility="Auto"
+                          HorizontalScrollBarVisibility="Disabled"
+                          Padding="20,4,20,8"
+                          Visibility="Collapsed">
+                <StackPanel>
+
+                    <!-- ステータスカード -->
+                    <Border Style="{StaticResource CardBorder}">
+                        <StackPanel>
+                            <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                                <Border Style="{StaticResource CardIconBox}">
+                                    <TextBlock Style="{StaticResource FluentIcon}" Text="&#xE192;"/>
+                                </Border>
+                                <TextBlock Style="{StaticResource CardHeaderText}" Text="{DynamicResource Str.License.Header}" Margin="10,0,0,0"/>
+                            </StackPanel>
+
+                            <TextBlock x:Name="LicenseStatusText" FontSize="13" FontWeight="SemiBold"
+                                       Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,0,0,4"/>
+                            <TextBlock Text="{DynamicResource Str.License.BuyHint}"
+                                       Style="{StaticResource HintText}" TextWrapping="Wrap" Margin="0,0,0,8"/>
+                            <TextBlock x:Name="LicenseFreeLimitsText"
+                                       Style="{StaticResource HintText}" TextWrapping="Wrap" Margin="0,0,0,4"/>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- キー入力カード -->
+                    <Border Style="{StaticResource CardBorder}">
+                        <StackPanel>
+                            <TextBlock Text="{DynamicResource Str.License.KeyLabel}"
+                                       Style="{StaticResource BodyText}" Margin="0,0,0,6"/>
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <TextBox x:Name="LicenseKeyInput" Grid.Column="0"
+                                         Tag="{DynamicResource Str.License.KeyPlaceholder}"
+                                         FontSize="13" Padding="6,4" Margin="0,0,8,0"
+                                         VerticalContentAlignment="Center"/>
+                                <Button x:Name="LicenseApplyButton" Grid.Column="1"
+                                        Content="{DynamicResource Str.License.ApplyButton}"
+                                        Style="{StaticResource PrimaryButtonStyle}"
+                                        Click="OnLicenseApplyClick" MinWidth="80"/>
+                            </Grid>
+                            <TextBlock x:Name="LicenseApplyResultText"
+                                       Style="{StaticResource HintText}" TextWrapping="Wrap" Margin="0,8,0,0"/>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- 購入リンクカード -->
+                    <Border Style="{StaticResource CardBorder}">
+                        <StackPanel>
+                            <TextBlock FontSize="12" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,0,0,8">
+                                <Hyperlink x:Name="BoothLink" NavigateUri="https://kochanman87.booth.pm/"
+                                           RequestNavigate="OnHyperlinkRequestNavigate">
+                                    <TextBlock Text="{DynamicResource Str.License.BuyButton}"/>
+                                </Hyperlink>
+                            </TextBlock>
                         </StackPanel>
                     </Border>
 

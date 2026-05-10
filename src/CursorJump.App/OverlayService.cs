@@ -11,6 +11,7 @@ namespace CursorJump.App;
 internal sealed class OverlayService
 {
     private readonly SettingsService _settingsService;
+    private readonly LicenseService _licenseService;
     private MouseHookService? _mouseHookService;
     private KeyboardHookService? _keyboardHookService;
     private OverlayWindow? _markerOverlay;
@@ -27,9 +28,10 @@ internal sealed class OverlayService
     private Border? _helpPanel;
     private string _currentMonitorDeviceName = string.Empty;
 
-    public OverlayService(SettingsService settingsService)
+    public OverlayService(SettingsService settingsService, LicenseService licenseService)
     {
         _settingsService = settingsService;
+        _licenseService = licenseService;
     }
 
     /// <summary>
@@ -320,9 +322,17 @@ internal sealed class OverlayService
         }
         else
         {
-            // マーカー外: 先頭ストア（Set A）に追加
-            DebugLog.Write($"Empty area clicked via hook: physical=({e.X},{e.Y}) - adding to first store");
-            _deleteStores[0].store.Add(e.X, e.Y);
+            // マーカー外: 先頭ストア（Set A）に追加。Free 版では上限を超えると追加せず無視（マーカー再描画もしないので視覚変化なし）
+            var firstStore = _deleteStores[0].store;
+            if (!_licenseService.IsPro && firstStore.Count >= LicenseService.FreeMaxCoordinates)
+            {
+                DebugLog.Write($"Empty area clicked via hook: physical=({e.X},{e.Y}) - blocked by Free edition limit ({firstStore.Count}/{LicenseService.FreeMaxCoordinates})");
+            }
+            else
+            {
+                DebugLog.Write($"Empty area clicked via hook: physical=({e.X},{e.Y}) - adding to first store");
+                firstStore.Add(e.X, e.Y);
+            }
         }
 
         _lastHighlighted = null;

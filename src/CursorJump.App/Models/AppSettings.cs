@@ -113,6 +113,10 @@ public sealed class AppSettings
     /// <summary>「このバージョンをスキップ」で記録された対象バージョン文字列。一致する版は通知しない。</summary>
     public string SkippedVersion { get; set; } = "";
 
+    // ── ライセンス ──
+    /// <summary>Pro 版ライセンスキー（ユーザー入力）。空文字なら Free。SHA256 ハッシュを LicenseService 内の埋め込みハッシュと比較して Pro 化する。</summary>
+    public string LicenseKey { get; set; } = "";
+
     public AppSettings Clone()
     {
         var c = (AppSettings)MemberwiseClone();

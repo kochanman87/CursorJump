@@ -17,6 +17,7 @@ public partial class SettingsWindow : Window
 {
     private readonly SettingsService _settingsService;
     private readonly UpdateService? _updateService;
+    private readonly LicenseService? _licenseService;
 
     /// <summary>
     /// ComboBox の表示用 wrapper。enum 値を保持しつつ、ToString() で現在言語のリソース名を返すため、
@@ -70,12 +71,15 @@ public partial class SettingsWindow : Window
 
     private bool _initialized;
 
-    public SettingsWindow(SettingsService settingsService) : this(settingsService, null) { }
+    public SettingsWindow(SettingsService settingsService) : this(settingsService, null, null) { }
 
-    public SettingsWindow(SettingsService settingsService, UpdateService? updateService)
+    public SettingsWindow(SettingsService settingsService, UpdateService? updateService) : this(settingsService, updateService, null) { }
+
+    public SettingsWindow(SettingsService settingsService, UpdateService? updateService, LicenseService? licenseService)
     {
         _settingsService = settingsService;
         _updateService = updateService;
+        _licenseService = licenseService;
         InitializeComponent();
         var v = Assembly.GetExecutingAssembly().GetName().Version;
         if (v is not null)
@@ -84,6 +88,7 @@ public partial class SettingsWindow : Window
         }
         PopulateComboBoxes();
         LoadCurrentSettings();
+        UpdateLicenseUI();
         LocalizationManager.LanguageChanged += OnLanguageChanged;
         Closed += (_, _) => LocalizationManager.LanguageChanged -= OnLanguageChanged;
         _initialized = true;
@@ -335,6 +340,7 @@ public partial class SettingsWindow : Window
         PageSettings.Visibility = Visibility.Visible;
         PageUsage.Visibility = Visibility.Collapsed;
         if (PageAbout is not null) PageAbout.Visibility = Visibility.Collapsed;
+        if (PageLicense is not null) PageLicense.Visibility = Visibility.Collapsed;
     }
 
     private void OnTabUsageChecked(object sender, RoutedEventArgs e)
@@ -343,6 +349,7 @@ public partial class SettingsWindow : Window
         PageSettings.Visibility = Visibility.Collapsed;
         PageUsage.Visibility = Visibility.Visible;
         if (PageAbout is not null) PageAbout.Visibility = Visibility.Collapsed;
+        if (PageLicense is not null) PageLicense.Visibility = Visibility.Collapsed;
     }
 
     private void OnTabAboutChecked(object sender, RoutedEventArgs e)
@@ -351,6 +358,68 @@ public partial class SettingsWindow : Window
         PageSettings.Visibility = Visibility.Collapsed;
         PageUsage.Visibility = Visibility.Collapsed;
         PageAbout.Visibility = Visibility.Visible;
+        if (PageLicense is not null) PageLicense.Visibility = Visibility.Collapsed;
+    }
+
+    private void OnTabLicenseChecked(object sender, RoutedEventArgs e)
+    {
+        if (PageSettings is null || PageLicense is null) return;
+        PageSettings.Visibility = Visibility.Collapsed;
+        PageUsage.Visibility = Visibility.Collapsed;
+        if (PageAbout is not null) PageAbout.Visibility = Visibility.Collapsed;
+        PageLicense.Visibility = Visibility.Visible;
+    }
+
+    private void UpdateLicenseUI()
+    {
+        bool isPro = _licenseService?.IsPro ?? false;
+        var status = _licenseService?.Status ?? LicenseStatus.NotEntered;
+
+        // ステータステキスト
+        if (LicenseStatusText is not null)
+        {
+            LicenseStatusText.Text = status switch
+            {
+                LicenseStatus.Valid => Loc.Get("Str.License.StatusPro"),
+                LicenseStatus.Invalid => Loc.Get("Str.License.StatusInvalid"),
+                _ => Loc.Get("Str.License.StatusFree"),
+            };
+        }
+        if (LicenseFreeLimitsText is not null)
+        {
+            LicenseFreeLimitsText.Text = string.Format(
+                CultureInfo.CurrentCulture,
+                Loc.Get("Str.License.FreeLimits"),
+                LicenseService.FreeMaxCoordinates);
+            LicenseFreeLimitsText.Visibility = isPro ? Visibility.Collapsed : Visibility.Visible;
+        }
+        if (LicenseKeyInput is not null)
+        {
+            LicenseKeyInput.Text = _settingsService.Current.LicenseKey ?? "";
+        }
+
+        // Set B PRO バッジ
+        if (SetBProBadge is not null)
+            SetBProBadge.Visibility = isPro ? Visibility.Collapsed : Visibility.Visible;
+        if (SetBProLockedNotice is not null)
+            SetBProLockedNotice.Visibility = isPro ? Visibility.Collapsed : Visibility.Visible;
+    }
+
+    private void OnLicenseApplyClick(object sender, RoutedEventArgs e)
+    {
+        if (_licenseService is null) return;
+        string input = LicenseKeyInput?.Text ?? "";
+        var result = _licenseService.Apply(input);
+        if (LicenseApplyResultText is not null)
+        {
+            LicenseApplyResultText.Text = result switch
+            {
+                LicenseStatus.Valid => Loc.Get("Str.License.StatusValidApplied"),
+                LicenseStatus.Invalid => Loc.Get("Str.License.StatusInvalid"),
+                _ => Loc.Get("Str.License.StatusFree"),
+            };
+        }
+        UpdateLicenseUI();
     }
 
     private async void OnCheckNowClick(object sender, RoutedEventArgs e)
@@ -541,6 +610,8 @@ public partial class SettingsWindow : Window
             AutoUpdateEnabled = AutoUpdateToggle.IsChecked == true,
             LastUpdateCheckUtc = _settingsService.Current.LastUpdateCheckUtc,
             SkippedVersion = _settingsService.Current.SkippedVersion,
+            // ライセンスキーは LicenseService.Apply 経由で書き込まれる。設定保存時は現在値を維持して上書きしない。
+            LicenseKey = _settingsService.Current.LicenseKey,
         };
 
         if (!_settingsService.Save(settings))

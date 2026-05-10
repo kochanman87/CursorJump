@@ -158,4 +158,31 @@
     <sys:String x:Key="Str.Usage.MonitorNav.Title">モニタ内ナビゲーションとは</sys:String>
     <sys:String x:Key="Str.Usage.MonitorNav.Body">通常のナビゲーションは「全モニタの全保存座標」を順番に循環しますが、モニタ内ナビゲーションは現在カーソルのあるモニタに保存された座標のみを循環します。マルチモニタ環境で「今のモニタの中だけを行き来したい」場合に便利です。</sys:String>
 
+    <!-- ライセンス -->
+    <sys:String x:Key="Str.Edition.Free">Free 版</sys:String>
+    <sys:String x:Key="Str.Edition.Pro">Pro 版</sys:String>
+    <sys:String x:Key="Str.License.Tab">ライセンス</sys:String>
+    <sys:String x:Key="Str.License.Header">Pro ライセンス</sys:String>
+    <sys:String x:Key="Str.License.KeyLabel">ライセンスキー</sys:String>
+    <sys:String x:Key="Str.License.KeyPlaceholder">BOOTH 購入時に配布されたキーを貼り付け</sys:String>
+    <sys:String x:Key="Str.License.ApplyButton">適用</sys:String>
+    <sys:String x:Key="Str.License.StatusFree">未認証（Free 版として動作中）</sys:String>
+    <sys:String x:Key="Str.License.StatusPro">認証済み（Pro 版）</sys:String>
+    <sys:String x:Key="Str.License.StatusInvalid">無効なキーです。BOOTH で購入したキーを再確認してください。</sys:String>
+    <sys:String x:Key="Str.License.StatusValidApplied">ライセンスを適用しました。Pro 機能が解放されました。</sys:String>
+    <sys:String x:Key="Str.License.BuyHint">Pro 版を購入すると、座標保存の上限解除と第2座標セット (Set B) が利用できます。</sys:String>
+    <sys:String x:Key="Str.License.BuyButton">BOOTH で Pro を購入</sys:String>
+    <sys:String x:Key="Str.License.FreeLimits">Free 版の制限: 座標保存は {0} 個まで、Set B は使用不可</sys:String>
+
+    <!-- アップグレード案内 -->
+    <sys:String x:Key="Str.Upgrade.Title">Pro 版限定機能</sys:String>
+    <sys:String x:Key="Str.Upgrade.SetBBody">第2座標セット (Set B) は Pro 版限定の機能です。Set A とは独立したショートカットで、追加の座標リストを循環できます。Pro ライセンスを適用すると有効になります。</sys:String>
+    <sys:String x:Key="Str.Upgrade.SaveLimitBodyFormat">Free 版では座標を {0} 個まで保存できます。Pro 版にアップグレードすると上限なしで保存できるようになります。</sys:String>
+    <sys:String x:Key="Str.Upgrade.OpenLicenseTab">ライセンスタブを開く</sys:String>
+    <sys:String x:Key="Str.Upgrade.Close">閉じる</sys:String>
+
+    <!-- Set B PRO バッジ -->
+    <sys:String x:Key="Str.Settings.SetB.ProBadge">PRO</sys:String>
+    <sys:String x:Key="Str.Settings.SetB.ProLocked">この機能は Pro 版でのみ動作します。設定は変更できますが、Free 版ではトリガーは反応しません。</sys:String>
+
 </ResourceDictionary>

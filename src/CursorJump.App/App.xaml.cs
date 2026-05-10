@@ -15,6 +15,7 @@ public partial class App : Application
     private MainWindow? _mainWindow;
     private SettingsService? _settingsService;
     private UpdateService? _updateService;
+    private LicenseService? _licenseService;
     private Mutex? _singleInstanceMutex;
     private bool _ownsSingleInstanceMutex;
 
@@ -25,6 +26,7 @@ public partial class App : Application
 
     internal SettingsService? SettingsService => _settingsService;
     internal UpdateService? UpdateService => _updateService;
+    internal LicenseService? LicenseService => _licenseService;
 
     protected override void OnStartup(StartupEventArgs e)
     {
@@ -63,7 +65,9 @@ public partial class App : Application
             ThemeManager.Apply(_settingsService.Current.UiTheme);
             LocalizationManager.Apply(_settingsService.Current.UiLanguage);
 
-            _mainWindow = new MainWindow(_settingsService);
+            _licenseService = new LicenseService(_settingsService);
+
+            _mainWindow = new MainWindow(_settingsService, _licenseService);
             MainWindow = _mainWindow;
 
             // HWND を強制生成することで SourceInitialized（= MouseHookService の初期化）を同期的に発火させる
@@ -72,7 +76,7 @@ public partial class App : Application
 
             _updateService = new UpdateService(_settingsService);
 
-            _trayIconService = new TrayIconService(_settingsService, _updateService);
+            _trayIconService = new TrayIconService(_settingsService, _updateService, _licenseService);
             _trayIconService.Initialize();
         }
         catch (Exception ex)

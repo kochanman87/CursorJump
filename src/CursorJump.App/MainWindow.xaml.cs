@@ -15,14 +15,16 @@ public partial class MainWindow : Window
     private MouseHookService? _mouseHookService;
     private KeyboardHookService? _keyboardHookService;
     private readonly SettingsService _settingsService;
+    private readonly LicenseService _licenseService;
     private readonly CoordinateStore _coordinateStore = new();
     private readonly CoordinateStore _coordinateStoreB = new();
     private readonly OverlayService _overlayService;
 
-    public MainWindow(SettingsService settingsService)
+    public MainWindow(SettingsService settingsService, LicenseService licenseService)
     {
         _settingsService = settingsService;
-        _overlayService = new OverlayService(settingsService);
+        _licenseService = licenseService;
+        _overlayService = new OverlayService(settingsService, licenseService);
 
         // 永続化された座標を復元
         _coordinateStore.Load(_settingsService.Current.SavedCoordinatesA);
@@ -102,6 +104,13 @@ public partial class MainWindow : Window
 
     private void OnSaveRequested(object? sender, MouseHookEventArgs e)
     {
+        if (!_licenseService.IsPro && _coordinateStore.Count >= LicenseService.FreeMaxCoordinates)
+        {
+            // Free 版上限到達: 保存もエフェクトも行わず、ユーザーには静かに失敗させる
+            // （頻繁にトースト/モーダルを出すと作業中断になる。設定画面の Free 表記で気付いてもらう設計）
+            DebugLog.Write($"OnSaveRequested: blocked by Free edition limit ({_coordinateStore.Count}/{LicenseService.FreeMaxCoordinates})");
+            return;
+        }
         _coordinateStore.Add(e.X, e.Y);
         _overlayService.ShowShrinkCircle(e.X, e.Y);
     }
@@ -156,12 +165,22 @@ public partial class MainWindow : Window
 
     private void OnSaveRequestedB(object? sender, MouseHookEventArgs e)
     {
+        if (!_licenseService.IsPro)
+        {
+            DebugLog.Write("OnSaveRequestedB: blocked (Set B is Pro-only)");
+            return;
+        }
         _coordinateStoreB.Add(e.X, e.Y);
         _overlayService.ShowShrinkCircle(e.X, e.Y, _settingsService.Current.SaveCircleColorB);
     }
 
     private void OnNavigateRequestedB(object? sender, MouseHookEventArgs e)
     {
+        if (!_licenseService.IsPro)
+        {
+            DebugLog.Write("OnNavigateRequestedB: blocked (Set B is Pro-only)");
+            return;
+        }
         var target = _coordinateStoreB.GetNext();
         if (target is null) return;
 

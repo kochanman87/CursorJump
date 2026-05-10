@@ -158,4 +158,31 @@
     <sys:String x:Key="Str.Usage.MonitorNav.Title">What is in-monitor navigation?</sys:String>
     <sys:String x:Key="Str.Usage.MonitorNav.Body">Regular navigation cycles through every saved coordinate across all monitors, while in-monitor navigation cycles only through coordinates on the monitor where the cursor currently is. Useful when you want to stay within one monitor on a multi-monitor setup.</sys:String>
 
+    <!-- License -->
+    <sys:String x:Key="Str.Edition.Free">Free edition</sys:String>
+    <sys:String x:Key="Str.Edition.Pro">Pro edition</sys:String>
+    <sys:String x:Key="Str.License.Tab">License</sys:String>
+    <sys:String x:Key="Str.License.Header">Pro license</sys:String>
+    <sys:String x:Key="Str.License.KeyLabel">License key</sys:String>
+    <sys:String x:Key="Str.License.KeyPlaceholder">Paste the key delivered after your BOOTH purchase</sys:String>
+    <sys:String x:Key="Str.License.ApplyButton">Apply</sys:String>
+    <sys:String x:Key="Str.License.StatusFree">Not activated (running as Free edition)</sys:String>
+    <sys:String x:Key="Str.License.StatusPro">Activated (Pro edition)</sys:String>
+    <sys:String x:Key="Str.License.StatusInvalid">Invalid key. Please double-check the key from your BOOTH purchase.</sys:String>
+    <sys:String x:Key="Str.License.StatusValidApplied">License applied. Pro features are now unlocked.</sys:String>
+    <sys:String x:Key="Str.License.BuyHint">Upgrading to Pro removes the saved-coordinate limit and unlocks the second coordinate set (Set B).</sys:String>
+    <sys:String x:Key="Str.License.BuyButton">Buy Pro on BOOTH</sys:String>
+    <sys:String x:Key="Str.License.FreeLimits">Free edition limits: up to {0} saved coordinates, Set B disabled</sys:String>
+
+    <!-- Upgrade prompts -->
+    <sys:String x:Key="Str.Upgrade.Title">Pro-only feature</sys:String>
+    <sys:String x:Key="Str.Upgrade.SetBBody">The second coordinate set (Set B) is a Pro-only feature. It runs on a separate shortcut from Set A and lets you cycle through an additional coordinate list. It becomes active after you apply a Pro license.</sys:String>
+    <sys:String x:Key="Str.Upgrade.SaveLimitBodyFormat">The Free edition lets you save up to {0} coordinates. Upgrade to Pro for unlimited saves.</sys:String>
+    <sys:String x:Key="Str.Upgrade.OpenLicenseTab">Open License tab</sys:String>
+    <sys:String x:Key="Str.Upgrade.Close">Close</sys:String>
+
+    <!-- Set B PRO badge -->
+    <sys:String x:Key="Str.Settings.SetB.ProBadge">PRO</sys:String>
+    <sys:String x:Key="Str.Settings.SetB.ProLocked">This feature only works in the Pro edition. You can edit the settings, but the trigger won't fire on the Free edition.</sys:String>
+
 </ResourceDictionary>
