@@ -170,10 +170,11 @@ v1.4.0 で Pro/Free 版を導入。BOOTH 配布のライセンスキーを設定
 - 設定画面の Set B セクションに **`PRO` バッジ** と「Pro 版でのみ動作します」ロック通知が表示される（Pro 化で消える）
 
 ### キー設計（秀丸方式 + ハッシュ埋め込み）
-- **キー文字列**: `<REDACTED-OLD-KEY>`（全購入者共通の固定値、BOOTH の .txt で配信）
-- **ソース埋め込み**: SHA256 ハッシュのみ（平文キーは置かない）。OSS リポでも安全
-  - `LicenseService.cs` 内 `private const string ProKeyHash = "69d6a90f54687b014099998699092c1ec9a8c746d31d83bab5eddb9c2be7be26"`
+- **キー文字列**: 全購入者共通の固定値。**平文値はこのリポジトリには絶対に書かない**（BOOTH 配信 .txt と手元の `.secrets/key.txt`（gitignore 済み）のみに保管）
+- **ソース埋め込み**: SHA256 ハッシュのみ（`LicenseService.cs` の `ProKeyHash` 定数）。OSS リポでも安全
   - 検証は `SHA256(UTF8(input.Trim())) → 小文字hex` を `ProKeyHash` と比較
+- **平文キーをコメント・ドキュメント・README・CLAUDE.md・テストデータ等のコミット対象ファイルに書くことは禁止**。コードコメントやドキュメンテーションも `git grep` で発見されるため「ハッシュ化したから安全」は成立しない
+- **pre-commit hook で機械的に防御**: `.git/hooks/pre-commit` で平文キー文字列を grep し、検出時にコミット拒否
 - **逆コンパイル耐性は限定的**（dnSpy で検証メソッドを `return true;` に書き換えれば突破可能）。これは受容する。難読化は将来の選択肢
 - **失効・再発行はしない**。リーク発覚時は次のメジャーバージョンで `ProKeyHash` を変更し、BOOTH のメッセージ機能で正規購入者に新キーを一斉通知する運用を想定
 

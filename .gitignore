@@ -7,3 +7,6 @@ Releases/
 
 # Claude Code local settings
 .claude/
+
+# Secrets (license key plaintext, etc.)
+.secrets/

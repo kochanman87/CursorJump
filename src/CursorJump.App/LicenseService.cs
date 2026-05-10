@@ -18,9 +18,13 @@ public enum LicenseStatus
 /// </summary>
 public sealed class LicenseService
 {
-    /// <summary>"<REDACTED-OLD-KEY>" の SHA256（小文字 hex）。</summary>
+    /// <summary>
+    /// Pro 版ライセンスキーの SHA256（小文字 hex）。
+    /// 平文キーはこのリポジトリには含まない（BOOTH 配信 .txt および手元の .secrets/key.txt のみ）。
+    /// 平文キーをコメント・ドキュメント等を含むコミット対象ファイルに書くことは禁止。
+    /// </summary>
     private const string ProKeyHash =
-        "69d6a90f54687b014099998699092c1ec9a8c746d31d83bab5eddb9c2be7be26";
+        "6cfef653ad6b912ca7d864f5127574aa0fd90ad52d484adfb933401494a46ec1";
 
     /// <summary>Free 版の保存座標上限（Set A 専用、Set B は Free では機能無効）。</summary>
     public const int FreeMaxCoordinates = 3;
