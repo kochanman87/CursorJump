@@ -211,10 +211,18 @@ GitHub Releases を配布チャネルとし、起動時に新版を検出して�
 3. `dotnet tool install -g vpk`（初回のみ）
 4. `dotnet publish src/CursorJump.App/CursorJump.App.csproj -c Release -r win-x64 --self-contained -o publish/`
 5. `vpk pack --packId CursorJump --packVersion <VERSION> --packDir publish/ --mainExe CursorJump.App.exe --releaseNotes docs/release-notes/v<VERSION>.md`
-6. 生成された `Releases/Setup.exe` と `*-full.nupkg` と `RELEASES` を GitHub Releases にアップロード（タグは `v<VERSION>` 形式）
+6. 生成された `Releases/` 配下の以下 6 ファイルを GitHub Releases にアップロード（タグは `v<VERSION>` 形式）:
+   - `CursorJump-win-Setup.exe`
+   - `CursorJump-<VERSION>-full.nupkg`
+   - `CursorJump-<VERSION>-delta.nupkg`
+   - `RELEASES`（旧形式インデックス）
+   - `releases.win.json`（**新形式インデックス。Velopack 0.0.1298+ はこちらを優先参照**）
+   - `assets.win.json`
 7. GitHub Release Body にも同 Markdown を貼る（人間が Releases ページで読む用。Velopack のダイアログ表示には影響しない＝nuspec の埋め込み値が使われる）
 
-> **重要**: 手順 5 で `--releaseNotes` を省略すると `<releaseNotes>` が空のまま埋め込まれ、アプリ内アップデートダイアログのリリースノート欄が `-`（空）表示になる。GitHub Release Body をいくら書いても直らない（Velopack は Body を参照しない）。v1.4.2 でこの事故が発生したため v1.4.3 で恒久対策。
+> **重要**:
+> - 手順 5 で `--releaseNotes` を省略すると `<releaseNotes>` が空のまま埋め込まれ、アプリ内アップデートダイアログのリリースノート欄が `-`（空）表示になる。GitHub Release Body をいくら書いても直らない（Velopack は Body を参照しない）。v1.4.2 でこの事故が発生したため v1.4.3 で恒久対策。
+> - 手順 6 で `releases.win.json` のアップロードを忘れると、Velopack のクライアントが新版を検出できず、旧 `RELEASES` ベースの古い結果（前回バージョン）が返ることがある。v1.4.3 公開直後にこの事故が発生したため、新形式インデックスも必ず含めること。
 
 ### 設計上の注意
 - **コード署名なし → SmartScreen 警告**: 初回ダウンロード時に Microsoft Defender SmartScreen が「不明な発行元」警告を出す。回避にはコード署名証明書（年額数万円〜）が必要。導入は別タスク
