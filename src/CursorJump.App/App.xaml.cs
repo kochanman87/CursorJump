@@ -129,6 +129,8 @@ public partial class App : Application
         Exit -= OnApplicationExit;
         DisposeTrayIcon();
         ReleaseSingleInstanceMutex();
+        // 非同期キューに残っているログを書き出してから終了する (取りこぼし防止)
+        DebugLog.Flush(TimeSpan.FromMilliseconds(500));
         base.OnExit(e);
     }
 

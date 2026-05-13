@@ -3,6 +3,7 @@ bin/
 obj/
 tempcursorjump-build/
 publish/
+build_check/
 Releases/
 
 # Claude Code local settings

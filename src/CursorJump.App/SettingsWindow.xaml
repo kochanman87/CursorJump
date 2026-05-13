@@ -4,7 +4,7 @@
         Title="{DynamicResource Str.Settings.Title}"
         Icon="pack://application:,,,/Assets/icon.ico"
         Width="740" Height="820"
-        MinWidth="640" MinHeight="560"
+        MinWidth="640" MinHeight="480"
         WindowStartupLocation="CenterScreen"
         ResizeMode="CanResize"
         ShowInTaskbar="True"
@@ -1014,6 +1014,50 @@
                                     Style="{StaticResource SecondaryButtonStyle}"
                                     HorizontalAlignment="Left"
                                     Click="OnCheckNowClick"/>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- 診断ログカード -->
+                    <Border Style="{StaticResource CardBorder}">
+                        <StackPanel>
+                            <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
+                                <Border Style="{StaticResource CardIconBox}">
+                                    <TextBlock Style="{StaticResource FluentIcon}" Text="&#xE9F9;"/>
+                                </Border>
+                                <TextBlock Style="{StaticResource CardHeaderText}" Text="{DynamicResource Str.About.Diagnostics}" Margin="10,0,0,0"/>
+                            </StackPanel>
+
+                            <TextBlock Text="{DynamicResource Str.About.DiagnosticsHint}"
+                                       Style="{StaticResource HintText}" TextWrapping="Wrap" Margin="0,0,0,12"/>
+
+                            <Grid Margin="0,0,0,12">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                                    <TextBlock Text="{DynamicResource Str.About.VerboseLogging}" FontSize="13"
+                                               Foreground="{DynamicResource TextPrimaryBrush}" FontWeight="SemiBold"/>
+                                    <TextBlock Text="{DynamicResource Str.About.VerboseLoggingHint}" FontSize="11"
+                                               Foreground="{DynamicResource TextMutedBrush}" Margin="0,2,0,0"
+                                               TextWrapping="Wrap"/>
+                                </StackPanel>
+                                <CheckBox x:Name="VerboseLoggingToggle" Grid.Column="1"
+                                          Style="{StaticResource ToggleSwitchStyle}"
+                                          VerticalAlignment="Center"/>
+                            </Grid>
+
+                            <StackPanel Orientation="Horizontal">
+                                <Button x:Name="OpenLogButton"
+                                        Content="{DynamicResource Str.About.OpenLog}"
+                                        Style="{StaticResource SecondaryButtonStyle}"
+                                        Margin="0,0,8,0"
+                                        Click="OnOpenLogClick"/>
+                                <Button x:Name="OpenLogFolderButton"
+                                        Content="{DynamicResource Str.About.OpenLogFolder}"
+                                        Style="{StaticResource SecondaryButtonStyle}"
+                                        Click="OnOpenLogFolderClick"/>
+                            </StackPanel>
                         </StackPanel>
                     </Border>
 

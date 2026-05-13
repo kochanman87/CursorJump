@@ -91,7 +91,24 @@ public partial class SettingsWindow : Window
         UpdateLicenseUI();
         LocalizationManager.LanguageChanged += OnLanguageChanged;
         Closed += (_, _) => LocalizationManager.LanguageChanged -= OnLanguageChanged;
+        Loaded += OnSettingsWindowLoaded;
         _initialized = true;
+    }
+
+    /// <summary>
+    /// 起動時に作業領域を超えないようにウィンドウサイズをクランプする。
+    /// 13" / 14" ノート PC (1920x1080 / 150% DPI) では既定 820dp の高さが画面に収まらないため。
+    /// </summary>
+    private void OnSettingsWindowLoaded(object sender, RoutedEventArgs e)
+    {
+        var workArea = SystemParameters.WorkArea;
+        double maxH = workArea.Height * 0.95;
+        double maxW = workArea.Width * 0.95;
+        if (Height > maxH) Height = maxH;
+        if (Width > maxW) Width = maxW;
+        // 中央寄せ直し（CenterScreen でも初期 Height で配置済みなのでクランプ後にずれる）
+        Left = workArea.Left + (workArea.Width - Width) / 2;
+        Top  = workArea.Top  + (workArea.Height - Height) / 2;
     }
 
     private void OnLanguageChanged()
@@ -239,6 +256,7 @@ public partial class SettingsWindow : Window
 
         AutoUpdateToggle.IsChecked = s.AutoUpdateEnabled;
         UpdateLastCheckedLabel(s.LastUpdateCheckUtc);
+        VerboseLoggingToggle.IsChecked = s.VerboseLogging;
     }
 
     private void UpdateLastCheckedLabel(string isoUtc)
@@ -455,6 +473,38 @@ public partial class SettingsWindow : Window
         }
     }
 
+    private void OnOpenLogClick(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            var path = DebugLog.LogFilePath;
+            if (!System.IO.File.Exists(path))
+            {
+                System.IO.File.WriteAllText(path, "");
+            }
+            Process.Start(new ProcessStartInfo("notepad.exe", $"\"{path}\"") { UseShellExecute = true });
+        }
+        catch (Exception ex)
+        {
+            DebugLog.Write($"OnOpenLogClick failed: {ex.GetType().Name}: {ex.Message}");
+        }
+    }
+
+    private void OnOpenLogFolderClick(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            var folder = System.IO.Path.GetDirectoryName(DebugLog.LogFilePath) ?? "";
+            if (!System.IO.Directory.Exists(folder))
+                System.IO.Directory.CreateDirectory(folder);
+            Process.Start(new ProcessStartInfo("explorer.exe", folder) { UseShellExecute = true });
+        }
+        catch (Exception ex)
+        {
+            DebugLog.Write($"OnOpenLogFolderClick failed: {ex.GetType().Name}: {ex.Message}");
+        }
+    }
+
     private void OnHyperlinkRequestNavigate(object sender, RequestNavigateEventArgs e)
     {
         try
@@ -614,6 +664,10 @@ public partial class SettingsWindow : Window
             SkippedVersion = _settingsService.Current.SkippedVersion,
             // ライセンスキーは LicenseService.Apply 経由で書き込まれる。設定保存時は現在値を維持して上書きしない。
             LicenseKey = _settingsService.Current.LicenseKey,
+            // 診断ログ
+            VerboseLogging = VerboseLoggingToggle.IsChecked == true,
+            // バグ1 回避経路の切替フラグは UI 露出していないので Current から維持
+            UseSendInputForJump = _settingsService.Current.UseSendInputForJump,
         };
 
         if (!_settingsService.Save(settings))

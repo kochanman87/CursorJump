@@ -34,6 +34,39 @@ internal sealed class CoordinateStore
     }
 
     /// <summary>
+    /// 接続中のモニタに存在する座標のみを循環して返す。
+    /// 未接続モニタの座標は飛ばし、該当0件なら null。
+    /// </summary>
+    public SavedCoordinate? GetNext(IReadOnlyList<string> connectedDeviceNames)
+    {
+        if (_coordinates.Count == 0) return null;
+
+        var indices = new List<int>();
+        for (int i = 0; i < _coordinates.Count; i++)
+        {
+            if (MonitorFilter.IsCoordinateOnConnectedMonitor(_coordinates[i], connectedDeviceNames))
+                indices.Add(i);
+        }
+        if (indices.Count == 0) return null;
+
+        // 直近 _currentIndex の次の有効座標へ進む
+        // 「次に大きい有効インデックス」を探し、無ければ先頭に戻る
+        int nextValid = -1;
+        for (int j = 0; j < indices.Count; j++)
+        {
+            if (indices[j] > _currentIndex)
+            {
+                nextValid = indices[j];
+                break;
+            }
+        }
+        if (nextValid < 0) nextValid = indices[0];
+
+        _currentIndex = nextValid;
+        return _coordinates[_currentIndex];
+    }
+
+    /// <summary>
     /// 指定モニタ内の座標のみを循環して返す。
     /// 該当モニタに座標が存在しない場合は null を返す（フォールバックなし）。
     /// </summary>

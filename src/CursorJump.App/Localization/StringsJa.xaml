@@ -18,6 +18,12 @@
     <sys:String x:Key="Str.About.CheckNow">今すぐ更新を確認</sys:String>
     <sys:String x:Key="Str.About.LastChecked">前回確認: {0}</sys:String>
     <sys:String x:Key="Str.About.GitHubRepo">GitHub リポジトリ</sys:String>
+    <sys:String x:Key="Str.About.Diagnostics">診断ログ</sys:String>
+    <sys:String x:Key="Str.About.DiagnosticsHint">問題調査用のログを %APPDATA%\CursorJump\debug.log に出力します。マルチモニタでジャンプ位置がずれる等の不具合を報告する際に活用してください。</sys:String>
+    <sys:String x:Key="Str.About.VerboseLogging">詳細ログを有効化</sys:String>
+    <sys:String x:Key="Str.About.VerboseLoggingHint">ジャンプ前後のカーソル座標を毎回ログに記録します。常用すると動作が重くなる可能性があるため、調査時のみ ON にしてください。</sys:String>
+    <sys:String x:Key="Str.About.OpenLog">ログを開く</sys:String>
+    <sys:String x:Key="Str.About.OpenLogFolder">ログフォルダを開く</sys:String>
 
     <!-- 更新ダイアログ -->
     <sys:String x:Key="Str.Update.DialogTitle">更新が利用可能です</sys:String>

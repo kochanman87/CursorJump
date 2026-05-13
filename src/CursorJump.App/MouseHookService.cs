@@ -34,12 +34,42 @@ internal sealed class MouseHookService : IDisposable
     private volatile MouseHookEventArgs? _pendingDeleteMove;
     private volatile bool _deleteMoveDispatchQueued;
 
-    // DOWNイベントを消費した後、対応するUPイベントも消費するためのフラグ
-    private bool _swallowNextLeftUp;
-    private bool _swallowNextRightUp;
-    private bool _swallowNextMiddleUp;
-    private bool _swallowNextXButton1Up;
-    private bool _swallowNextXButton2Up;
+    // DOWNイベントを消費した後、対応するUPイベントも消費するためのフラグ。
+    // bool ではなく Environment.TickCount ベースの「期限」(ms) を持つ:
+    // フックタイムアウト (Win11 既定 300ms) で UP が到達しなかった場合に
+    // フラグが永続残留して以降のクリックが食われるバグ (バグ4) を防ぐため、
+    // 500ms 経過したら自動失効させる。
+    private const int SwallowTimeoutMs = 500;
+    private long _swallowLeftUpUntil;
+    private long _swallowRightUpUntil;
+    private long _swallowMiddleUpUntil;
+    private long _swallowXButton1UpUntil;
+    private long _swallowXButton2UpUntil;
+    private bool _swallowNextLeftUp
+    {
+        get => Environment.TickCount64 < _swallowLeftUpUntil;
+        set => _swallowLeftUpUntil = value ? Environment.TickCount64 + SwallowTimeoutMs : 0;
+    }
+    private bool _swallowNextRightUp
+    {
+        get => Environment.TickCount64 < _swallowRightUpUntil;
+        set => _swallowRightUpUntil = value ? Environment.TickCount64 + SwallowTimeoutMs : 0;
+    }
+    private bool _swallowNextMiddleUp
+    {
+        get => Environment.TickCount64 < _swallowMiddleUpUntil;
+        set => _swallowMiddleUpUntil = value ? Environment.TickCount64 + SwallowTimeoutMs : 0;
+    }
+    private bool _swallowNextXButton1Up
+    {
+        get => Environment.TickCount64 < _swallowXButton1UpUntil;
+        set => _swallowXButton1UpUntil = value ? Environment.TickCount64 + SwallowTimeoutMs : 0;
+    }
+    private bool _swallowNextXButton2Up
+    {
+        get => Environment.TickCount64 < _swallowXButton2UpUntil;
+        set => _swallowXButton2UpUntil = value ? Environment.TickCount64 + SwallowTimeoutMs : 0;
+    }
 
     // 中ボタン拡張トリガー（Chord / 多重クリック）用ステート
     private const int ChordWindowMs = 200;        // MDOWN 後 L/R を待つ時間 & 多重クリック待ち時間

@@ -691,12 +691,18 @@ internal sealed class OverlayService
         // マーカーエフェクトが無効なら描画をスキップ（モード自体は継続 = ESC/クリック追加は動作）
         if (_settingsService.Current.MarkerEffectEnabled)
         {
+            // 接続中モニタ一覧（消失モニタの座標は描画対象外。バグ3対策）
+            var connectedScreens = System.Windows.Forms.Screen.AllScreens;
+            var connected = new string[connectedScreens.Length];
+            for (int s = 0; s < connectedScreens.Length; s++) connected[s] = connectedScreens[s].DeviceName;
+
             foreach (var (store, color) in _deleteStores)
             {
                 var coordinates = store.GetAll();
                 for (int i = 0; i < coordinates.Count; i++)
                 {
                     var coord = coordinates[i];
+                    if (!MonitorFilter.IsCoordinateOnConnectedMonitor(coord, connected)) continue;
                     var pos = overlay.PhysicalToWpf(coord.X, coord.Y);
                     double canvasX = pos.X - overlay.Left;
                     double canvasY = pos.Y - overlay.Top;

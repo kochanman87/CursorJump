@@ -113,6 +113,16 @@ public sealed class AppSettings
     /// <summary>「このバージョンをスキップ」で記録された対象バージョン文字列。一致する版は通知しない。</summary>
     public string SkippedVersion { get; set; } = "";
 
+    // ── 診断ログ ──
+    /// <summary>ジャンプ時の before/after 座標などの詳細ログを debug.log に出力するか。
+    /// マルチモニタでのジャンプ位置ずれ調査用。常用するとフックコールバック内 I/O が増えるため通常は false。</summary>
+    public bool VerboseLogging { get; set; } = false;
+
+    // ── カーソルジャンプ方式 ──
+    /// <summary>true なら SendInput(MOUSEEVENTF_ABSOLUTE | VIRTUALDESK) でカーソル移動する。
+    /// false なら従来の SetCursorPos。SetCursorPos が PerMonitorV2 環境で誤変換するバグの回避用。</summary>
+    public bool UseSendInputForJump { get; set; } = true;
+
     // ── ライセンス ──
     /// <summary>Pro 版ライセンスキー（ユーザー入力）。空文字なら Free。SHA256 ハッシュを LicenseService 内の埋め込みハッシュと比較して Pro 化する。</summary>
     public string LicenseKey { get; set; } = "";

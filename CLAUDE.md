@@ -5,7 +5,8 @@
 ## 技術スタック
 - .NET 8.0 (WPF + WinForms)
 - C#, WinExe, PerMonitorV2 DPI対応
-- 外部NuGetパッケージは [Velopack](https://github.com/velopack/velopack)（自動更新）のみ
+- 外部NuGetパッケージは [Velopack](https://github.com/velopack/velopack)（自動更新）と `System.Management`（WMI で物理モニタインチ取得）
+- ユニットテストは `tests/CursorJump.Tests/`（xUnit）。`dotnet test tests/CursorJump.Tests/ -o build_check/tests/` で実行。本体は `internal sealed`/`internal static` を `InternalsVisibleTo("CursorJump.Tests")` で公開している
 
 ## バージョニング
 - バージョンは `src/CursorJump.App/CursorJump.App.csproj` の `<Version>` で `MAJOR.MINOR.PATCH`（例: `1.1.0`）形式で管理する
@@ -49,12 +50,13 @@ src/CursorJump.App/
 ├── NativeMethods.cs                # Win32 P/Invoke（マウス/キーボードフック、カーソル等）
 ├── MouseHookService.cs             # WH_MOUSE_LL低レベルフック + 座標表示モード（WH_KEYBOARD_LL併用）
 ├── KeyboardHookService.cs          # WH_KEYBOARD_LL常時フック（F13-F24キーボードトリガー）
-├── CursorService.cs                # カーソル移動（任意座標ジャンプ）
-├── CoordinateStore.cs              # 座標リスト管理（Add/GetNext循環/GetNextInMonitor/RemoveAt/Load/Changed）
+├── CursorService.cs                # カーソル移動（SendInput(ABSOLUTE|VIRTUALDESK) または SetCursorPos）
+├── CoordinateStore.cs              # 座標リスト管理（Add/GetNext循環/GetNext(connected)/GetNextInMonitor/RemoveAt/Load/Changed）
+├── MonitorFilter.cs                # 接続中モニタ判定の純粋関数（バグ3 対策、テスト容易性）
 ├── ShortcutFormatter.cs            # ショートカット表記（通常/削除モード用の compact 名対応）
 ├── OverlayService.cs               # オーバーレイアニメーション（収縮円、軌跡、マーカー）
 ├── OverlayWindow.xaml / .cs        # 透明オーバーレイウィンドウ基盤
-├── DebugLog.cs                     # デバッグログ（%APPDATA%/CursorJump/debug.log）
+├── DebugLog.cs                     # デバッグログ（%APPDATA%/CursorJump/debug.log。非同期キュー方式 + WMI で物理インチ取得）
 ├── SettingsService.cs              # 設定のJSON読み書き（%APPDATA%/CursorJump/settings.json）
 ├── SettingsWindow.xaml / .cs       # 設定画面UI（設定 / 使い方 / 情報 / ライセンス タブ）
 ├── LicenseService.cs               # Free/Pro 判定（SHA256 ハッシュ比較）+ StatusChanged
@@ -75,6 +77,8 @@ src/CursorJump.App/
 - **XButtonのUP消費**: `WM_XBUTTONUP`はボタン種別が`mouseData >> 16`で判定が必要（L/R/Mと異なる）
 - **座標系**: マウスフック・SetCursorPosは物理ピクセル座標。WPFオーバーレイ描画時はTransformFromDeviceでDIP変換
 - **設定ファイル**: `%APPDATA%/CursorJump/settings.json`（System.Text.Json）。`AppSettings.SavedCoordinatesA` / `SavedCoordinatesB` に Set A/B の座標が永続化される。`CoordinateStore.Changed` イベントで `MainWindow` が `_settingsService.Save()` を呼び戻し書きする
+- **モニタ消失時の座標スキップ (v1.5.0+)**: `MainWindow.OnNavigateRequested` / `OnNavigateRequestedB` は `Screen.AllScreens` から接続中モニタ名一覧を取得し `CoordinateStore.GetNext(connected)` に渡す。`MonitorFilter.IsCoordinateOnConnectedMonitor` で消失モニタの座標を除外する。`MonitorDeviceName` が空文字（旧 settings.json 互換）の座標は常に表示する。削除モードの `OverlayService.BuildMarkers` も同じフィルタを適用し、消失モニタ上のマーカーは描画しない（再接続で復活）
+- **カーソルジャンプは SendInput 経由が既定 (v1.5.0+)**: `CursorService.JumpTo` は `AppSettings.UseSendInputForJump`（既定 true）が立っているとき `SendInput(MOUSEEVENTF_ABSOLUTE | MOUSEEVENTF_VIRTUALDESK)` で 0..65535 正規化座標を使う。PerMonitorV2 環境で `SetCursorPos` が DPI 仮想化により別座標へ飛ぶ既知挙動を回避。SendInput 失敗時は `SetCursorPos` にフォールバック
 - **第2座標セット（Set B）**: Win+Shift+左/右 デフォルトの**完全独立**な座標リスト（旧デフォルト Win+Alt は Xbox Game Bar プレフィックスと干渉するため Win+Shift に変更）。`CoordinateStore` を Set A/B で2インスタンス保持し、`SaveShortcutB`/`NavigateShortcutB` でトリガー。`MouseHookService`/`KeyboardHookService` はそれぞれ `SaveRequestedB`/`NavigateRequestedB` イベントを発火。**保存・移動のみ独立**で、削除モード/モニタ内ナビは Set A のみ。削除モードでは `OverlayService.ShowCoordinateMarkers` が `(CoordinateStore, Color)` のリストを受け取り、Set A=`MarkerColor`、Set B=`MarkerColorB` で**両方同時表示・両方削除可能**（デフォルトは同色だがユーザーが個別変更可）。空きエリアクリックでの追加は先頭ストア（Set A）に入る
 - **`AreModifiersHeld` は完全一致判定**: 設定された修飾キーが押されており、かつ設定にない修飾キーが**押されていないこと**を要求する（v1.2.3 修正。以前は superset 判定で Ctrl+Win 設定時に Ctrl+Win+Alt でも発火していた）。Alt 判定は Win+Alt 時に OS が VK_LMENU/VK_RMENU の async 状態をクリアするため、汎用 VK_MENU もフォールバックに含める。`[Flags]` enum の `HasFlag` 片側分岐でなく `isDown != required.HasFlag(X)` の対称判定で実装する
 - **軌跡エフェクト詳細設定**: `TrailThickness`(1–20dp) / `TrailDurationMs`(100–3000ms) / `TrailOpacity`(0.1–1.0) を設定画面のスライダーで調整可能。`OverlayService.ShowTrail` は単一 `Line` ではなく **12 セグメントに分割した `Line` 群** を描画し、`DoubleAnimation.BeginTime` を移動元側ほど 0、移動先側ほど `duration*0.5` までずらすことで**遠端（移動元）から段階的にフェードアウト**する演出を実現する。各セグメントの実フェード時間は `duration*0.5`、合計再生時間は `duration` に揃う
@@ -86,6 +90,8 @@ src/CursorJump.App/
 - **Chord 判定で `GetAsyncKeyState(VK_MBUTTON)` は使用禁止**: フックで WM_MBUTTONDOWN を消費（`return (IntPtr)1`）すると OS の非同期キー状態に反映されず、直後の L/R DOWN 時に `GetAsyncKeyState(VK_MBUTTON)` が 0 を返してしまい Chord が発火しない。中ボタン押下状態の判定は `_middleChordHeld` フラグのみで行う（MDOWN 遅延時に true、MUP 到達時のみクリア）
 - **ホイール長押し → L/R クリックで Chord 発火**: `ChordWindowMs` 満了時に中ボタンがまだ押下中（`_middleChordHeld == true`）であれば、`_middleClickCount` のみクリアして `_middleChordHeld` は true のまま維持する（`OnMiddleDeferElapsed` の冒頭分岐）。これにより押下時間に制限されず、ホイールを押したままの L/R DOWN を `TryHandleMiddleChord` が捕捉する。中ボタンが既に離されている場合のみ従来通り Triple/Double/Single 判定＋合成再送を実行する
 - **`EnterDeleteMode`/`ExitDeleteMode` は swallow フラグをクリアしない**: `_swallowNextLeftUp`/`_swallowNextRightUp` は対応する UP 到達時に自然消費される。削除モード遷移時にクリアすると、Chord 成立 → `BeginInvoke` → `EnterDeleteMode` → 物理 RUP という非同期経路で直前に立てたフラグが潰され、コンテキストメニューが出る不具合を招く
+- **swallow フラグはタイムアウト方式 (v1.5.0+)**: `_swallowNextLeftUp` 等は内部実装が `Environment.TickCount64` ベースの「期限」(`SwallowTimeoutMs=500`) で、UP 到達なしでも 500ms 経過で自動失効する。Win11 のフックタイムアウト (300ms) で UP イベントが取り逃がされてもフラグが永続残留せず、以降の左クリックが食われる症状（バグ4）を防ぐ。プロパティの `get`/`set` は API 互換のため bool に見えるが内部は long 値の比較
+- **DebugLog は非同期キュー方式 (v1.5.0+)**: `Write()` は `BlockingCollection<string>` に積むだけで即 return（数 us）。バックグラウンドスレッドが順次 `File.AppendAllText` で書き出す。フックコールバック内で同期 I/O が走らないためフックタイムアウト誘発を防ぐ。`App.OnExit` で `DebugLog.Flush(500ms)` を呼んで終了時の取りこぼしを防ぐ。物理モニタのインチサイズは WMI (`Root\WMI\WmiMonitorBasicDisplayParams`) から取得し `Task.Run` で非同期実行（起動を妨げない）
 - **TriggerType [Flags] enum**: `Mouse=1, Keyboard=2`。`EnabledTriggers` に複数フラグをセットすることでOR動作。旧settings.jsonは `EnabledTriggers` 不在 → デフォルト `Mouse` として扱われ後方互換。JSONはJsonStringEnumConverterで文字列保存（例: `"Mouse, Keyboard"`）
 - **SavedCoordinate**: `record SavedCoordinate(int X, int Y, string MonitorDeviceName = "")`。保存時に `Screen.FromPoint` でモニタ名を記録。`""` は旧settings.jsonとの後方互換のデフォルト値
 

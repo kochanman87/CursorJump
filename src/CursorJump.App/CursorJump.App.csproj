@@ -8,7 +8,7 @@
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <ApplicationIcon>Assets\icon.ico</ApplicationIcon>
     <ApplicationHighDpiMode>PerMonitorV2</ApplicationHighDpiMode>
-    <Version>1.4.5</Version>
+    <Version>1.5.0</Version>
   </PropertyGroup>
   <ItemGroup>
     <None Include="app.manifest" />
@@ -19,5 +19,9 @@
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="Velopack" Version="0.0.1298" />
+    <PackageReference Include="System.Management" Version="8.0.0" />
+  </ItemGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="CursorJump.Tests" />
   </ItemGroup>
 </Project>

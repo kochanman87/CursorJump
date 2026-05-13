@@ -18,6 +18,12 @@
     <sys:String x:Key="Str.About.CheckNow">Check for updates now</sys:String>
     <sys:String x:Key="Str.About.LastChecked">Last checked: {0}</sys:String>
     <sys:String x:Key="Str.About.GitHubRepo">GitHub repository</sys:String>
+    <sys:String x:Key="Str.About.Diagnostics">Diagnostics log</sys:String>
+    <sys:String x:Key="Str.About.DiagnosticsHint">Writes diagnostic information to %APPDATA%\CursorJump\debug.log. Useful when reporting multi-monitor jump issues.</sys:String>
+    <sys:String x:Key="Str.About.VerboseLogging">Enable verbose logging</sys:String>
+    <sys:String x:Key="Str.About.VerboseLoggingHint">Records cursor coordinates before/after every jump. May slow the app — turn on only for investigation.</sys:String>
+    <sys:String x:Key="Str.About.OpenLog">Open log</sys:String>
+    <sys:String x:Key="Str.About.OpenLogFolder">Open log folder</sys:String>
 
     <!-- Update dialog -->
     <sys:String x:Key="Str.Update.DialogTitle">Update available</sys:String>

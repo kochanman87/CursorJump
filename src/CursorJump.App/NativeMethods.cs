@@ -133,6 +133,18 @@ internal static class NativeMethods
     internal const uint INPUT_MOUSE = 0;
     internal const uint MOUSEEVENTF_MIDDLEDOWN = 0x0020;
     internal const uint MOUSEEVENTF_MIDDLEUP   = 0x0040;
+    internal const uint MOUSEEVENTF_MOVE        = 0x0001;
+    internal const uint MOUSEEVENTF_ABSOLUTE    = 0x8000;
+    internal const uint MOUSEEVENTF_VIRTUALDESK = 0x4000;
+
+    // 仮想スクリーン関連の SystemMetrics
+    internal const int SM_XVIRTUALSCREEN  = 76;
+    internal const int SM_YVIRTUALSCREEN  = 77;
+    internal const int SM_CXVIRTUALSCREEN = 78;
+    internal const int SM_CYVIRTUALSCREEN = 79;
+
+    [DllImport("user32.dll")]
+    internal static extern int GetSystemMetrics(int nIndex);
 
     // MSLLHOOKSTRUCT.flags: 合成入力の判定に使用
     internal const uint LLMHF_INJECTED = 0x00000001;

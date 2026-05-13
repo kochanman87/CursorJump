@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.ComponentModel;
 using System.Linq;
 using System.Windows;
@@ -117,14 +118,35 @@ public partial class MainWindow : Window
 
     private void OnNavigateRequested(object? sender, MouseHookEventArgs e)
     {
-        var target = _coordinateStore.GetNext();
+        var connected = GetConnectedMonitorNames();
+        var target = _coordinateStore.GetNext(connected);
         if (target is null) return;
 
         int fromX = e.X;
         int fromY = e.Y;
 
-        CursorService.JumpTo(target.X, target.Y);
+        if (_settingsService.Current.VerboseLogging)
+        {
+            DebugLog.Write($"NavigateA before: stored=({target.X},{target.Y}) monitor={target.MonitorDeviceName} fromCursor=({fromX},{fromY})");
+        }
+
+        CursorService.JumpTo(target.X, target.Y, _settingsService.Current.UseSendInputForJump);
+
+        if (_settingsService.Current.VerboseLogging)
+        {
+            if (NativeMethods.GetCursorPos(out var actual))
+                DebugLog.Write($"NavigateA after: actualCursor=({actual.X},{actual.Y}) delta=({actual.X - target.X},{actual.Y - target.Y})");
+        }
+
         _overlayService.ShowTrail(fromX, fromY, target.X, target.Y);
+    }
+
+    private static IReadOnlyList<string> GetConnectedMonitorNames()
+    {
+        var screens = System.Windows.Forms.Screen.AllScreens;
+        var names = new string[screens.Length];
+        for (int i = 0; i < screens.Length; i++) names[i] = screens[i].DeviceName;
+        return names;
     }
 
     private void OnNavigateCurrentMonitorRequested(object? sender, MouseHookEventArgs e)
@@ -133,7 +155,7 @@ public partial class MainWindow : Window
         var target = _coordinateStore.GetNextInMonitor(screen.DeviceName);
         if (target is null) return;
 
-        CursorService.JumpTo(target.X, target.Y);
+        CursorService.JumpTo(target.X, target.Y, _settingsService.Current.UseSendInputForJump);
         _overlayService.ShowTrail(e.X, e.Y, target.X, target.Y);
     }
 
@@ -181,13 +203,26 @@ public partial class MainWindow : Window
             DebugLog.Write("OnNavigateRequestedB: blocked (Set B is Pro-only)");
             return;
         }
-        var target = _coordinateStoreB.GetNext();
+        var connected = GetConnectedMonitorNames();
+        var target = _coordinateStoreB.GetNext(connected);
         if (target is null) return;
 
         int fromX = e.X;
         int fromY = e.Y;
 
-        CursorService.JumpTo(target.X, target.Y);
+        if (_settingsService.Current.VerboseLogging)
+        {
+            DebugLog.Write($"NavigateB before: stored=({target.X},{target.Y}) monitor={target.MonitorDeviceName} fromCursor=({fromX},{fromY})");
+        }
+
+        CursorService.JumpTo(target.X, target.Y, _settingsService.Current.UseSendInputForJump);
+
+        if (_settingsService.Current.VerboseLogging)
+        {
+            if (NativeMethods.GetCursorPos(out var actual))
+                DebugLog.Write($"NavigateB after: actualCursor=({actual.X},{actual.Y}) delta=({actual.X - target.X},{actual.Y - target.Y})");
+        }
+
         _overlayService.ShowTrail(fromX, fromY, target.X, target.Y, _settingsService.Current.TrailColorB);
     }
 
