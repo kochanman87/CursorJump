@@ -27,13 +27,25 @@ public partial class MainWindow : Window
         _licenseService = licenseService;
         _overlayService = new OverlayService(settingsService, licenseService);
 
-        // 永続化された座標を復元
-        _coordinateStore.Load(_settingsService.Current.SavedCoordinatesA);
-        _coordinateStoreB.Load(_settingsService.Current.SavedCoordinatesB);
+        // 永続化された座標を復元 (戻り値 true = マイグレーション発生 = 書き戻し必要)
+        bool migratedA = _coordinateStore.Load(_settingsService.Current.SavedCoordinatesA);
+        bool migratedB = _coordinateStoreB.Load(_settingsService.Current.SavedCoordinatesB);
 
         // 変更時に settings.json へ書き戻す
         _coordinateStore.Changed += OnCoordinateStoreAChanged;
         _coordinateStoreB.Changed += OnCoordinateStoreBChanged;
+
+        // マイグレーション発生時は即座に Save (旧データに MonitorRelativeX/Y を埋めた結果を永続化)
+        if (migratedA)
+        {
+            DebugLog.Write("MainWindow: SavedCoordinatesA migrated to include MonitorRelative offsets → saving");
+            OnCoordinateStoreAChanged();
+        }
+        if (migratedB)
+        {
+            DebugLog.Write("MainWindow: SavedCoordinatesB migrated to include MonitorRelative offsets → saving");
+            OnCoordinateStoreBChanged();
+        }
 
         InitializeComponent();
         SourceInitialized += OnSourceInitialized;
@@ -124,21 +136,22 @@ public partial class MainWindow : Window
 
         int fromX = e.X;
         int fromY = e.Y;
+        var (jumpX, jumpY, source) = ResolveJumpTarget(target);
 
         if (_settingsService.Current.VerboseLogging)
         {
-            DebugLog.Write($"NavigateA before: stored=({target.X},{target.Y}) monitor={target.MonitorDeviceName} fromCursor=({fromX},{fromY})");
+            DebugLog.Write($"NavigateA before: stored=({target.X},{target.Y}) monitor={target.MonitorDeviceName} rel=({target.MonitorRelativeX},{target.MonitorRelativeY}) jump=({jumpX},{jumpY}) source={source} fromCursor=({fromX},{fromY})");
         }
 
-        CursorService.JumpTo(target.X, target.Y, _settingsService.Current.UseSendInputForJump);
+        CursorService.JumpTo(jumpX, jumpY, _settingsService.Current.JumpStrategy);
 
         if (_settingsService.Current.VerboseLogging)
         {
             if (NativeMethods.GetCursorPos(out var actual))
-                DebugLog.Write($"NavigateA after: actualCursor=({actual.X},{actual.Y}) delta=({actual.X - target.X},{actual.Y - target.Y})");
+                DebugLog.Write($"NavigateA after: actualCursor=({actual.X},{actual.Y}) delta=({actual.X - jumpX},{actual.Y - jumpY})");
         }
 
-        _overlayService.ShowTrail(fromX, fromY, target.X, target.Y);
+        _overlayService.ShowTrail(fromX, fromY, jumpX, jumpY);
     }
 
     private static IReadOnlyList<string> GetConnectedMonitorNames()
@@ -149,14 +162,38 @@ public partial class MainWindow : Window
         return names;
     }
 
+    /// <summary>
+    /// 保存座標から実際にカーソルを置く絶対物理座標を解決する。
+    /// MonitorRelativeX/Y が有効ならモニタの現 Bounds + 相対オフセットで再計算する
+    /// (PerMonitorV2 + マルチ DPI で SetCursorPos が誤動作する問題を回避)。
+    /// 旧データ・モニタ未接続のフォールバックは元の物理絶対座標を使う。
+    /// </summary>
+    private static (int X, int Y, string Source) ResolveJumpTarget(SavedCoordinate target)
+    {
+        if (target.MonitorRelativeX >= 0 && target.MonitorRelativeY >= 0
+            && !string.IsNullOrEmpty(target.MonitorDeviceName))
+        {
+            var screen = System.Windows.Forms.Screen.AllScreens
+                .FirstOrDefault(s => s.DeviceName == target.MonitorDeviceName);
+            if (screen is not null)
+            {
+                int x = screen.Bounds.Left + target.MonitorRelativeX;
+                int y = screen.Bounds.Top + target.MonitorRelativeY;
+                return (x, y, "monitor-relative");
+            }
+        }
+        return (target.X, target.Y, "absolute-fallback");
+    }
+
     private void OnNavigateCurrentMonitorRequested(object? sender, MouseHookEventArgs e)
     {
         var screen = System.Windows.Forms.Screen.FromPoint(new System.Drawing.Point(e.X, e.Y));
         var target = _coordinateStore.GetNextInMonitor(screen.DeviceName);
         if (target is null) return;
 
-        CursorService.JumpTo(target.X, target.Y, _settingsService.Current.UseSendInputForJump);
-        _overlayService.ShowTrail(e.X, e.Y, target.X, target.Y);
+        var (jumpX, jumpY, _) = ResolveJumpTarget(target);
+        CursorService.JumpTo(jumpX, jumpY, _settingsService.Current.JumpStrategy);
+        _overlayService.ShowTrail(e.X, e.Y, jumpX, jumpY);
     }
 
     private void OnDisplayDeleteRequested(object? sender, MouseHookEventArgs e)
@@ -209,21 +246,22 @@ public partial class MainWindow : Window
 
         int fromX = e.X;
         int fromY = e.Y;
+        var (jumpX, jumpY, source) = ResolveJumpTarget(target);
 
         if (_settingsService.Current.VerboseLogging)
         {
-            DebugLog.Write($"NavigateB before: stored=({target.X},{target.Y}) monitor={target.MonitorDeviceName} fromCursor=({fromX},{fromY})");
+            DebugLog.Write($"NavigateB before: stored=({target.X},{target.Y}) monitor={target.MonitorDeviceName} rel=({target.MonitorRelativeX},{target.MonitorRelativeY}) jump=({jumpX},{jumpY}) source={source} fromCursor=({fromX},{fromY})");
         }
 
-        CursorService.JumpTo(target.X, target.Y, _settingsService.Current.UseSendInputForJump);
+        CursorService.JumpTo(jumpX, jumpY, _settingsService.Current.JumpStrategy);
 
         if (_settingsService.Current.VerboseLogging)
         {
             if (NativeMethods.GetCursorPos(out var actual))
-                DebugLog.Write($"NavigateB after: actualCursor=({actual.X},{actual.Y}) delta=({actual.X - target.X},{actual.Y - target.Y})");
+                DebugLog.Write($"NavigateB after: actualCursor=({actual.X},{actual.Y}) delta=({actual.X - jumpX},{actual.Y - jumpY})");
         }
 
-        _overlayService.ShowTrail(fromX, fromY, target.X, target.Y, _settingsService.Current.TrailColorB);
+        _overlayService.ShowTrail(fromX, fromY, jumpX, jumpY, _settingsService.Current.TrailColorB);
     }
 
     private static Color ParseColor(string hex, Color fallback)

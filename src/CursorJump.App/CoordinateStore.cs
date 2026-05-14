@@ -22,7 +22,11 @@ internal sealed class CoordinateStore
     public void Add(int x, int y)
     {
         var screen = Screen.FromPoint(new Point(x, y));
-        _coordinates.Add(new SavedCoordinate(x, y, screen.DeviceName));
+        // モニタ内相対座標 (左上原点からのピクセルオフセット) も同時に記録する。
+        // 再生時にモニタの現 Bounds から絶対座標を再計算することで PerMonitorV2 環境の DPI 仮想化バグを回避する。
+        int relX = x - screen.Bounds.Left;
+        int relY = y - screen.Bounds.Top;
+        _coordinates.Add(new SavedCoordinate(x, y, screen.DeviceName, relX, relY));
         Changed?.Invoke();
     }
 
@@ -130,28 +134,59 @@ internal sealed class CoordinateStore
     /// <summary>
     /// 既存座標をクリアして指定リストで初期化する。アプリ起動時の永続化座標復元用。
     /// MonitorDeviceName が空の場合は座標から再判定する（旧 settings.json 互換）。
-    /// Changed は発火しない（永続化先と同じデータの再注入のため、ループを避ける）。
+    /// MonitorRelativeX/Y が -1 (旧 settings.json 互換) なら、現在の Screen.Bounds から相対座標を補完する。
+    /// 補完が発生した場合は MainWindow 側の Changed イベント経由で settings.json に書き戻される
+    /// (Changed は呼出側の責務で発火させる。Load 自体は発火しない仕様を維持)。
     /// </summary>
-    public void Load(IEnumerable<SavedCoordinate> coordinates)
+    /// <returns>補完が 1 件以上発生した場合 true (呼出側で Save 推奨)</returns>
+    public bool Load(IEnumerable<SavedCoordinate> coordinates)
     {
         _coordinates.Clear();
         _currentIndex = -1;
         _monitorIndices.Clear();
+        bool migrated = false;
         foreach (var c in coordinates)
         {
             string monitor = c.MonitorDeviceName;
+            int relX = c.MonitorRelativeX;
+            int relY = c.MonitorRelativeY;
+
             if (string.IsNullOrEmpty(monitor))
             {
                 try
                 {
-                    monitor = Screen.FromPoint(new Point(c.X, c.Y)).DeviceName;
+                    var screen = Screen.FromPoint(new Point(c.X, c.Y));
+                    monitor = screen.DeviceName;
+                    if (relX < 0 || relY < 0)
+                    {
+                        relX = c.X - screen.Bounds.Left;
+                        relY = c.Y - screen.Bounds.Top;
+                        migrated = true;
+                    }
                 }
                 catch
                 {
                     monitor = string.Empty;
                 }
             }
-            _coordinates.Add(new SavedCoordinate(c.X, c.Y, monitor));
+            else if (relX < 0 || relY < 0)
+            {
+                // モニタ名はあるが相対座標が未設定 → 該当モニタの Bounds から補完
+                try
+                {
+                    var screen = Screen.AllScreens.FirstOrDefault(s => s.DeviceName == monitor);
+                    if (screen is not null)
+                    {
+                        relX = c.X - screen.Bounds.Left;
+                        relY = c.Y - screen.Bounds.Top;
+                        migrated = true;
+                    }
+                }
+                catch { }
+            }
+
+            _coordinates.Add(new SavedCoordinate(c.X, c.Y, monitor, relX, relY));
         }
+        return migrated;
     }
 }

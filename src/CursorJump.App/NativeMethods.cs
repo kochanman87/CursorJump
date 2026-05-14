@@ -146,6 +146,13 @@ internal static class NativeMethods
     [DllImport("user32.dll")]
     internal static extern int GetSystemMetrics(int nIndex);
 
+    // Per-Monitor DPI Awareness Context (Win10 1607+)
+    // 値は内部ハンドル相当 (IntPtr)。負の小整数を Magic 値として OS が解釈する。
+    internal static readonly IntPtr DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2 = new IntPtr(-4);
+
+    [DllImport("user32.dll")]
+    internal static extern IntPtr SetThreadDpiAwarenessContext(IntPtr dpiContext);
+
     // MSLLHOOKSTRUCT.flags: 合成入力の判定に使用
     internal const uint LLMHF_INJECTED = 0x00000001;
 

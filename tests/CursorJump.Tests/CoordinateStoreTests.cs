@@ -67,6 +67,39 @@ public class CoordinateStoreTests
     }
 
     [Fact]
+    public void Load_returns_false_when_no_migration_needed()
+    {
+        // 新フォーマット: MonitorRelativeX/Y がすでに 0 以上 → 補完不要
+        var store = new CoordinateStore();
+        bool migrated = store.Load(new[]
+        {
+            new SavedCoordinate(100, 200, @"\\.\DISPLAY1", 100, 200),
+            new SavedCoordinate(300, 400, @"\\.\DISPLAY1", 300, 400),
+        });
+        Assert.False(migrated);
+        var all = store.GetAll();
+        Assert.Equal(100, all[0].MonitorRelativeX);
+        Assert.Equal(200, all[0].MonitorRelativeY);
+    }
+
+    [Fact]
+    public void Load_returns_true_when_legacy_data_needs_migration()
+    {
+        // 旧フォーマット: MonitorRelativeX/Y == -1 (未設定) → 補完が走る
+        // ※ 実マシンの Screen 状態に依存するため、補完値そのものは検証せず "migration が走った" 事実のみ検証
+        var store = new CoordinateStore();
+        bool migrated = store.Load(new[]
+        {
+            // MonitorDeviceName あり、Relative 未設定 → 該当モニタ判定して補完
+            new SavedCoordinate(100, 200, System.Windows.Forms.Screen.PrimaryScreen!.DeviceName),
+        });
+        Assert.True(migrated);
+        var all = store.GetAll();
+        Assert.True(all[0].MonitorRelativeX >= 0);
+        Assert.True(all[0].MonitorRelativeY >= 0);
+    }
+
+    [Fact]
     public void GetNext_cycles_through_multiple_connected()
     {
         var store = BuildStoreWith(

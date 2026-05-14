@@ -119,9 +119,14 @@ public sealed class AppSettings
     public bool VerboseLogging { get; set; } = false;
 
     // ── カーソルジャンプ方式 ──
-    /// <summary>true なら SendInput(MOUSEEVENTF_ABSOLUTE | VIRTUALDESK) でカーソル移動する。
-    /// false なら従来の SetCursorPos。SetCursorPos が PerMonitorV2 環境で誤変換するバグの回避用。</summary>
-    public bool UseSendInputForJump { get; set; } = true;
+    /// <summary>カーソルジャンプの実装戦略。v1.5.1 で導入。
+    /// 既定 = DpiContext (SetThreadDpiAwarenessContext + SetCursorPos)。
+    /// 旧 settings.json (v1.5.1 より前) では未定義 → JumpStrategy = DpiContext (新既定) として扱われる。</summary>
+    public JumpStrategy JumpStrategy { get; set; } = JumpStrategy.DpiContext;
+
+    /// <summary>v1.5.0 で導入した非推奨フラグ。後方互換のため読み込みのみ受け付ける。
+    /// 実際の経路選択は <see cref="JumpStrategy"/> が優先される。新規書き込みでは default(false) のまま放置。</summary>
+    public bool UseSendInputForJump { get; set; } = false;
 
     // ── ライセンス ──
     /// <summary>Pro 版ライセンスキー（ユーザー入力）。空文字なら Free。SHA256 ハッシュを LicenseService 内の埋め込みハッシュと比較して Pro 化する。</summary>
@@ -140,6 +145,23 @@ public enum UiTheme
 {
     Light,
     Dark
+}
+
+/// <summary>
+/// カーソルジャンプの実装戦略。v1.5.1 で導入。
+/// </summary>
+public enum JumpStrategy
+{
+    /// <summary>SetThreadDpiAwarenessContext(PER_MONITOR_AWARE_V2) で対象モニタのコンテキストを明示してから SetCursorPos。
+    /// PerMonitorV2 + マルチ DPI 環境で OS の DPI 仮想化キャッシュが期待通りの位置にカーソルを置けるよう促す。v1.5.1 既定。</summary>
+    DpiContext,
+
+    /// <summary>SendInput(MOUSEEVENTF_ABSOLUTE | MOUSEEVENTF_VIRTUALDESK) で 0..65535 正規化座標経由。
+    /// v1.5.0 既定。Dynabook + マルチ DPI で効かなかったが、他環境向け退避路として残す。</summary>
+    SendInputVirtualDesk,
+
+    /// <summary>素の SetCursorPos のみ。v1.4.x までの挙動。デバッグ・最終退避路用。</summary>
+    LegacySetCursorPos,
 }
 
 public enum UiLanguage

@@ -666,8 +666,10 @@ public partial class SettingsWindow : Window
             LicenseKey = _settingsService.Current.LicenseKey,
             // 診断ログ
             VerboseLogging = VerboseLoggingToggle.IsChecked == true,
-            // バグ1 回避経路の切替フラグは UI 露出していないので Current から維持
+            // バグ1 回避経路の切替は UI 露出していないので Current から維持
+            // UseSendInputForJump は v1.5.0 時代の非推奨フィールド (後方互換のため保持)
             UseSendInputForJump = _settingsService.Current.UseSendInputForJump,
+            JumpStrategy = _settingsService.Current.JumpStrategy,
         };
 
         if (!_settingsService.Save(settings))

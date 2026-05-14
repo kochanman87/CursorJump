@@ -1,4 +1,5 @@
 using System;
+using CursorJump.App.Models;
 
 namespace CursorJump.App;
 
@@ -6,27 +7,71 @@ internal static class CursorService
 {
     /// <summary>
     /// カーソルを指定した物理ピクセル座標へジャンプさせる。
-    /// 既定では SendInput(MOUSEEVENTF_ABSOLUTE | VIRTUALDESK) を使う。
-    /// この経路は仮想デスクトップ全体を 0..65535 の正規化座標で表すため、
-    /// PerMonitorV2 環境で SetCursorPos が DPI 仮想化により別座標へ飛んでしまう
-    /// バグ (Win11 + マルチ DPI モニタで報告) を回避できる。
-    /// 退避路として SetCursorPos も残してある (AppSettings.UseSendInputForJump=false で切替)。
+    /// 戦略は <see cref="JumpStrategy"/> で切り替える。詳細は enum コメント参照。
+    ///
+    /// 背景:
+    /// PerMonitorV2 + マルチ DPI 環境 (例: Dynabook 内蔵 150% + 外部 100%) では、
+    /// SetCursorPos / SendInput VIRTUALDESK が OS 内部の DPI 仮想化により
+    /// 物理座標を別の意味で解釈し、視覚的にズレた位置にカーソルが飛ぶ症状がある。
+    /// v1.5.1 既定の DpiContext は SetThreadDpiAwarenessContext で対象 DPI を明示してから
+    /// SetCursorPos を呼ぶことで OS キャッシュをリセットする。
     /// </summary>
-    internal static void JumpTo(int physicalX, int physicalY, bool useSendInput = true)
+    internal static void JumpTo(int physicalX, int physicalY, JumpStrategy strategy = JumpStrategy.DpiContext)
     {
-        if (!useSendInput)
+        switch (strategy)
         {
-            NativeMethods.SetCursorPos(physicalX, physicalY);
-            return;
+            case JumpStrategy.SendInputVirtualDesk:
+                JumpToViaSendInput(physicalX, physicalY);
+                break;
+            case JumpStrategy.LegacySetCursorPos:
+                NativeMethods.SetCursorPos(physicalX, physicalY);
+                break;
+            case JumpStrategy.DpiContext:
+            default:
+                JumpToViaSetCursorPosWithDpiContext(physicalX, physicalY);
+                break;
         }
+    }
 
+    /// <summary>
+    /// SetThreadDpiAwarenessContext(PER_MONITOR_AWARE_V2) でスレッドの DPI コンテキストを
+    /// 明示してから SetCursorPos を呼ぶ。PerMonitorV2 アプリでもこの呼び直しにより
+    /// OS の DPI 仮想化キャッシュが期待通りに更新されるケースがある (v1.5.1 既定経路)。
+    /// </summary>
+    private static void JumpToViaSetCursorPosWithDpiContext(int physicalX, int physicalY)
+    {
+        IntPtr prevContext = IntPtr.Zero;
+        bool contextChanged = false;
+        try
+        {
+            prevContext = NativeMethods.SetThreadDpiAwarenessContext(
+                NativeMethods.DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
+            // 戻り値が IntPtr.Zero (= 旧コンテキスト取得不能) なら API 失敗。
+            // それでも SetCursorPos は呼ぶ (悪化はしない)。
+            contextChanged = prevContext != IntPtr.Zero;
+
+            NativeMethods.SetCursorPos(physicalX, physicalY);
+        }
+        finally
+        {
+            if (contextChanged)
+            {
+                try { NativeMethods.SetThreadDpiAwarenessContext(prevContext); } catch { }
+            }
+        }
+    }
+
+    /// <summary>
+    /// v1.5.0 で導入した SendInput VIRTUALDESK 経路。Dynabook では効かなかったが、
+    /// 他環境向けの退避路として残す。
+    /// </summary>
+    private static void JumpToViaSendInput(int physicalX, int physicalY)
+    {
         int virtualLeft = NativeMethods.GetSystemMetrics(NativeMethods.SM_XVIRTUALSCREEN);
         int virtualTop  = NativeMethods.GetSystemMetrics(NativeMethods.SM_YVIRTUALSCREEN);
         int virtualW    = NativeMethods.GetSystemMetrics(NativeMethods.SM_CXVIRTUALSCREEN);
         int virtualH    = NativeMethods.GetSystemMetrics(NativeMethods.SM_CYVIRTUALSCREEN);
 
-        // 0..65535 正規化。仮想デスクトップ幅が 1px の極端ケースでもゼロ除算しないよう Max(1, ..) で保護。
-        // 端を 65535 に丸めるため (W-1) で割る。
         int nx = (int)Math.Round((physicalX - virtualLeft) * 65535.0 / Math.Max(1, virtualW - 1));
         int ny = (int)Math.Round((physicalY - virtualTop)  * 65535.0 / Math.Max(1, virtualH - 1));
 
@@ -47,8 +92,8 @@ internal static class CursorService
         uint sent = NativeMethods.SendInput(1, inputs, System.Runtime.InteropServices.Marshal.SizeOf<NativeMethods.INPUT>());
         if (sent == 0)
         {
-            // SendInput 失敗時は SetCursorPos にフォールバックして致命傷を避ける
-            NativeMethods.SetCursorPos(physicalX, physicalY);
+            // SendInput 失敗時は DpiContext 経路にフォールバック (v1.5.1 既定経路と同じ)
+            JumpToViaSetCursorPosWithDpiContext(physicalX, physicalY);
         }
     }
 }
