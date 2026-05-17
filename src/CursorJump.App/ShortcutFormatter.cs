@@ -113,6 +113,8 @@ internal static class ShortcutFormatter
         MouseButtonType.MiddleRightChord  => Loc.Get("Str.Button.Compact.MiddleRightChord"),
         MouseButtonType.MiddleDoubleClick => Loc.Get("Str.Button.Compact.MiddleDoubleClick"),
         MouseButtonType.MiddleTripleClick => Loc.Get("Str.Button.Compact.MiddleTripleClick"),
+        MouseButtonType.WheelUp           => Loc.Get("Str.Button.WheelUp"),
+        MouseButtonType.WheelDown         => Loc.Get("Str.Button.WheelDown"),
         _                                 => Loc.Get("Str.Button.Left")
     };
 
@@ -122,9 +124,11 @@ internal static class ShortcutFormatter
         MouseButtonType.Left     => Loc.Get("Str.Button.Left"),
         MouseButtonType.Right    => Loc.Get("Str.Button.Right"),
         MouseButtonType.Middle   => Loc.Get("Str.Button.Middle"),
-        MouseButtonType.XButton1 => Loc.Get("Str.Button.XButton1"),
-        MouseButtonType.XButton2 => Loc.Get("Str.Button.XButton2"),
-        _                        => Loc.Get("Str.Button.Left")
+        MouseButtonType.XButton1  => Loc.Get("Str.Button.XButton1"),
+        MouseButtonType.XButton2  => Loc.Get("Str.Button.XButton2"),
+        MouseButtonType.WheelUp   => Loc.Get("Str.Button.WheelUp"),
+        MouseButtonType.WheelDown => Loc.Get("Str.Button.WheelDown"),
+        _                         => Loc.Get("Str.Button.Left")
     };
 
     private static string VirtualKeyName(int vkCode)

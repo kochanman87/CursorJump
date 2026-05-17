@@ -119,6 +119,8 @@
     <sys:String x:Key="Str.Button.MiddleRightChord">ホイール＋右クリック</sys:String>
     <sys:String x:Key="Str.Button.MiddleDoubleClick">ホイール2連打</sys:String>
     <sys:String x:Key="Str.Button.MiddleTripleClick">ホイール3連打</sys:String>
+    <sys:String x:Key="Str.Button.WheelUp">ホイール上スクロール</sys:String>
+    <sys:String x:Key="Str.Button.WheelDown">ホイール下スクロール</sys:String>
     <!-- 削除モードヘルプ用（FormatForDeleteMode で使用、表記揺れあり） -->
     <sys:String x:Key="Str.Button.Compact.MiddleLeftChord">ホイール+左クリック</sys:String>
     <sys:String x:Key="Str.Button.Compact.MiddleRightChord">ホイール+右クリック</sys:String>

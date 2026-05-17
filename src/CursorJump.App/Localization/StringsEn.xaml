@@ -119,6 +119,8 @@
     <sys:String x:Key="Str.Button.MiddleRightChord">Wheel + Right click</sys:String>
     <sys:String x:Key="Str.Button.MiddleDoubleClick">Wheel double-click</sys:String>
     <sys:String x:Key="Str.Button.MiddleTripleClick">Wheel triple-click</sys:String>
+    <sys:String x:Key="Str.Button.WheelUp">Wheel scroll up</sys:String>
+    <sys:String x:Key="Str.Button.WheelDown">Wheel scroll down</sys:String>
     <!-- Compact form for delete-mode help -->
     <sys:String x:Key="Str.Button.Compact.MiddleLeftChord">Wheel+Left</sys:String>
     <sys:String x:Key="Str.Button.Compact.MiddleRightChord">Wheel+Right</sys:String>

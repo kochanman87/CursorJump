@@ -46,6 +46,8 @@ public partial class SettingsWindow : Window
         new(MouseButtonType.MiddleRightChord,  "Str.Button.MiddleRightChord"),
         new(MouseButtonType.MiddleDoubleClick, "Str.Button.MiddleDoubleClick"),
         new(MouseButtonType.MiddleTripleClick, "Str.Button.MiddleTripleClick"),
+        new(MouseButtonType.WheelUp,           "Str.Button.WheelUp"),
+        new(MouseButtonType.WheelDown,         "Str.Button.WheelDown"),
     };
 
     private static readonly string[] FKeyNames =

@@ -181,7 +181,9 @@ public enum MouseButtonType
     MiddleLeftChord,    // ホイール押下 + 左クリック
     MiddleRightChord,   // ホイール押下 + 右クリック
     MiddleDoubleClick,  // ホイール2連打
-    MiddleTripleClick   // ホイール3連打
+    MiddleTripleClick,  // ホイール3連打
+    WheelUp,            // ホイール上スクロール
+    WheelDown           // ホイール下スクロール
 }
 
 [Flags]

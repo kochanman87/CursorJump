@@ -232,8 +232,53 @@ internal sealed class MouseHookService : IDisposable
     {
         if (nCode >= 0)
         {
-            // 合成入力（SendInput で再送した中クリック等）は判定せず素通し。
+            int msg = wParam.ToInt32();
+
+            // UP swallow チェックを injected 判定より先に行う。
+            // Win11 では他プロセス（マウスドライバー・入力支援ソフト等）が INJECTED フラグ付きの
+            // UP イベントを生成することがある。injected チェックを先にすると swallow が機能せず、
+            // 対象ウィンドウにイベントが届いてコンテキストメニュー等が出る。
+            // DOWN を消費した場合は UP も必ず消費するため、injected に関わらず先に処理する。
+            if (msg == NativeMethods.WM_LBUTTONUP && _swallowNextLeftUp)
+            {
+                _swallowNextLeftUp = false;
+                return (IntPtr)1;
+            }
+            if (msg == NativeMethods.WM_RBUTTONUP && _swallowNextRightUp)
+            {
+                _swallowNextRightUp = false;
+                return (IntPtr)1;
+            }
+            if (msg == NativeMethods.WM_MBUTTONUP && _swallowNextMiddleUp)
+            {
+                // Chord 判定フラグも同時にクリアする（この後 "MUP: Chord判定を解除" に到達しないため）。
+                _swallowNextMiddleUp = false;
+                lock (_middleLock)
+                {
+                    _lastMiddleUpTickCount = Environment.TickCount;
+                    _middleChordHeld = false;
+                }
+                return (IntPtr)1;
+            }
+            if (msg == NativeMethods.WM_XBUTTONUP)
+            {
+                var xUpStruct = Marshal.PtrToStructure<NativeMethods.MSLLHOOKSTRUCT>(lParam);
+                int xUpButtonId = (int)(xUpStruct.mouseData >> 16);
+                if (xUpButtonId == NativeMethods.XBUTTON1 && _swallowNextXButton1Up)
+                {
+                    _swallowNextXButton1Up = false;
+                    return (IntPtr)1;
+                }
+                if (xUpButtonId == NativeMethods.XBUTTON2 && _swallowNextXButton2Up)
+                {
+                    _swallowNextXButton2Up = false;
+                    return (IntPtr)1;
+                }
+            }
+
+            // 合成入力（SendInput で再送した中クリック等）は以降を素通し。
             // 無限再帰・中ボタン単押しフォールバックの再遅延を防ぐ。
+            // ※UP swallow チェックは上で済んでいるため、injected な UP も消費済み。
             var injectCheck = Marshal.PtrToStructure<NativeMethods.MSLLHOOKSTRUCT>(lParam);
             if ((injectCheck.flags & NativeMethods.LLMHF_INJECTED) != 0)
                 return NativeMethods.CallNextHookEx(_hookHandle, nCode, wParam, lParam);
@@ -262,38 +307,6 @@ internal sealed class MouseHookService : IDisposable
                     }
                 }
                 return NativeMethods.CallNextHookEx(_hookHandle, nCode, wParam, lParam);
-            }
-
-            // 削除モード: UPイベントの消費チェック（DOWNを消費済みの場合）
-            if (msg == NativeMethods.WM_LBUTTONUP && _swallowNextLeftUp)
-            {
-                _swallowNextLeftUp = false;
-                return (IntPtr)1;
-            }
-            if (msg == NativeMethods.WM_RBUTTONUP && _swallowNextRightUp)
-            {
-                _swallowNextRightUp = false;
-                return (IntPtr)1;
-            }
-            if (msg == NativeMethods.WM_MBUTTONUP && _swallowNextMiddleUp)
-            {
-                _swallowNextMiddleUp = false;
-                return (IntPtr)1;
-            }
-            if (msg == NativeMethods.WM_XBUTTONUP)
-            {
-                var upStruct = Marshal.PtrToStructure<NativeMethods.MSLLHOOKSTRUCT>(lParam);
-                int upButtonId = (int)(upStruct.mouseData >> 16);
-                if (upButtonId == NativeMethods.XBUTTON1 && _swallowNextXButton1Up)
-                {
-                    _swallowNextXButton1Up = false;
-                    return (IntPtr)1;
-                }
-                if (upButtonId == NativeMethods.XBUTTON2 && _swallowNextXButton2Up)
-                {
-                    _swallowNextXButton2Up = false;
-                    return (IntPtr)1;
-                }
             }
 
             // 削除モード: ボタン DOWNイベント → DisplayDeleteShortcut / SaveShortcut に従って処理
@@ -348,47 +361,6 @@ internal sealed class MouseHookService : IDisposable
         if (nCode >= 0 && !_suspended)
         {
             int msg = wParam.ToInt32();
-
-            // UPイベントの消費チェック（DOWNを消費済みの場合）
-            if (msg == NativeMethods.WM_LBUTTONUP && _swallowNextLeftUp)
-            {
-                _swallowNextLeftUp = false;
-                return (IntPtr)1;
-            }
-            if (msg == NativeMethods.WM_RBUTTONUP && _swallowNextRightUp)
-            {
-                _swallowNextRightUp = false;
-                return (IntPtr)1;
-            }
-            if (msg == NativeMethods.WM_MBUTTONUP && _swallowNextMiddleUp)
-            {
-                // MUP を消費しつつ、Chord 判定フラグも同時にクリアする。
-                // この return 後は下の "MUP: Chord判定を解除" ブロックに到達しないため、
-                // ここで更新しないと _middleChordHeld が true のまま残り、
-                // 次の L/R クリックで誤発火する（長押し Chord 後に再現）。
-                _swallowNextMiddleUp = false;
-                lock (_middleLock)
-                {
-                    _lastMiddleUpTickCount = Environment.TickCount;
-                    _middleChordHeld = false;
-                }
-                return (IntPtr)1;
-            }
-            if (msg == NativeMethods.WM_XBUTTONUP)
-            {
-                var upStruct = Marshal.PtrToStructure<NativeMethods.MSLLHOOKSTRUCT>(lParam);
-                int upButtonId = (int)(upStruct.mouseData >> 16);
-                if (upButtonId == NativeMethods.XBUTTON1 && _swallowNextXButton1Up)
-                {
-                    _swallowNextXButton1Up = false;
-                    return (IntPtr)1;
-                }
-                if (upButtonId == NativeMethods.XBUTTON2 && _swallowNextXButton2Up)
-                {
-                    _swallowNextXButton2Up = false;
-                    return (IntPtr)1;
-                }
-            }
 
             // DOWNイベントの処理（hookStructを先にデコードしてXButton判定でも再利用）
             var hookStruct = Marshal.PtrToStructure<NativeMethods.MSLLHOOKSTRUCT>(lParam);
@@ -482,6 +454,56 @@ internal sealed class MouseHookService : IDisposable
                     SetSwallowUpFlag(pressedButton.Value);
                     RaiseAsync(NavigateRequestedB, args);
                     return (IntPtr)1;
+                }
+            }
+
+            // ── ホイールトリガー ──
+            // UP イベントが存在しないため SetSwallowUpFlag は不要。
+            if (msg == NativeMethods.WM_MOUSEWHEEL)
+            {
+                var settings = _settingsService.Current;
+                if (AnyShortcutUsesWheel(settings))
+                {
+                    short delta = (short)(hookStruct.mouseData >> 16);
+                    var wheelButton = delta > 0 ? MouseButtonType.WheelUp : MouseButtonType.WheelDown;
+                    var args = new MouseHookEventArgs(hookStruct.pt.X, hookStruct.pt.Y);
+
+                    if (IsShortcutMatch(wheelButton, settings.SaveShortcut))
+                    {
+                        DebugLog.Write($"HookCallback: SaveRequested matched (wheel={wheelButton})");
+                        RaiseAsync(SaveRequested, args);
+                        return (IntPtr)1;
+                    }
+                    if (IsShortcutMatch(wheelButton, settings.NavigateShortcut))
+                    {
+                        DebugLog.Write($"HookCallback: NavigateRequested matched (wheel={wheelButton})");
+                        RaiseAsync(NavigateRequested, args);
+                        return (IntPtr)1;
+                    }
+                    if (IsShortcutMatch(wheelButton, settings.NavigateCurrentMonitorShortcut))
+                    {
+                        DebugLog.Write($"HookCallback: NavigateCurrentMonitorRequested matched (wheel={wheelButton})");
+                        RaiseAsync(NavigateCurrentMonitorRequested, args);
+                        return (IntPtr)1;
+                    }
+                    if (IsShortcutMatch(wheelButton, settings.DisplayDeleteShortcut))
+                    {
+                        DebugLog.Write($"HookCallback: DisplayDeleteRequested matched (wheel={wheelButton})");
+                        RaiseAsync(DisplayDeleteRequested, args);
+                        return (IntPtr)1;
+                    }
+                    if (IsShortcutMatch(wheelButton, settings.SaveShortcutB))
+                    {
+                        DebugLog.Write($"HookCallback: SaveRequestedB matched (wheel={wheelButton})");
+                        RaiseAsync(SaveRequestedB, args);
+                        return (IntPtr)1;
+                    }
+                    if (IsShortcutMatch(wheelButton, settings.NavigateShortcutB))
+                    {
+                        DebugLog.Write($"HookCallback: NavigateRequestedB matched (wheel={wheelButton})");
+                        RaiseAsync(NavigateRequestedB, args);
+                        return (IntPtr)1;
+                    }
                 }
             }
         }
@@ -747,6 +769,18 @@ internal sealed class MouseHookService : IDisposable
                        or MouseButtonType.MiddleRightChord
                        or MouseButtonType.MiddleDoubleClick
                        or MouseButtonType.MiddleTripleClick;
+
+    private static bool AnyShortcutUsesWheel(AppSettings s) =>
+        UsesWheel(s.SaveShortcut) ||
+        UsesWheel(s.NavigateShortcut) ||
+        UsesWheel(s.NavigateCurrentMonitorShortcut) ||
+        UsesWheel(s.DisplayDeleteShortcut) ||
+        UsesWheel(s.SaveShortcutB) ||
+        UsesWheel(s.NavigateShortcutB);
+
+    private static bool UsesWheel(ActionShortcut sc) =>
+        sc.EnabledTriggers.HasFlag(TriggerType.Mouse) &&
+        sc.MouseButton is MouseButtonType.WheelUp or MouseButtonType.WheelDown;
 
     private static ActionShortcut? FindShortcutByButton(AppSettings s, MouseButtonType btn)
     {
