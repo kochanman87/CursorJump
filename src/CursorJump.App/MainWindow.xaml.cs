@@ -113,6 +113,10 @@ public partial class MainWindow : Window
                 MessageBoxButton.OK,
                 MessageBoxImage.Warning);
         }
+
+        // 軌跡/収縮円オーバーレイを起動時に 1 枚プリアロケートする (v1.6.1: HWND 生成コストを 1 回で済ませてジャンプ後のラグ/砂時計を解消)
+        try { _overlayService.PreallocateTrailOverlay(); }
+        catch (Exception ex) { DebugLog.Write($"MainWindow: PreallocateTrailOverlay failed: {ex.Message}"); }
     }
 
     private void OnSaveRequested(object? sender, MouseHookEventArgs e)
@@ -131,7 +135,10 @@ public partial class MainWindow : Window
     private void OnNavigateRequested(object? sender, MouseHookEventArgs e)
     {
         var connected = GetConnectedMonitorNames();
-        var target = _coordinateStore.GetNext(connected);
+        // ホイール上スクロール (MouseWheel 統合トリガー) なら逆方向循環
+        var target = e.Direction == WheelDirection.Up
+            ? _coordinateStore.GetPrev(connected)
+            : _coordinateStore.GetNext(connected);
         if (target is null) return;
 
         int fromX = e.X;
@@ -188,7 +195,9 @@ public partial class MainWindow : Window
     private void OnNavigateCurrentMonitorRequested(object? sender, MouseHookEventArgs e)
     {
         var screen = System.Windows.Forms.Screen.FromPoint(new System.Drawing.Point(e.X, e.Y));
-        var target = _coordinateStore.GetNextInMonitor(screen.DeviceName);
+        var target = e.Direction == WheelDirection.Up
+            ? _coordinateStore.GetPrevInMonitor(screen.DeviceName)
+            : _coordinateStore.GetNextInMonitor(screen.DeviceName);
         if (target is null) return;
 
         var (jumpX, jumpY, _) = ResolveJumpTarget(target);
@@ -241,7 +250,9 @@ public partial class MainWindow : Window
             return;
         }
         var connected = GetConnectedMonitorNames();
-        var target = _coordinateStoreB.GetNext(connected);
+        var target = e.Direction == WheelDirection.Up
+            ? _coordinateStoreB.GetPrev(connected)
+            : _coordinateStoreB.GetNext(connected);
         if (target is null) return;
 
         int fromX = e.X;
@@ -303,5 +314,7 @@ public partial class MainWindow : Window
 
         _coordinateStore.Changed -= OnCoordinateStoreAChanged;
         _coordinateStoreB.Changed -= OnCoordinateStoreBChanged;
+
+        try { _overlayService.Dispose(); } catch { }
     }
 }

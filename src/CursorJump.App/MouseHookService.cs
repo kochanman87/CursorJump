@@ -6,15 +6,28 @@ using CursorJump.App.Models;
 
 namespace CursorJump.App;
 
+/// <summary>
+/// ホイール由来のイベントで上下方向を呼出側へ伝えるためのフラグ。
+/// Navigate 系のみ Up=GetPrev / Down=GetNext を切替に使用。Save/DisplayDelete は無視。
+/// </summary>
+internal enum WheelDirection
+{
+    None,
+    Up,
+    Down
+}
+
 internal sealed class MouseHookEventArgs : EventArgs
 {
     public int X { get; }
     public int Y { get; }
+    public WheelDirection Direction { get; }
 
-    public MouseHookEventArgs(int x, int y)
+    public MouseHookEventArgs(int x, int y, WheelDirection direction = WheelDirection.None)
     {
         X = x;
         Y = y;
+        Direction = direction;
     }
 }
 
@@ -355,6 +368,26 @@ internal sealed class MouseHookService : IDisposable
                 // それ以外はパススルー（右クリックも含む）
             }
 
+            // 削除モード中のホイール: Navigate=MouseWheel なら ESC、DisplayDelete=MouseWheel なら全削除
+            // (v1.6.1: 単押し以外でも統合ホイールでモード解除/全削除できるように)
+            if (msg == NativeMethods.WM_MOUSEWHEEL)
+            {
+                var settings = _settingsService.Current;
+                if (MatchWheelInDeleteMode(settings.NavigateShortcut))
+                {
+                    DebugLog.Write("DeleteMode: NavigateShortcut wheel matched → ESC");
+                    RaiseAsync(DeleteModeEscPressed);
+                    return (IntPtr)1;
+                }
+                if (MatchWheelInDeleteMode(settings.DisplayDeleteShortcut))
+                {
+                    DebugLog.Write("DeleteMode: DisplayDeleteShortcut wheel matched → ClearAll");
+                    var wheelArgs = new MouseHookEventArgs(hookStruct.pt.X, hookStruct.pt.Y);
+                    RaiseAsync(DeleteAllConfirmRequested, wheelArgs);
+                    return (IntPtr)1;
+                }
+            }
+
             return NativeMethods.CallNextHookEx(_hookHandle, nCode, wParam, lParam);
         }
 
@@ -465,42 +498,44 @@ internal sealed class MouseHookService : IDisposable
                 if (AnyShortcutUsesWheel(settings))
                 {
                     short delta = (short)(hookStruct.mouseData >> 16);
-                    var wheelButton = delta > 0 ? MouseButtonType.WheelUp : MouseButtonType.WheelDown;
-                    var args = new MouseHookEventArgs(hookStruct.pt.X, hookStruct.pt.Y);
+                    var direction = delta > 0 ? WheelDirection.Up : WheelDirection.Down;
+                    // 旧 settings.json 後方互換: WheelUp/WheelDown 個別割当に直接マッチさせる
+                    var legacyWheelButton = delta > 0 ? MouseButtonType.WheelUp : MouseButtonType.WheelDown;
+                    var args = new MouseHookEventArgs(hookStruct.pt.X, hookStruct.pt.Y, direction);
 
-                    if (IsShortcutMatch(wheelButton, settings.SaveShortcut))
+                    if (MatchWheelShortcut(legacyWheelButton, settings.SaveShortcut))
                     {
-                        DebugLog.Write($"HookCallback: SaveRequested matched (wheel={wheelButton})");
+                        DebugLog.Write($"HookCallback: SaveRequested matched (wheel direction={direction})");
                         RaiseAsync(SaveRequested, args);
                         return (IntPtr)1;
                     }
-                    if (IsShortcutMatch(wheelButton, settings.NavigateShortcut))
+                    if (MatchWheelShortcut(legacyWheelButton, settings.NavigateShortcut))
                     {
-                        DebugLog.Write($"HookCallback: NavigateRequested matched (wheel={wheelButton})");
+                        DebugLog.Write($"HookCallback: NavigateRequested matched (wheel direction={direction})");
                         RaiseAsync(NavigateRequested, args);
                         return (IntPtr)1;
                     }
-                    if (IsShortcutMatch(wheelButton, settings.NavigateCurrentMonitorShortcut))
+                    if (MatchWheelShortcut(legacyWheelButton, settings.NavigateCurrentMonitorShortcut))
                     {
-                        DebugLog.Write($"HookCallback: NavigateCurrentMonitorRequested matched (wheel={wheelButton})");
+                        DebugLog.Write($"HookCallback: NavigateCurrentMonitorRequested matched (wheel direction={direction})");
                         RaiseAsync(NavigateCurrentMonitorRequested, args);
                         return (IntPtr)1;
                     }
-                    if (IsShortcutMatch(wheelButton, settings.DisplayDeleteShortcut))
+                    if (MatchWheelShortcut(legacyWheelButton, settings.DisplayDeleteShortcut))
                     {
-                        DebugLog.Write($"HookCallback: DisplayDeleteRequested matched (wheel={wheelButton})");
+                        DebugLog.Write($"HookCallback: DisplayDeleteRequested matched (wheel direction={direction})");
                         RaiseAsync(DisplayDeleteRequested, args);
                         return (IntPtr)1;
                     }
-                    if (IsShortcutMatch(wheelButton, settings.SaveShortcutB))
+                    if (MatchWheelShortcut(legacyWheelButton, settings.SaveShortcutB))
                     {
-                        DebugLog.Write($"HookCallback: SaveRequestedB matched (wheel={wheelButton})");
+                        DebugLog.Write($"HookCallback: SaveRequestedB matched (wheel direction={direction})");
                         RaiseAsync(SaveRequestedB, args);
                         return (IntPtr)1;
                     }
-                    if (IsShortcutMatch(wheelButton, settings.NavigateShortcutB))
+                    if (MatchWheelShortcut(legacyWheelButton, settings.NavigateShortcutB))
                     {
-                        DebugLog.Write($"HookCallback: NavigateRequestedB matched (wheel={wheelButton})");
+                        DebugLog.Write($"HookCallback: NavigateRequestedB matched (wheel direction={direction})");
                         RaiseAsync(NavigateRequestedB, args);
                         return (IntPtr)1;
                     }
@@ -542,6 +577,15 @@ internal sealed class MouseHookService : IDisposable
     // 削除モード中専用: 対応ボタンの単押しだけでマッチ（修飾キー不問）
     // 拡張ボタン（Chord / 多重クリック）は基底の物理ボタンに読み替えて判定する。
     // 例: SaveShortcut=MiddleLeftChord の場合、削除モード中は左クリック単押しでマッチ。
+    /// <summary>
+    /// 削除モード中のホイール用マッチング。MouseWheel 割当のみマッチ（旧 WheelUp/WheelDown は無視）。
+    /// </summary>
+    private static bool MatchWheelInDeleteMode(Models.ActionShortcut shortcut)
+    {
+        if (!shortcut.EnabledTriggers.HasFlag(Models.TriggerType.Mouse)) return false;
+        return shortcut.MouseButton == MouseButtonType.MouseWheel;
+    }
+
     private static bool IsShortcutMatchForDeleteMode(MouseButtonType pressedButton, Models.ActionShortcut shortcut)
     {
         if (!shortcut.EnabledTriggers.HasFlag(Models.TriggerType.Mouse))
@@ -780,7 +824,21 @@ internal sealed class MouseHookService : IDisposable
 
     private static bool UsesWheel(ActionShortcut sc) =>
         sc.EnabledTriggers.HasFlag(TriggerType.Mouse) &&
-        sc.MouseButton is MouseButtonType.WheelUp or MouseButtonType.WheelDown;
+        sc.MouseButton is MouseButtonType.WheelUp
+                       or MouseButtonType.WheelDown
+                       or MouseButtonType.MouseWheel;
+
+    /// <summary>
+    /// ホイールイベントとショートカットのマッチング判定。
+    /// 旧 settings.json 互換 (WheelUp/WheelDown 個別) と新 MouseWheel (方向中立) の両方を判定する。
+    /// </summary>
+    private static bool MatchWheelShortcut(MouseButtonType legacyWheelButton, ActionShortcut shortcut)
+    {
+        if (!shortcut.EnabledTriggers.HasFlag(TriggerType.Mouse)) return false;
+        if (shortcut.MouseButton == MouseButtonType.MouseWheel)
+            return AreModifiersHeld(shortcut.Modifiers);
+        return IsShortcutMatch(legacyWheelButton, shortcut);
+    }
 
     private static ActionShortcut? FindShortcutByButton(AppSettings s, MouseButtonType btn)
     {

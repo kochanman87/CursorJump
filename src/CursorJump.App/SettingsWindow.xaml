@@ -195,8 +195,15 @@
                                               Style="{StaticResource ToggleSwitchStyle}"
                                               Checked="OnTriggerEnabledChanged" Unchecked="OnTriggerEnabledChanged"/>
                                 </Grid>
-                                <StackPanel x:Name="PnlSaveKeyboard" Margin="0,0,0,4" Visibility="Collapsed">
-                                    <ComboBox x:Name="CmbSaveKey" Style="{StaticResource ModernComboBoxStyle}" Width="100" HorizontalAlignment="Left"/>
+                                <StackPanel x:Name="PnlSaveKeyboard" Margin="0,0,0,4" Visibility="Collapsed" Orientation="Horizontal">
+                                    <Border Style="{StaticResource KbdKeyStyle}" MinWidth="140" Padding="8,4" Margin="0,0,6,0">
+                                        <TextBlock x:Name="LblSaveKey" Text="" Foreground="{DynamicResource TextPrimaryBrush}"/>
+                                    </Border>
+                                    <Button x:Name="BtnSaveKeyRecord" Tag="Save" Click="OnRecordKeyClick"
+                                            Content="{DynamicResource Str.Settings.RecordKey}" Margin="0,0,6,0"
+                                            Style="{StaticResource SecondaryButtonStyle}"/>
+                                    <Button x:Name="BtnSaveKeyClear" Tag="Save" Click="OnClearKeyClick"
+                                            Content="✕" Style="{StaticResource SecondaryButtonStyle}" MinWidth="32" Padding="6,4"/>
                                 </StackPanel>
                             </StackPanel>
                         </Border>
@@ -250,8 +257,15 @@
                                               Style="{StaticResource ToggleSwitchStyle}"
                                               Checked="OnTriggerEnabledChanged" Unchecked="OnTriggerEnabledChanged"/>
                                 </Grid>
-                                <StackPanel x:Name="PnlNavKeyboard" Margin="0,0,0,4" Visibility="Collapsed">
-                                    <ComboBox x:Name="CmbNavKey" Style="{StaticResource ModernComboBoxStyle}" Width="100" HorizontalAlignment="Left"/>
+                                <StackPanel x:Name="PnlNavKeyboard" Margin="0,0,0,4" Visibility="Collapsed" Orientation="Horizontal">
+                                    <Border Style="{StaticResource KbdKeyStyle}" MinWidth="140" Padding="8,4" Margin="0,0,6,0">
+                                        <TextBlock x:Name="LblNavKey" Text="" Foreground="{DynamicResource TextPrimaryBrush}"/>
+                                    </Border>
+                                    <Button x:Name="BtnNavKeyRecord" Tag="Nav" Click="OnRecordKeyClick"
+                                            Content="{DynamicResource Str.Settings.RecordKey}" Margin="0,0,6,0"
+                                            Style="{StaticResource SecondaryButtonStyle}"/>
+                                    <Button x:Name="BtnNavKeyClear" Tag="Nav" Click="OnClearKeyClick"
+                                            Content="✕" Style="{StaticResource SecondaryButtonStyle}" MinWidth="32" Padding="6,4"/>
                                 </StackPanel>
                             </StackPanel>
                         </Border>
@@ -308,8 +322,15 @@
                                               Style="{StaticResource ToggleSwitchStyle}"
                                               Checked="OnTriggerEnabledChanged" Unchecked="OnTriggerEnabledChanged"/>
                                 </Grid>
-                                <StackPanel x:Name="PnlMonNavKeyboard" Margin="0,0,0,4" Visibility="Collapsed">
-                                    <ComboBox x:Name="CmbMonNavKey" Style="{StaticResource ModernComboBoxStyle}" Width="100" HorizontalAlignment="Left"/>
+                                <StackPanel x:Name="PnlMonNavKeyboard" Margin="0,0,0,4" Visibility="Collapsed" Orientation="Horizontal">
+                                    <Border Style="{StaticResource KbdKeyStyle}" MinWidth="140" Padding="8,4" Margin="0,0,6,0">
+                                        <TextBlock x:Name="LblMonNavKey" Text="" Foreground="{DynamicResource TextPrimaryBrush}"/>
+                                    </Border>
+                                    <Button x:Name="BtnMonNavKeyRecord" Tag="MonNav" Click="OnRecordKeyClick"
+                                            Content="{DynamicResource Str.Settings.RecordKey}" Margin="0,0,6,0"
+                                            Style="{StaticResource SecondaryButtonStyle}"/>
+                                    <Button x:Name="BtnMonNavKeyClear" Tag="MonNav" Click="OnClearKeyClick"
+                                            Content="✕" Style="{StaticResource SecondaryButtonStyle}" MinWidth="32" Padding="6,4"/>
                                 </StackPanel>
                             </StackPanel>
                         </Border>
@@ -363,8 +384,15 @@
                                               Style="{StaticResource ToggleSwitchStyle}"
                                               Checked="OnTriggerEnabledChanged" Unchecked="OnTriggerEnabledChanged"/>
                                 </Grid>
-                                <StackPanel x:Name="PnlDispKeyboard" Margin="0,0,0,4" Visibility="Collapsed">
-                                    <ComboBox x:Name="CmbDispKey" Style="{StaticResource ModernComboBoxStyle}" Width="100" HorizontalAlignment="Left"/>
+                                <StackPanel x:Name="PnlDispKeyboard" Margin="0,0,0,4" Visibility="Collapsed" Orientation="Horizontal">
+                                    <Border Style="{StaticResource KbdKeyStyle}" MinWidth="140" Padding="8,4" Margin="0,0,6,0">
+                                        <TextBlock x:Name="LblDispKey" Text="" Foreground="{DynamicResource TextPrimaryBrush}"/>
+                                    </Border>
+                                    <Button x:Name="BtnDispKeyRecord" Tag="Disp" Click="OnRecordKeyClick"
+                                            Content="{DynamicResource Str.Settings.RecordKey}" Margin="0,0,6,0"
+                                            Style="{StaticResource SecondaryButtonStyle}"/>
+                                    <Button x:Name="BtnDispKeyClear" Tag="Disp" Click="OnClearKeyClick"
+                                            Content="✕" Style="{StaticResource SecondaryButtonStyle}" MinWidth="32" Padding="6,4"/>
                                 </StackPanel>
                             </StackPanel>
                         </Border>
@@ -444,8 +472,15 @@
                                               Style="{StaticResource ToggleSwitchStyle}"
                                               Checked="OnTriggerEnabledChanged" Unchecked="OnTriggerEnabledChanged"/>
                                 </Grid>
-                                <StackPanel x:Name="PnlSaveBKeyboard" Margin="0,0,0,4" Visibility="Collapsed">
-                                    <ComboBox x:Name="CmbSaveBKey" Style="{StaticResource ModernComboBoxStyle}" Width="100" HorizontalAlignment="Left"/>
+                                <StackPanel x:Name="PnlSaveBKeyboard" Margin="0,0,0,4" Visibility="Collapsed" Orientation="Horizontal">
+                                    <Border Style="{StaticResource KbdKeyStyle}" MinWidth="140" Padding="8,4" Margin="0,0,6,0">
+                                        <TextBlock x:Name="LblSaveBKey" Text="" Foreground="{DynamicResource TextPrimaryBrush}"/>
+                                    </Border>
+                                    <Button x:Name="BtnSaveBKeyRecord" Tag="SaveB" Click="OnRecordKeyClick"
+                                            Content="{DynamicResource Str.Settings.RecordKey}" Margin="0,0,6,0"
+                                            Style="{StaticResource SecondaryButtonStyle}"/>
+                                    <Button x:Name="BtnSaveBKeyClear" Tag="SaveB" Click="OnClearKeyClick"
+                                            Content="✕" Style="{StaticResource SecondaryButtonStyle}" MinWidth="32" Padding="6,4"/>
                                 </StackPanel>
                             </StackPanel>
                         </Border>
@@ -499,8 +534,15 @@
                                               Style="{StaticResource ToggleSwitchStyle}"
                                               Checked="OnTriggerEnabledChanged" Unchecked="OnTriggerEnabledChanged"/>
                                 </Grid>
-                                <StackPanel x:Name="PnlNavBKeyboard" Margin="0,0,0,4" Visibility="Collapsed">
-                                    <ComboBox x:Name="CmbNavBKey" Style="{StaticResource ModernComboBoxStyle}" Width="100" HorizontalAlignment="Left"/>
+                                <StackPanel x:Name="PnlNavBKeyboard" Margin="0,0,0,4" Visibility="Collapsed" Orientation="Horizontal">
+                                    <Border Style="{StaticResource KbdKeyStyle}" MinWidth="140" Padding="8,4" Margin="0,0,6,0">
+                                        <TextBlock x:Name="LblNavBKey" Text="" Foreground="{DynamicResource TextPrimaryBrush}"/>
+                                    </Border>
+                                    <Button x:Name="BtnNavBKeyRecord" Tag="NavB" Click="OnRecordKeyClick"
+                                            Content="{DynamicResource Str.Settings.RecordKey}" Margin="0,0,6,0"
+                                            Style="{StaticResource SecondaryButtonStyle}"/>
+                                    <Button x:Name="BtnNavBKeyClear" Tag="NavB" Click="OnClearKeyClick"
+                                            Content="✕" Style="{StaticResource SecondaryButtonStyle}" MinWidth="32" Padding="6,4"/>
                                 </StackPanel>
                             </StackPanel>
                         </Border>

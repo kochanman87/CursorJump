@@ -43,15 +43,23 @@ internal static class ShortcutFormatter
         return sb.ToString();
     }
 
-    /// <summary>キーボード側のみのショートカット文字列を返す（例: 「Ctrl+F13」）。</summary>
+    /// <summary>
+    /// キーボード側のみのショートカット文字列を返す（例: 「Ctrl+Alt+Z」、「F13」）。
+    /// F13-F24 は実挙動で修飾キーを無視するため、表示も修飾キーを省略する。
+    /// </summary>
     public static string FormatKeyboard(ActionShortcut shortcut)
     {
+        bool isViaKey = shortcut.VirtualKeyCode >= NativeMethods.VK_F13
+                        && shortcut.VirtualKeyCode <= NativeMethods.VK_F24;
         var sb = new StringBuilder();
-        string mods = FormatModifiers(shortcut.Modifiers);
-        if (mods.Length > 0)
+        if (!isViaKey)
         {
-            sb.Append(mods);
-            sb.Append('+');
+            string mods = FormatModifiers(shortcut.Modifiers);
+            if (mods.Length > 0)
+            {
+                sb.Append(mods);
+                sb.Append('+');
+            }
         }
         sb.Append(VirtualKeyName(shortcut.VirtualKeyCode));
         return sb.ToString();
@@ -115,6 +123,7 @@ internal static class ShortcutFormatter
         MouseButtonType.MiddleTripleClick => Loc.Get("Str.Button.Compact.MiddleTripleClick"),
         MouseButtonType.WheelUp           => Loc.Get("Str.Button.WheelUp"),
         MouseButtonType.WheelDown         => Loc.Get("Str.Button.WheelDown"),
+        MouseButtonType.MouseWheel        => Loc.Get("Str.Button.MouseWheel"),
         _                                 => Loc.Get("Str.Button.Left")
     };
 
@@ -128,15 +137,50 @@ internal static class ShortcutFormatter
         MouseButtonType.XButton2  => Loc.Get("Str.Button.XButton2"),
         MouseButtonType.WheelUp   => Loc.Get("Str.Button.WheelUp"),
         MouseButtonType.WheelDown => Loc.Get("Str.Button.WheelDown"),
+        MouseButtonType.MouseWheel => Loc.Get("Str.Button.MouseWheel"),
         _                         => Loc.Get("Str.Button.Left")
     };
 
     private static string VirtualKeyName(int vkCode)
     {
-        // F13 (0x7C) 〜 F24 (0x87)
+        if (vkCode == 0) return string.Empty;
+        // A-Z (0x41-0x5A)
+        if (vkCode >= 0x41 && vkCode <= 0x5A) return ((char)('A' + (vkCode - 0x41))).ToString();
+        // 0-9 (0x30-0x39)
+        if (vkCode >= 0x30 && vkCode <= 0x39) return ((char)('0' + (vkCode - 0x30))).ToString();
+        // F1-F12
+        if (vkCode >= NativeMethods.VK_F1 && vkCode <= NativeMethods.VK_F12)
+            return $"F{1 + (vkCode - NativeMethods.VK_F1)}";
+        // F13-F24
         if (vkCode >= NativeMethods.VK_F13 && vkCode <= NativeMethods.VK_F24)
             return $"F{13 + (vkCode - NativeMethods.VK_F13)}";
+        // Numpad 0-9
+        if (vkCode >= NativeMethods.VK_NUMPAD0 && vkCode <= NativeMethods.VK_NUMPAD9)
+            return $"Num{vkCode - NativeMethods.VK_NUMPAD0}";
 
-        return $"0x{vkCode:X2}";
+        return vkCode switch
+        {
+            NativeMethods.VK_BACK     => "BackSpace",
+            NativeMethods.VK_TAB      => "Tab",
+            NativeMethods.VK_RETURN   => "Enter",
+            NativeMethods.VK_ESCAPE   => "Esc",
+            NativeMethods.VK_SPACE    => "Space",
+            NativeMethods.VK_PRIOR    => "PageUp",
+            NativeMethods.VK_NEXT     => "PageDown",
+            NativeMethods.VK_END      => "End",
+            NativeMethods.VK_HOME     => "Home",
+            NativeMethods.VK_LEFT     => "←",
+            NativeMethods.VK_UP       => "↑",
+            NativeMethods.VK_RIGHT    => "→",
+            NativeMethods.VK_DOWN     => "↓",
+            NativeMethods.VK_INSERT   => "Insert",
+            NativeMethods.VK_DELETE   => "Delete",
+            NativeMethods.VK_MULTIPLY => "Num*",
+            NativeMethods.VK_ADD      => "Num+",
+            NativeMethods.VK_SUBTRACT => "Num-",
+            NativeMethods.VK_DECIMAL  => "Num.",
+            NativeMethods.VK_DIVIDE   => "Num/",
+            _                         => $"0x{vkCode:X2}"
+        };
     }
 }

@@ -18,6 +18,10 @@ internal static class NativeMethods
     internal const int VK_ESCAPE  = 0x1B;
     internal const int VK_MBUTTON = 0x04;
 
+    // F1-F12（標準ファンクションキー）
+    internal const int VK_F1  = 0x70;
+    internal const int VK_F12 = 0x7B;
+
     // F13-F24（VIAキーボードマクロ等で使用される拡張ファンクションキー）
     internal const int VK_F13 = 0x7C;
     internal const int VK_F14 = 0x7D;
@@ -31,6 +35,36 @@ internal static class NativeMethods
     internal const int VK_F22 = 0x85;
     internal const int VK_F23 = 0x86;
     internal const int VK_F24 = 0x87;
+
+    // 一般キー（VirtualKeyName / 任意キートリガー用）
+    // A-Z: 0x41-0x5A, 0-9: 0x30-0x39 はリテラル比較で扱う（定数省略）
+    internal const int VK_BACK   = 0x08;
+    internal const int VK_TAB    = 0x09;
+    internal const int VK_RETURN = 0x0D;
+    internal const int VK_SPACE  = 0x20;
+    internal const int VK_PRIOR  = 0x21; // PageUp
+    internal const int VK_NEXT   = 0x22; // PageDown
+    internal const int VK_END    = 0x23;
+    internal const int VK_HOME   = 0x24;
+    internal const int VK_LEFT   = 0x25;
+    internal const int VK_UP     = 0x26;
+    internal const int VK_RIGHT  = 0x27;
+    internal const int VK_DOWN   = 0x28;
+    internal const int VK_INSERT = 0x2D;
+    internal const int VK_DELETE = 0x2E;
+
+    // テンキー
+    internal const int VK_NUMPAD0   = 0x60;
+    internal const int VK_NUMPAD9   = 0x69;
+    internal const int VK_MULTIPLY  = 0x6A;
+    internal const int VK_ADD       = 0x6B;
+    internal const int VK_SUBTRACT  = 0x6D;
+    internal const int VK_DECIMAL   = 0x6E;
+    internal const int VK_DIVIDE    = 0x6F;
+
+    // 汎用 Ctrl/Shift/Alt（記録 UI で修飾キー単独押下を弾くのに使う）
+    internal const int VK_SHIFT   = 0x10;
+    internal const int VK_CONTROL = 0x11;
 
     // ── Mouse messages ──
     internal const int WM_MOUSEMOVE   = 0x0200;
@@ -100,6 +134,7 @@ internal static class NativeMethods
     internal const int GWL_EXSTYLE = -20;
     internal const int WS_EX_TRANSPARENT = 0x00000020;
     internal const int WS_EX_TOOLWINDOW  = 0x00000080;
+    internal const int WS_EX_NOACTIVATE  = 0x08000000;
 
     [DllImport("user32.dll")]
     internal static extern int GetWindowLong(IntPtr hWnd, int nIndex);

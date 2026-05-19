@@ -117,4 +117,104 @@ public class CoordinateStoreTests
         Assert.Equal(@"\\.\DISPLAY3", second!.MonitorDeviceName);
         Assert.Equal(@"\\.\DISPLAY1", third!.MonitorDeviceName);  // DISPLAY2 をスキップして循環
     }
+
+    // ── v1.6.1: GetPrev 系（ホイール上スクロールでの逆方向ナビゲーション用） ──
+
+    [Fact]
+    public void GetPrev_cycles_in_reverse()
+    {
+        var store = BuildStoreWith(
+            new SavedCoordinate(10, 10, @"\\.\DISPLAY1"),
+            new SavedCoordinate(20, 20, @"\\.\DISPLAY1"),
+            new SavedCoordinate(30, 30, @"\\.\DISPLAY1"));
+
+        // 初回 GetPrev: _currentIndex == -1 → 0 に補正後 -1 で循環 = 末尾 (index 2)
+        var first  = store.GetPrev();
+        var second = store.GetPrev();
+        var third  = store.GetPrev();
+        var fourth = store.GetPrev();
+
+        Assert.Equal((30, 30), (first!.X, first.Y));
+        Assert.Equal((20, 20), (second!.X, second.Y));
+        Assert.Equal((10, 10), (third!.X, third.Y));
+        Assert.Equal((30, 30), (fourth!.X, fourth.Y));  // 循環
+    }
+
+    [Fact]
+    public void GetPrev_with_connected_monitors_skips_disconnected()
+    {
+        var store = BuildStoreWith(
+            new SavedCoordinate(10, 10, @"\\.\DISPLAY1"),
+            new SavedCoordinate(20, 20, @"\\.\DISPLAY2"),
+            new SavedCoordinate(30, 30, @"\\.\DISPLAY3"));
+
+        var connected = new[] { @"\\.\DISPLAY1", @"\\.\DISPLAY3" };
+
+        var first  = store.GetPrev(connected);
+        var second = store.GetPrev(connected);
+        var third  = store.GetPrev(connected);
+
+        Assert.Equal(@"\\.\DISPLAY3", first!.MonitorDeviceName);
+        Assert.Equal(@"\\.\DISPLAY1", second!.MonitorDeviceName);
+        Assert.Equal(@"\\.\DISPLAY3", third!.MonitorDeviceName);  // DISPLAY2 をスキップして循環
+    }
+
+    [Fact]
+    public void GetPrev_after_GetNext_returns_same_position()
+    {
+        var store = BuildStoreWith(
+            new SavedCoordinate(10, 10, @"\\.\DISPLAY1"),
+            new SavedCoordinate(20, 20, @"\\.\DISPLAY1"),
+            new SavedCoordinate(30, 30, @"\\.\DISPLAY1"));
+
+        var connected = new[] { @"\\.\DISPLAY1" };
+
+        // GetNext を 2 回 → index 1
+        store.GetNext(connected);
+        var afterNext = store.GetNext(connected);
+        Assert.Equal((20, 20), (afterNext!.X, afterNext.Y));
+
+        // GetPrev でひとつ戻れば最初の座標
+        var backward = store.GetPrev(connected);
+        Assert.Equal((10, 10), (backward!.X, backward.Y));
+    }
+
+    [Fact]
+    public void GetPrev_with_no_matching_monitor_returns_null()
+    {
+        var store = BuildStoreWith(
+            new SavedCoordinate(10, 10, @"\\.\DISPLAY2"),
+            new SavedCoordinate(20, 20, @"\\.\DISPLAY3"));
+
+        var connected = new[] { @"\\.\DISPLAY1" };
+        Assert.Null(store.GetPrev(connected));
+    }
+
+    [Fact]
+    public void GetPrevInMonitor_cycles_in_reverse()
+    {
+        var store = BuildStoreWith(
+            new SavedCoordinate(10, 10, @"\\.\DISPLAY1"),
+            new SavedCoordinate(20, 20, @"\\.\DISPLAY1"),
+            new SavedCoordinate(30, 30, @"\\.\DISPLAY1"));
+
+        // 初回 GetPrevInMonitor: lastRawIndex 未登録 → 末尾 (index 2)
+        var first  = store.GetPrevInMonitor(@"\\.\DISPLAY1");
+        var second = store.GetPrevInMonitor(@"\\.\DISPLAY1");
+        var third  = store.GetPrevInMonitor(@"\\.\DISPLAY1");
+        var fourth = store.GetPrevInMonitor(@"\\.\DISPLAY1");
+
+        Assert.Equal((30, 30), (first!.X, first.Y));
+        Assert.Equal((20, 20), (second!.X, second.Y));
+        Assert.Equal((10, 10), (third!.X, third.Y));
+        Assert.Equal((30, 30), (fourth!.X, fourth.Y));
+    }
+
+    [Fact]
+    public void GetPrevInMonitor_returns_null_when_no_coords_for_monitor()
+    {
+        var store = BuildStoreWith(
+            new SavedCoordinate(10, 10, @"\\.\DISPLAY1"));
+        Assert.Null(store.GetPrevInMonitor(@"\\.\DISPLAY2"));
+    }
 }

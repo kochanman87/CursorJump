@@ -182,8 +182,9 @@ public enum MouseButtonType
     MiddleRightChord,   // ホイール押下 + 右クリック
     MiddleDoubleClick,  // ホイール2連打
     MiddleTripleClick,  // ホイール3連打
-    WheelUp,            // ホイール上スクロール
-    WheelDown           // ホイール下スクロール
+    WheelUp,            // ホイール上スクロール (v1.5.2、UI からは廃止。settings.json 後方互換のため enum 値は維持)
+    WheelDown,          // ホイール下スクロール (v1.5.2、UI からは廃止。settings.json 後方互換のため enum 値は維持)
+    MouseWheel          // ホイール上下を方向中立で受ける統合トリガー (v1.6.1+)。Navigate 系のみ上=GetPrev / 下=GetNext で動作
 }
 
 [Flags]

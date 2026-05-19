@@ -60,7 +60,10 @@
     <!-- Common labels -->
     <sys:String x:Key="Str.Settings.MouseButton">Mouse button</sys:String>
     <sys:String x:Key="Str.Settings.KeyboardKey">Keyboard key</sys:String>
-    <sys:String x:Key="Str.Settings.FKeyTooltip">F13–F24 are extension keys you can send via VIA/QMK/AutoHotkey, etc. See the "How to use" tab for details.</sys:String>
+    <sys:String x:Key="Str.Settings.FKeyTooltip">F13–F24 (via VIA/QMK/AutoHotkey etc.) or any key + modifiers (e.g. Ctrl+Alt+Z). Non-F-keys are passed through to other apps. See the "How to use" tab for details.</sys:String>
+    <sys:String x:Key="Str.Settings.RecordKey">Record key</sys:String>
+    <sys:String x:Key="Str.Settings.RecordKeyWaiting">Press a key... (ESC to cancel)</sys:String>
+    <sys:String x:Key="Str.Settings.KeyUnassigned">(unassigned)</sys:String>
     <sys:String x:Key="Str.Settings.StatusEnabled">Enabled</sys:String>
     <sys:String x:Key="Str.Settings.StatusNotImplemented">Not implemented</sys:String>
 
@@ -96,6 +99,7 @@
     <!-- Validation / errors -->
     <sys:String x:Key="Str.Settings.Validation.NoTrigger">For each of Save, Navigate, and Display/Delete, you must enable at least one trigger (mouse button or keyboard key).</sys:String>
     <sys:String x:Key="Str.Settings.Validation.NoModifier">Single Left/Right/Middle clicks require at least one modifier key. Wheel+L/R, multi-clicks, and back/forward buttons can be used without modifiers.</sys:String>
+    <sys:String x:Key="Str.Settings.Validation.KeyboardNoModifier">Non-F-keys (A–Z, 0–9, etc.) require at least one modifier key to prevent accidental firing during normal typing. F13–F24 can be used without modifiers.</sys:String>
     <sys:String x:Key="Str.Settings.Validation.ConflictFormat">The {2} shortcut for "{0}" conflicts with "{1}". Please change one of them.</sys:String>
     <sys:String x:Key="Str.Settings.Validation.ConflictKind.Mouse">mouse</sys:String>
     <sys:String x:Key="Str.Settings.Validation.ConflictKind.Keyboard">keyboard</sys:String>
@@ -121,6 +125,7 @@
     <sys:String x:Key="Str.Button.MiddleTripleClick">Wheel triple-click</sys:String>
     <sys:String x:Key="Str.Button.WheelUp">Wheel scroll up</sys:String>
     <sys:String x:Key="Str.Button.WheelDown">Wheel scroll down</sys:String>
+    <sys:String x:Key="Str.Button.MouseWheel">Mouse wheel</sys:String>
     <!-- Compact form for delete-mode help -->
     <sys:String x:Key="Str.Button.Compact.MiddleLeftChord">Wheel+Left</sys:String>
     <sys:String x:Key="Str.Button.Compact.MiddleRightChord">Wheel+Right</sys:String>

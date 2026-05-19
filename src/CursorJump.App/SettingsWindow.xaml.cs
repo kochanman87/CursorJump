@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.Globalization;
 using System.Reflection;
@@ -35,7 +36,9 @@ public partial class SettingsWindow : Window
         public override string ToString() => Loc.Get(ResourceKey);
     }
 
-    private static readonly ButtonOption[] ButtonOptions =
+    // 既定の ButtonOption セット。v1.6.1 で WheelUp/WheelDown を UI から除外し、MouseWheel に統合。
+    // 旧 settings.json に WheelUp/WheelDown が残っているケースだけ BuildButtonOptions で動的に追加表示する。
+    private static readonly ButtonOption[] DefaultButtonOptions =
     {
         new(MouseButtonType.Left,              "Str.Button.Left"),
         new(MouseButtonType.Right,             "Str.Button.Right"),
@@ -46,21 +49,89 @@ public partial class SettingsWindow : Window
         new(MouseButtonType.MiddleRightChord,  "Str.Button.MiddleRightChord"),
         new(MouseButtonType.MiddleDoubleClick, "Str.Button.MiddleDoubleClick"),
         new(MouseButtonType.MiddleTripleClick, "Str.Button.MiddleTripleClick"),
-        new(MouseButtonType.WheelUp,           "Str.Button.WheelUp"),
-        new(MouseButtonType.WheelDown,         "Str.Button.WheelDown"),
+        new(MouseButtonType.MouseWheel,        "Str.Button.MouseWheel"),
     };
 
-    private static readonly string[] FKeyNames =
+    /// <summary>
+    /// 各 ComboBox 用のオプション配列を構築する。
+    /// 現在値が旧 WheelUp/WheelDown のときだけ、その選択肢を動的に末尾に追加して表示を維持する
+    /// (移行は行わず保存形式は維持。新規割当は「マウスホイール」しか選べない)。
+    /// </summary>
+    private static ButtonOption[] BuildButtonOptions(MouseButtonType currentValue)
     {
-        "F13", "F14", "F15", "F16", "F17", "F18",
-        "F19", "F20", "F21", "F22", "F23", "F24"
-    };
-    private static readonly int[] FKeyCodes =
+        if (currentValue == MouseButtonType.WheelUp || currentValue == MouseButtonType.WheelDown)
+        {
+            string key = currentValue == MouseButtonType.WheelUp ? "Str.Button.WheelUp" : "Str.Button.WheelDown";
+            var extended = new ButtonOption[DefaultButtonOptions.Length + 1];
+            Array.Copy(DefaultButtonOptions, extended, DefaultButtonOptions.Length);
+            extended[^1] = new ButtonOption(currentValue, key);
+            return extended;
+        }
+        return DefaultButtonOptions;
+    }
+
+    // ===== キーボードトリガー（任意キー+修飾キー）の状態管理 =====
+    // 各 ActionShortcut の VirtualKeyCode はキーキャプチャ UI で更新される。
+    // 修飾キー (ChkXxxCtrl/Alt/Shift/Win) は既存のマウス側と共通なので、
+    // KeyboardSlotUI はラベル再描画と VK 保持のみ担当する。
+    private readonly Dictionary<string, KeyboardSlotUI> _keyboardSlots = new();
+    private string? _recordingTarget;  // 記録中のターゲット ("Save"/"Nav"/etc)
+
+    private sealed class KeyboardSlotUI
     {
-        NativeMethods.VK_F13, NativeMethods.VK_F14, NativeMethods.VK_F15, NativeMethods.VK_F16,
-        NativeMethods.VK_F17, NativeMethods.VK_F18, NativeMethods.VK_F19, NativeMethods.VK_F20,
-        NativeMethods.VK_F21, NativeMethods.VK_F22, NativeMethods.VK_F23, NativeMethods.VK_F24
-    };
+        public string Tag { get; }
+        public TextBlock Label { get; }
+        public Button RecordButton { get; }
+        public CheckBox ChkCtrl { get; }
+        public CheckBox ChkAlt { get; }
+        public CheckBox ChkShift { get; }
+        public CheckBox ChkWin { get; }
+        public CheckBox ChkKeyboardEnabled { get; }
+        public int VirtualKeyCode;
+        public string OriginalRecordButtonText = "";
+
+        public KeyboardSlotUI(string tag, TextBlock label, Button recordBtn,
+            CheckBox c, CheckBox a, CheckBox s, CheckBox w, CheckBox chkKeyboardEnabled)
+        {
+            Tag = tag; Label = label; RecordButton = recordBtn;
+            ChkCtrl = c; ChkAlt = a; ChkShift = s; ChkWin = w;
+            ChkKeyboardEnabled = chkKeyboardEnabled;
+        }
+
+        public ModifierKeyFlags GetModifiers()
+        {
+            var m = ModifierKeyFlags.None;
+            if (ChkCtrl.IsChecked == true)  m |= ModifierKeyFlags.Control;
+            if (ChkAlt.IsChecked == true)   m |= ModifierKeyFlags.Alt;
+            if (ChkShift.IsChecked == true) m |= ModifierKeyFlags.Shift;
+            if (ChkWin.IsChecked == true)   m |= ModifierKeyFlags.Windows;
+            return m;
+        }
+
+        public void SetModifiers(ModifierKeyFlags m)
+        {
+            ChkCtrl.IsChecked  = m.HasFlag(ModifierKeyFlags.Control);
+            ChkAlt.IsChecked   = m.HasFlag(ModifierKeyFlags.Alt);
+            ChkShift.IsChecked = m.HasFlag(ModifierKeyFlags.Shift);
+            ChkWin.IsChecked   = m.HasFlag(ModifierKeyFlags.Windows);
+        }
+
+        public void RefreshLabel()
+        {
+            if (VirtualKeyCode == 0)
+            {
+                Label.Text = Loc.Get("Str.Settings.KeyUnassigned");
+                return;
+            }
+            var sc = new ActionShortcut
+            {
+                EnabledTriggers = TriggerType.Keyboard,
+                VirtualKeyCode = VirtualKeyCode,
+                Modifiers = GetModifiers()
+            };
+            Label.Text = ShortcutFormatter.FormatKeyboard(sc);
+        }
+    }
 
     private string _saveColor = "#FF0000";
     private string _saveColorB = "#FF8800";
@@ -89,6 +160,7 @@ public partial class SettingsWindow : Window
             Title = string.Format(Loc.Get("Str.Settings.TitleFormat"), v.Major, v.Minor, v.Build);
         }
         PopulateComboBoxes();
+        InitKeyboardSlots();
         LoadCurrentSettings();
         UpdateLicenseUI();
         LocalizationManager.LanguageChanged += OnLanguageChanged;
@@ -123,6 +195,8 @@ public partial class SettingsWindow : Window
         }
         // ButtonOption.ToString() は Loc.Get を呼ぶが、ComboBox は変更通知を受け取らないので強制リフレッシュ
         RefreshButtonComboBoxes();
+        // キーボードラベル（"（未割当）" など）も Loc.Get 経由なので再描画
+        foreach (var slot in _keyboardSlots.Values) slot.RefreshLabel();
         // ライセンスステータステキストも DynamicResource ではなく Loc.Get で設定しているため再描画する
         UpdateLicenseUI();
     }
@@ -131,63 +205,77 @@ public partial class SettingsWindow : Window
     {
         foreach (var combo in new[] { CmbSaveBtn, CmbNavBtn, CmbMonNavBtn, CmbDispBtn, CmbSaveBBtn, CmbNavBBtn })
         {
-            var selected = combo.SelectedItem;
+            var selected = combo.SelectedItem as ButtonOption;
+            var current = selected?.Value ?? MouseButtonType.Left;
             combo.ItemsSource = null;
-            combo.ItemsSource = ButtonOptions;
-            combo.SelectedItem = selected;
+            combo.ItemsSource = BuildButtonOptions(current);
+            if (selected is not null)
+                combo.SelectedItem = FindButtonOptionIn((ButtonOption[])combo.ItemsSource, current);
         }
     }
 
     private void PopulateComboBoxes()
     {
-        CmbSaveBtn.ItemsSource = ButtonOptions;
-        CmbNavBtn.ItemsSource = ButtonOptions;
-        CmbMonNavBtn.ItemsSource = ButtonOptions;
-        CmbDispBtn.ItemsSource = ButtonOptions;
-        CmbSaveBBtn.ItemsSource = ButtonOptions;
-        CmbNavBBtn.ItemsSource = ButtonOptions;
+        CmbSaveBtn.ItemsSource = DefaultButtonOptions;
+        CmbNavBtn.ItemsSource = DefaultButtonOptions;
+        CmbMonNavBtn.ItemsSource = DefaultButtonOptions;
+        CmbDispBtn.ItemsSource = DefaultButtonOptions;
+        CmbSaveBBtn.ItemsSource = DefaultButtonOptions;
+        CmbNavBBtn.ItemsSource = DefaultButtonOptions;
+    }
 
-        CmbSaveKey.ItemsSource = FKeyNames;
-        CmbNavKey.ItemsSource = FKeyNames;
-        CmbMonNavKey.ItemsSource = FKeyNames;
-        CmbDispKey.ItemsSource = FKeyNames;
-        CmbSaveBKey.ItemsSource = FKeyNames;
-        CmbNavBKey.ItemsSource = FKeyNames;
+    private void InitKeyboardSlots()
+    {
+        _keyboardSlots["Save"]   = new("Save",   LblSaveKey,   BtnSaveKeyRecord,   ChkSaveCtrl,   ChkSaveAlt,   ChkSaveShift,   ChkSaveWin,   ChkSaveKeyboardEnabled);
+        _keyboardSlots["Nav"]    = new("Nav",    LblNavKey,    BtnNavKeyRecord,    ChkNavCtrl,    ChkNavAlt,    ChkNavShift,    ChkNavWin,    ChkNavKeyboardEnabled);
+        _keyboardSlots["MonNav"] = new("MonNav", LblMonNavKey, BtnMonNavKeyRecord, ChkMonNavCtrl, ChkMonNavAlt, ChkMonNavShift, ChkMonNavWin, ChkMonNavKeyboardEnabled);
+        _keyboardSlots["Disp"]   = new("Disp",   LblDispKey,   BtnDispKeyRecord,   ChkDispCtrl,   ChkDispAlt,   ChkDispShift,   ChkDispWin,   ChkDispKeyboardEnabled);
+        _keyboardSlots["SaveB"]  = new("SaveB",  LblSaveBKey,  BtnSaveBKeyRecord,  ChkSaveBCtrl,  ChkSaveBAlt,  ChkSaveBShift,  ChkSaveBWin,  ChkSaveBKeyboardEnabled);
+        _keyboardSlots["NavB"]   = new("NavB",   LblNavBKey,   BtnNavBKeyRecord,   ChkNavBCtrl,   ChkNavBAlt,   ChkNavBShift,   ChkNavBWin,   ChkNavBKeyboardEnabled);
+
+        // 修飾キー変更時にキーボードラベルを再描画（修飾キー checkbox はマウス/キーボード共通）
+        foreach (var slot in _keyboardSlots.Values)
+        {
+            slot.ChkCtrl.Click  += (_, _) => slot.RefreshLabel();
+            slot.ChkAlt.Click   += (_, _) => slot.RefreshLabel();
+            slot.ChkShift.Click += (_, _) => slot.RefreshLabel();
+            slot.ChkWin.Click   += (_, _) => slot.RefreshLabel();
+        }
     }
 
     private void LoadCurrentSettings()
     {
         var s = _settingsService.Current;
 
-        LoadShortcutUI(s.SaveShortcut,
+        LoadShortcutUI(s.SaveShortcut, "Save",
             ChkSaveMouseEnabled, PnlSaveMouse,
             ChkSaveCtrl, ChkSaveAlt, ChkSaveShift, ChkSaveWin, CmbSaveBtn,
-            ChkSaveKeyboardEnabled, PnlSaveKeyboard, CmbSaveKey);
+            ChkSaveKeyboardEnabled, PnlSaveKeyboard);
 
-        LoadShortcutUI(s.NavigateShortcut,
+        LoadShortcutUI(s.NavigateShortcut, "Nav",
             ChkNavMouseEnabled, PnlNavMouse,
             ChkNavCtrl, ChkNavAlt, ChkNavShift, ChkNavWin, CmbNavBtn,
-            ChkNavKeyboardEnabled, PnlNavKeyboard, CmbNavKey);
+            ChkNavKeyboardEnabled, PnlNavKeyboard);
 
-        LoadShortcutUI(s.NavigateCurrentMonitorShortcut,
+        LoadShortcutUI(s.NavigateCurrentMonitorShortcut, "MonNav",
             ChkMonNavMouseEnabled, PnlMonNavMouse,
             ChkMonNavCtrl, ChkMonNavAlt, ChkMonNavShift, ChkMonNavWin, CmbMonNavBtn,
-            ChkMonNavKeyboardEnabled, PnlMonNavKeyboard, CmbMonNavKey);
+            ChkMonNavKeyboardEnabled, PnlMonNavKeyboard);
 
-        LoadShortcutUI(s.DisplayDeleteShortcut,
+        LoadShortcutUI(s.DisplayDeleteShortcut, "Disp",
             ChkDispMouseEnabled, PnlDispMouse,
             ChkDispCtrl, ChkDispAlt, ChkDispShift, ChkDispWin, CmbDispBtn,
-            ChkDispKeyboardEnabled, PnlDispKeyboard, CmbDispKey);
+            ChkDispKeyboardEnabled, PnlDispKeyboard);
 
-        LoadShortcutUI(s.SaveShortcutB,
+        LoadShortcutUI(s.SaveShortcutB, "SaveB",
             ChkSaveBMouseEnabled, PnlSaveBMouse,
             ChkSaveBCtrl, ChkSaveBAlt, ChkSaveBShift, ChkSaveBWin, CmbSaveBBtn,
-            ChkSaveBKeyboardEnabled, PnlSaveBKeyboard, CmbSaveBKey);
+            ChkSaveBKeyboardEnabled, PnlSaveBKeyboard);
 
-        LoadShortcutUI(s.NavigateShortcutB,
+        LoadShortcutUI(s.NavigateShortcutB, "NavB",
             ChkNavBMouseEnabled, PnlNavBMouse,
             ChkNavBCtrl, ChkNavBAlt, ChkNavBShift, ChkNavBWin, CmbNavBBtn,
-            ChkNavBKeyboardEnabled, PnlNavBKeyboard, CmbNavBKey);
+            ChkNavBKeyboardEnabled, PnlNavBKeyboard);
 
         // 色
         _saveColor   = s.SaveCircleColor;
@@ -310,10 +398,10 @@ public partial class SettingsWindow : Window
         TxtTrailExpandIcon.Text = ""; // ChevronDown
     }
 
-    private static void LoadShortcutUI(ActionShortcut shortcut,
+    private void LoadShortcutUI(ActionShortcut shortcut, string tag,
         CheckBox chkMouseEnabled, System.Windows.Controls.Panel pnlMouse,
         CheckBox chkCtrl, CheckBox chkAlt, CheckBox chkShift, CheckBox chkWin, ComboBox cmbBtn,
-        CheckBox chkKeyboardEnabled, System.Windows.Controls.Panel pnlKeyboard, ComboBox cmbKey)
+        CheckBox chkKeyboardEnabled, System.Windows.Controls.Panel pnlKeyboard)
     {
         bool mouseOn    = shortcut.EnabledTriggers.HasFlag(TriggerType.Mouse);
         bool keyboardOn = shortcut.EnabledTriggers.HasFlag(TriggerType.Keyboard);
@@ -324,12 +412,18 @@ public partial class SettingsWindow : Window
         chkAlt.IsChecked = shortcut.Modifiers.HasFlag(ModifierKeyFlags.Alt);
         chkShift.IsChecked = shortcut.Modifiers.HasFlag(ModifierKeyFlags.Shift);
         chkWin.IsChecked = shortcut.Modifiers.HasFlag(ModifierKeyFlags.Windows);
-        cmbBtn.SelectedItem = FindButtonOption(shortcut.MouseButton);
+        // 旧 settings.json 互換: 現在値が WheelUp/WheelDown のときだけ動的に選択肢を拡張する
+        var options = BuildButtonOptions(shortcut.MouseButton);
+        cmbBtn.ItemsSource = options;
+        cmbBtn.SelectedItem = FindButtonOptionIn(options, shortcut.MouseButton);
 
         chkKeyboardEnabled.IsChecked = keyboardOn;
         pnlKeyboard.Visibility = keyboardOn ? Visibility.Visible : Visibility.Collapsed;
-        int idx = Array.IndexOf(FKeyCodes, shortcut.VirtualKeyCode);
-        cmbKey.SelectedIndex = idx >= 0 ? idx : 0;
+
+        // キーボードラベル用 slot は InitKeyboardSlots で初期化済み
+        var slot = _keyboardSlots[tag];
+        slot.VirtualKeyCode = shortcut.VirtualKeyCode;
+        slot.RefreshLabel();
     }
 
     private void OnTriggerEnabledChanged(object sender, RoutedEventArgs e)
@@ -554,22 +648,22 @@ public partial class SettingsWindow : Window
     {
         var saveShortcut = ReadShortcutUI(
             ChkSaveMouseEnabled, ChkSaveCtrl, ChkSaveAlt, ChkSaveShift, ChkSaveWin, CmbSaveBtn,
-            ChkSaveKeyboardEnabled, CmbSaveKey);
+            ChkSaveKeyboardEnabled, _keyboardSlots["Save"].VirtualKeyCode);
         var navShortcut = ReadShortcutUI(
             ChkNavMouseEnabled, ChkNavCtrl, ChkNavAlt, ChkNavShift, ChkNavWin, CmbNavBtn,
-            ChkNavKeyboardEnabled, CmbNavKey);
+            ChkNavKeyboardEnabled, _keyboardSlots["Nav"].VirtualKeyCode);
         var monNavShortcut = ReadShortcutUI(
             ChkMonNavMouseEnabled, ChkMonNavCtrl, ChkMonNavAlt, ChkMonNavShift, ChkMonNavWin, CmbMonNavBtn,
-            ChkMonNavKeyboardEnabled, CmbMonNavKey);
+            ChkMonNavKeyboardEnabled, _keyboardSlots["MonNav"].VirtualKeyCode);
         var dispShortcut = ReadShortcutUI(
             ChkDispMouseEnabled, ChkDispCtrl, ChkDispAlt, ChkDispShift, ChkDispWin, CmbDispBtn,
-            ChkDispKeyboardEnabled, CmbDispKey);
+            ChkDispKeyboardEnabled, _keyboardSlots["Disp"].VirtualKeyCode);
         var saveBShortcut = ReadShortcutUI(
             ChkSaveBMouseEnabled, ChkSaveBCtrl, ChkSaveBAlt, ChkSaveBShift, ChkSaveBWin, CmbSaveBBtn,
-            ChkSaveBKeyboardEnabled, CmbSaveBKey);
+            ChkSaveBKeyboardEnabled, _keyboardSlots["SaveB"].VirtualKeyCode);
         var navBShortcut = ReadShortcutUI(
             ChkNavBMouseEnabled, ChkNavBCtrl, ChkNavBAlt, ChkNavBShift, ChkNavBWin, CmbNavBBtn,
-            ChkNavBKeyboardEnabled, CmbNavBKey);
+            ChkNavBKeyboardEnabled, _keyboardSlots["NavB"].VirtualKeyCode);
 
         if (saveShortcut.EnabledTriggers == TriggerType.None ||
             navShortcut.EnabledTriggers == TriggerType.None ||
@@ -598,6 +692,23 @@ public partial class SettingsWindow : Window
             NeedsModifier(saveBShortcut) || NeedsModifier(navBShortcut))
         {
             MessageBox.Show(Loc.Get("Str.Settings.Validation.NoModifier"),
+                Loc.Get("Str.AppName"), MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
+
+        // 任意キー（F13-F24 以外）を割り当てた場合は修飾キーを 1 つ以上必須にする。
+        // 修飾キー無しだと通常の文字入力が常にトリガー発火してしまうため。
+        static bool KeyboardNeedsModifier(ActionShortcut s) =>
+            s.EnabledTriggers.HasFlag(TriggerType.Keyboard)
+            && s.VirtualKeyCode != 0
+            && !(s.VirtualKeyCode >= NativeMethods.VK_F13 && s.VirtualKeyCode <= NativeMethods.VK_F24)
+            && s.Modifiers == ModifierKeyFlags.None;
+
+        if (KeyboardNeedsModifier(saveShortcut) || KeyboardNeedsModifier(navShortcut) ||
+            KeyboardNeedsModifier(monNavShortcut) || KeyboardNeedsModifier(dispShortcut) ||
+            KeyboardNeedsModifier(saveBShortcut) || KeyboardNeedsModifier(navBShortcut))
+        {
+            MessageBox.Show(Loc.Get("Str.Settings.Validation.KeyboardNoModifier"),
                 Loc.Get("Str.AppName"), MessageBoxButton.OK, MessageBoxImage.Warning);
             return;
         }
@@ -753,7 +864,7 @@ public partial class SettingsWindow : Window
     private static ActionShortcut ReadShortcutUI(
         CheckBox chkMouseEnabled,
         CheckBox chkCtrl, CheckBox chkAlt, CheckBox chkShift, CheckBox chkWin, ComboBox cmbBtn,
-        CheckBox chkKeyboardEnabled, ComboBox cmbKey)
+        CheckBox chkKeyboardEnabled, int virtualKeyCode)
     {
         var triggers = TriggerType.None;
         if (chkMouseEnabled.IsChecked == true) triggers |= TriggerType.Mouse;
@@ -765,15 +876,12 @@ public partial class SettingsWindow : Window
         if (chkShift.IsChecked == true) mod |= ModifierKeyFlags.Shift;
         if (chkWin.IsChecked == true) mod |= ModifierKeyFlags.Windows;
 
-        int idx = cmbKey.SelectedIndex;
-        int vkCode = idx >= 0 && idx < FKeyCodes.Length ? FKeyCodes[idx] : NativeMethods.VK_F13;
-
         return new ActionShortcut
         {
             EnabledTriggers = triggers,
             Modifiers = mod,
             MouseButton = (cmbBtn.SelectedItem as ButtonOption)?.Value ?? MouseButtonType.Left,
-            VirtualKeyCode = vkCode
+            VirtualKeyCode = virtualKeyCode
         };
     }
 
@@ -790,12 +898,114 @@ public partial class SettingsWindow : Window
         return (mouseDup, keyboardDup);
     }
 
-    private static ButtonOption FindButtonOption(MouseButtonType type)
+    private static ButtonOption FindButtonOption(MouseButtonType type) =>
+        FindButtonOptionIn(DefaultButtonOptions, type);
+
+    private static ButtonOption FindButtonOptionIn(ButtonOption[] options, MouseButtonType type)
     {
-        foreach (var opt in ButtonOptions)
+        foreach (var opt in options)
         {
             if (opt.Value == type) return opt;
         }
-        return ButtonOptions[0];
+        return options[0];
     }
+
+    // ===== キー記録 UI ハンドラ =====
+
+    private void OnRecordKeyClick(object sender, RoutedEventArgs e)
+    {
+        if (sender is not Button btn) return;
+        if (btn.Tag is not string tag) return;
+        if (!_keyboardSlots.TryGetValue(tag, out var slot)) return;
+
+        // 別スロットの記録が走っていれば先にキャンセル
+        if (_recordingTarget is not null && _recordingTarget != tag)
+            EndRecording();
+
+        if (_recordingTarget == tag)
+        {
+            // 同じボタンの再クリックでキャンセル
+            EndRecording();
+            return;
+        }
+
+        _recordingTarget = tag;
+        slot.OriginalRecordButtonText = btn.Content?.ToString() ?? string.Empty;
+        btn.Content = Loc.Get("Str.Settings.RecordKeyWaiting");
+        PreviewKeyDown += OnRecordingKeyDown;
+        Focus();
+    }
+
+    private void OnClearKeyClick(object sender, RoutedEventArgs e)
+    {
+        if (sender is not Button btn) return;
+        if (btn.Tag is not string tag) return;
+        if (!_keyboardSlots.TryGetValue(tag, out var slot)) return;
+
+        // 記録中ならキャンセル
+        if (_recordingTarget == tag) EndRecording();
+
+        slot.VirtualKeyCode = 0;
+        slot.RefreshLabel();
+    }
+
+    private void OnRecordingKeyDown(object sender, KeyEventArgs e)
+    {
+        if (_recordingTarget is null) return;
+        if (!_keyboardSlots.TryGetValue(_recordingTarget, out var slot)) return;
+
+        // Alt 押下時は e.Key が Key.System、e.SystemKey に実キーが入る
+        var actualKey = e.Key == Key.System ? e.SystemKey : e.Key;
+        int vk = KeyInterop.VirtualKeyFromKey(actualKey);
+        e.Handled = true;
+
+        // 修飾キー単独は無視（修飾キーだけ押された状態 — 続けて本キーを待つ）
+        if (IsModifierVk(vk)) return;
+
+        // ESC でキャンセル
+        if (vk == NativeMethods.VK_ESCAPE)
+        {
+            EndRecording();
+            return;
+        }
+
+        slot.VirtualKeyCode = vk;
+
+        // 修飾キー状態を読み取って checkbox に反映
+        var mods = ModifierKeyFlags.None;
+        if ((Keyboard.Modifiers & ModifierKeys.Control) != 0) mods |= ModifierKeyFlags.Control;
+        if ((Keyboard.Modifiers & ModifierKeys.Alt)     != 0) mods |= ModifierKeyFlags.Alt;
+        if ((Keyboard.Modifiers & ModifierKeys.Shift)   != 0) mods |= ModifierKeyFlags.Shift;
+        // Win キーは WPF Keyboard.Modifiers に乗らないことが多いので GetAsyncKeyState で補完
+        if ((NativeMethods.GetAsyncKeyState(NativeMethods.VK_LWIN) & 0x8000) != 0
+            || (NativeMethods.GetAsyncKeyState(NativeMethods.VK_RWIN) & 0x8000) != 0)
+            mods |= ModifierKeyFlags.Windows;
+        slot.SetModifiers(mods);
+
+        // キーボード有効化を自動 ON（パネルが見えていなければここで開く）
+        slot.ChkKeyboardEnabled.IsChecked = true;
+        OnTriggerEnabledChanged(slot.ChkKeyboardEnabled, new RoutedEventArgs());
+
+        slot.RefreshLabel();
+        EndRecording();
+    }
+
+    private void EndRecording()
+    {
+        PreviewKeyDown -= OnRecordingKeyDown;
+        if (_recordingTarget is not null
+            && _keyboardSlots.TryGetValue(_recordingTarget, out var slot))
+        {
+            slot.RecordButton.Content = string.IsNullOrEmpty(slot.OriginalRecordButtonText)
+                ? Loc.Get("Str.Settings.RecordKey")
+                : slot.OriginalRecordButtonText;
+        }
+        _recordingTarget = null;
+    }
+
+    private static bool IsModifierVk(int vk) =>
+        vk == NativeMethods.VK_LCONTROL || vk == NativeMethods.VK_RCONTROL || vk == NativeMethods.VK_CONTROL ||
+        vk == NativeMethods.VK_LMENU    || vk == NativeMethods.VK_RMENU    || vk == NativeMethods.VK_MENU ||
+        vk == NativeMethods.VK_LSHIFT   || vk == NativeMethods.VK_RSHIFT   || vk == NativeMethods.VK_SHIFT ||
+        vk == NativeMethods.VK_LWIN     || vk == NativeMethods.VK_RWIN;
 }

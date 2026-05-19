@@ -8,13 +8,19 @@ using System.Windows.Shapes;
 
 namespace CursorJump.App;
 
-internal sealed class OverlayService
+internal sealed class OverlayService : IDisposable
 {
     private readonly SettingsService _settingsService;
     private readonly LicenseService _licenseService;
     private MouseHookService? _mouseHookService;
     private KeyboardHookService? _keyboardHookService;
     private OverlayWindow? _markerOverlay;
+
+    // 軌跡・収縮円・一括収縮円で共有するシングルトンオーバーレイ。
+    // 起動時に 1 枚だけ生成し、ジャンプのたびに Canvas に要素を追加・削除して再利用する。
+    // 毎回 new OverlayWindow して Show するとレイヤード HWND 作成コストで 3 画面環境で
+    // ラグや砂時計カーソルが発生していたため、v1.6.1 で再利用方式に変更。
+    private OverlayWindow? _trailOverlay;
 
     // 削除モード用状態（複数ストア対応）
     private List<(CoordinateStore store, Color color)> _deleteStores = new();
@@ -51,6 +57,44 @@ internal sealed class OverlayService
     }
 
     /// <summary>
+    /// 軌跡/収縮円用のオーバーレイを起動時にプリアロケートして再利用準備する。
+    /// MainWindow.OnSourceInitialized から呼ぶ想定。
+    /// </summary>
+    public void PreallocateTrailOverlay() => EnsureTrailOverlay();
+
+    /// <summary>
+    /// シングルトンの軌跡用オーバーレイを必要に応じて生成する。
+    /// 既存の WPF Window を使い回すため、HWND 生成のコストを 1 回で済ませる。
+    /// </summary>
+    private OverlayWindow EnsureTrailOverlay()
+    {
+        if (_trailOverlay is not null) return _trailOverlay;
+
+        var overlay = new OverlayWindow(clickThrough: true);
+        overlay.Show();
+        overlay.CoverVirtualScreen();
+        overlay.TrackDisplaySettingsChanges();
+        _trailOverlay = overlay;
+        DebugLog.Write("EnsureTrailOverlay: created singleton trail overlay");
+        return _trailOverlay;
+    }
+
+    /// <summary>
+    /// 連続 Navigate 時に前回のアニメ要素が残っていれば一掃する。
+    /// </summary>
+    private void ClearTrailOverlayChildren()
+    {
+        if (_trailOverlay is null) return;
+        _trailOverlay.OverlayCanvasElement.Children.Clear();
+    }
+
+    public void Dispose()
+    {
+        try { _trailOverlay?.Close(); } catch { }
+        _trailOverlay = null;
+    }
+
+    /// <summary>
     /// 座標保存時の収縮円アニメーション表示。
     /// </summary>
     public void ShowShrinkCircle(int physicalX, int physicalY, string? colorOverride = null)
@@ -60,9 +104,7 @@ internal sealed class OverlayService
         const double initialRadius = 30;
         const double duration = 400; // ms
 
-        var overlay = new OverlayWindow(clickThrough: true);
-        overlay.Show();
-        overlay.CoverVirtualScreen();
+        var overlay = EnsureTrailOverlay();
 
         var pos = overlay.PhysicalToWpf(physicalX, physicalY);
         // ウィンドウ左上からの相対座標に変換
@@ -98,7 +140,12 @@ internal sealed class OverlayService
             EasingFunction = new QuadraticEase { EasingMode = EasingMode.EaseIn }
         };
 
-        opacityAnim.Completed += (_, _) => overlay.Close();
+        // アニメ完了で要素のみ撤去 (オーバーレイは閉じない: 再利用)
+        opacityAnim.Completed += (_, _) =>
+        {
+            if (_trailOverlay is not null)
+                _trailOverlay.OverlayCanvasElement.Children.Remove(ellipse);
+        };
 
         scaleTransform.BeginAnimation(ScaleTransform.ScaleXProperty, scaleXAnim);
         scaleTransform.BeginAnimation(ScaleTransform.ScaleYProperty, scaleYAnim);
@@ -121,9 +168,9 @@ internal sealed class OverlayService
         double duration = Math.Clamp(settings.TrailDurationMs, 100, 3000);
         double peakOpacity = Math.Clamp(settings.TrailOpacity, 0.05, 1.0);
 
-        var overlay = new OverlayWindow(clickThrough: true);
-        overlay.Show();
-        overlay.CoverVirtualScreen();
+        var overlay = EnsureTrailOverlay();
+        // 連続 Navigate で前回アニメ要素が残っていれば一掃 (見栄え優先)
+        ClearTrailOverlayChildren();
 
         var fromPos = overlay.PhysicalToWpf(fromX, fromY);
         var toPos = overlay.PhysicalToWpf(toX, toY);
@@ -144,9 +191,6 @@ internal sealed class OverlayService
         // 結果として全体の表示時間（最後のセグメントが消えるまで）≒ duration になる。
         double staggerSpan = duration * 0.5;
         double segDuration = duration * 0.5;
-
-        // 最終アニメ完了でオーバーレイを閉じるためのカウンタ
-        int remainingAnims = segmentCount + 1; // セグメント + 移動先円
 
         for (int i = 0; i < segmentCount; i++)
         {
@@ -178,8 +222,8 @@ internal sealed class OverlayService
             };
             anim.Completed += (_, _) =>
             {
-                remainingAnims--;
-                if (remainingAnims <= 0) overlay.Close();
+                if (_trailOverlay is not null)
+                    _trailOverlay.OverlayCanvasElement.Children.Remove(seg);
             };
             seg.BeginAnimation(UIElement.OpacityProperty, anim);
         }
@@ -204,8 +248,8 @@ internal sealed class OverlayService
         };
         circleAnim.Completed += (_, _) =>
         {
-            remainingAnims--;
-            if (remainingAnims <= 0) overlay.Close();
+            if (_trailOverlay is not null)
+                _trailOverlay.OverlayCanvasElement.Children.Remove(targetCircle);
         };
         targetCircle.BeginAnimation(UIElement.OpacityProperty, circleAnim);
     }
@@ -581,11 +625,7 @@ internal sealed class OverlayService
         const double initialRadius = 30;
         const double duration = 500; // ms
 
-        var overlay = new OverlayWindow(clickThrough: true);
-        overlay.Show();
-        overlay.CoverVirtualScreen();
-
-        int remaining = positions.Count;
+        var overlay = EnsureTrailOverlay();
 
         for (int i = 0; i < positions.Count; i++)
         {
@@ -628,12 +668,11 @@ internal sealed class OverlayService
                 EasingFunction = new QuadraticEase { EasingMode = EasingMode.EaseIn }
             };
 
-            // 最後のアニメが完了したらウィンドウを閉じる
+            // アニメ完了で個別要素のみ撤去 (オーバーレイは閉じない)
             opacityAnim.Completed += (_, _) =>
             {
-                remaining--;
-                if (remaining <= 0)
-                    overlay.Close();
+                if (_trailOverlay is not null)
+                    _trailOverlay.OverlayCanvasElement.Children.Remove(ellipse);
             };
 
             scaleTransform.BeginAnimation(ScaleTransform.ScaleXProperty, scaleXAnim);

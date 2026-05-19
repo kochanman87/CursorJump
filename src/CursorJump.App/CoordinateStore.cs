@@ -96,6 +96,71 @@ internal sealed class CoordinateStore
         return _coordinates[indices[nextPos]];
     }
 
+    /// <summary>
+    /// GetNext の逆方向版。直近インデックスから 1 つ戻った座標を循環で返す。
+    /// </summary>
+    public SavedCoordinate? GetPrev()
+    {
+        if (_coordinates.Count == 0) return null;
+        if (_currentIndex < 0) _currentIndex = 0;
+        _currentIndex = (_currentIndex - 1 + _coordinates.Count) % _coordinates.Count;
+        return _coordinates[_currentIndex];
+    }
+
+    /// <summary>
+    /// 接続中モニタ限定 GetNext の逆方向版。
+    /// 「次に小さい有効インデックス」を探し、無ければ末尾 (= 最大の有効インデックス)。
+    /// </summary>
+    public SavedCoordinate? GetPrev(IReadOnlyList<string> connectedDeviceNames)
+    {
+        if (_coordinates.Count == 0) return null;
+
+        var indices = new List<int>();
+        for (int i = 0; i < _coordinates.Count; i++)
+        {
+            if (MonitorFilter.IsCoordinateOnConnectedMonitor(_coordinates[i], connectedDeviceNames))
+                indices.Add(i);
+        }
+        if (indices.Count == 0) return null;
+
+        int prevValid = -1;
+        for (int j = indices.Count - 1; j >= 0; j--)
+        {
+            if (indices[j] < _currentIndex)
+            {
+                prevValid = indices[j];
+                break;
+            }
+        }
+        if (prevValid < 0) prevValid = indices[^1];
+
+        _currentIndex = prevValid;
+        return _coordinates[_currentIndex];
+    }
+
+    /// <summary>
+    /// GetNextInMonitor の逆方向版。初回 (未登録) は末尾の有効座標、それ以降は循環で 1 つ戻る。
+    /// </summary>
+    public SavedCoordinate? GetPrevInMonitor(string monitorDeviceName)
+    {
+        var indices = _coordinates
+            .Select((c, i) => (coord: c, index: i))
+            .Where(t => t.coord.MonitorDeviceName == monitorDeviceName)
+            .Select(t => t.index)
+            .ToList();
+
+        if (indices.Count == 0) return null;
+
+        int nextPos;
+        if (!_monitorIndices.TryGetValue(monitorDeviceName, out int lastRawIndex))
+            nextPos = indices.Count - 1;
+        else
+            nextPos = (lastRawIndex - 1 + indices.Count) % indices.Count;
+
+        _monitorIndices[monitorDeviceName] = nextPos;
+        return _coordinates[indices[nextPos]];
+    }
+
     public IReadOnlyList<SavedCoordinate> GetAll() => _coordinates.AsReadOnly();
 
     public bool RemoveAt(int index)

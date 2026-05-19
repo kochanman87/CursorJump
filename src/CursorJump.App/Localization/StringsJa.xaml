@@ -60,7 +60,10 @@
     <!-- 共通ラベル -->
     <sys:String x:Key="Str.Settings.MouseButton">マウスボタン</sys:String>
     <sys:String x:Key="Str.Settings.KeyboardKey">キーボードキー</sys:String>
-    <sys:String x:Key="Str.Settings.FKeyTooltip">F13-F24 は VIA/QMK/AutoHotkey 等で送信できる拡張キー。詳細は「使い方」タブ参照</sys:String>
+    <sys:String x:Key="Str.Settings.FKeyTooltip">F13-F24 (VIA/QMK/AutoHotkey 等で送信) または Ctrl+Alt+Z のような任意キー+修飾キーが使えます。任意キーは他アプリにも届くパススルー方式。詳細は「使い方」タブ参照</sys:String>
+    <sys:String x:Key="Str.Settings.RecordKey">キーを記録</sys:String>
+    <sys:String x:Key="Str.Settings.RecordKeyWaiting">キーを押してください... (ESC でキャンセル)</sys:String>
+    <sys:String x:Key="Str.Settings.KeyUnassigned">（未割当）</sys:String>
     <sys:String x:Key="Str.Settings.StatusEnabled">有効</sys:String>
     <sys:String x:Key="Str.Settings.StatusNotImplemented">未実装</sys:String>
 
@@ -96,6 +99,7 @@
     <!-- バリデーション・エラー -->
     <sys:String x:Key="Str.Settings.Validation.NoTrigger">座標保存・ナビゲーション・座標表示/削除の各アクションにつき、マウスボタンまたはキーボードキーを少なくとも1つ有効にしてください。</sys:String>
     <sys:String x:Key="Str.Settings.Validation.NoModifier">左/右/ホイールクリック（単押し）の場合は修飾キーを1つ以上選択してください。ホイール＋L/R、ホイール連打、戻る/進むボタンは修飾キー不要で使用できます。</sys:String>
+    <sys:String x:Key="Str.Settings.Validation.KeyboardNoModifier">F13-F24 以外のキー（A-Z, 0-9 など）を割り当てる場合は、誤発火を防ぐため修飾キーを1つ以上選択してください。F13-F24 は修飾キー無しで使用できます。</sys:String>
     <sys:String x:Key="Str.Settings.Validation.ConflictFormat">「{0}」と「{1}」の{2}ショートカットが重複しています。どちらか片方を変更してください。</sys:String>
     <sys:String x:Key="Str.Settings.Validation.ConflictKind.Mouse">マウス</sys:String>
     <sys:String x:Key="Str.Settings.Validation.ConflictKind.Keyboard">キーボード</sys:String>
@@ -121,6 +125,7 @@
     <sys:String x:Key="Str.Button.MiddleTripleClick">ホイール3連打</sys:String>
     <sys:String x:Key="Str.Button.WheelUp">ホイール上スクロール</sys:String>
     <sys:String x:Key="Str.Button.WheelDown">ホイール下スクロール</sys:String>
+    <sys:String x:Key="Str.Button.MouseWheel">マウスホイール</sys:String>
     <!-- 削除モードヘルプ用（FormatForDeleteMode で使用、表記揺れあり） -->
     <sys:String x:Key="Str.Button.Compact.MiddleLeftChord">ホイール+左クリック</sys:String>
     <sys:String x:Key="Str.Button.Compact.MiddleRightChord">ホイール+右クリック</sys:String>

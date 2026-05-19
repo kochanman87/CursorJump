@@ -3,19 +3,23 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Interop;
 using System.Windows.Media;
+using Microsoft.Win32;
 
 namespace CursorJump.App;
 
 public partial class OverlayWindow : Window
 {
     private bool _clickThrough;
+    private bool _displaySettingsHooked;
 
     public OverlayWindow(bool clickThrough = true)
     {
         InitializeComponent();
         _clickThrough = clickThrough;
+        Focusable = false;
         SourceInitialized += OnSourceInitialized;
         DpiChanged += OnDpiChanged;
+        Closed += OnClosed;
     }
 
     internal Canvas OverlayCanvasElement => (Canvas)FindName("OverlayCanvas");
@@ -25,7 +29,8 @@ public partial class OverlayWindow : Window
         var hwnd = new WindowInteropHelper(this).Handle;
 
         int exStyle = NativeMethods.GetWindowLong(hwnd, NativeMethods.GWL_EXSTYLE);
-        exStyle |= NativeMethods.WS_EX_TOOLWINDOW; // Alt+Tabに表示しない
+        exStyle |= NativeMethods.WS_EX_TOOLWINDOW;  // Alt+Tabに表示しない
+        exStyle |= NativeMethods.WS_EX_NOACTIVATE;  // Show 時のアクティベート/フォーカス同期を抑止 (砂時計対策)
 
         if (_clickThrough)
         {
@@ -39,6 +44,15 @@ public partial class OverlayWindow : Window
     private static void OnDpiChanged(object sender, DpiChangedEventArgs e)
     {
         DebugLog.Write($"OverlayWindow.DpiChanged: old={e.OldDpi.PixelsPerInchX}x{e.OldDpi.PixelsPerInchY}, new={e.NewDpi.PixelsPerInchX}x{e.NewDpi.PixelsPerInchY}");
+    }
+
+    private void OnClosed(object? sender, EventArgs e)
+    {
+        if (_displaySettingsHooked)
+        {
+            SystemEvents.DisplaySettingsChanged -= OnDisplaySettingsChanged;
+            _displaySettingsHooked = false;
+        }
     }
 
     /// <summary>
@@ -64,5 +78,28 @@ public partial class OverlayWindow : Window
         Top = SystemParameters.VirtualScreenTop;
         Width = SystemParameters.VirtualScreenWidth;
         Height = SystemParameters.VirtualScreenHeight;
+    }
+
+    /// <summary>
+    /// シングルトン用途: モニタ抜き差しで仮想デスクトップサイズが変わったら自動で再カバーする。
+    /// </summary>
+    internal void TrackDisplaySettingsChanges()
+    {
+        if (_displaySettingsHooked) return;
+        SystemEvents.DisplaySettingsChanged += OnDisplaySettingsChanged;
+        _displaySettingsHooked = true;
+    }
+
+    private void OnDisplaySettingsChanged(object? sender, EventArgs e)
+    {
+        try
+        {
+            Dispatcher.BeginInvoke(new Action(() =>
+            {
+                CoverVirtualScreen();
+                DebugLog.Write($"OverlayWindow.DisplaySettingsChanged: re-covered virtual screen ({Width}x{Height})");
+            }));
+        }
+        catch { }
     }
 }
