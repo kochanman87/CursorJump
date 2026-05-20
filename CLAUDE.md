@@ -76,7 +76,7 @@ src/CursorJump.App/
 - **UPイベント消費**: DOWNイベント消費時にフラグを立て、対応するUPイベントも消費する（右クリックメニュー抑止）
 - **XButtonのUP消費**: `WM_XBUTTONUP`はボタン種別が`mouseData >> 16`で判定が必要（L/R/Mと異なる）
 - **座標系**: マウスフック・SetCursorPosは物理ピクセル座標。WPFオーバーレイ描画時はTransformFromDeviceでDIP変換
-- **設定ファイル**: `%APPDATA%/CursorJump/settings.json`（System.Text.Json）。`AppSettings.SavedCoordinatesA` / `SavedCoordinatesB` に Set A/B の座標が永続化される。`CoordinateStore.Changed` イベントで `MainWindow` が `_settingsService.Save()` を呼び戻し書きする
+- **設定ファイル**: `%APPDATA%/CursorJump/settings.json`（System.Text.Json）。`AppSettings.SavedCoordinatesA` / `SavedCoordinatesB` に Set A/B の座標が永続化される。`CoordinateStore.Changed` イベントで `MainWindow` が `_settingsService.Save()` を呼び戻し書きする。`AutoStartEnabled` (v1.7.0+) で Windows 起動時の自動起動を制御（実体はレジストリ HKCU Run キー、`StartupService` 経由）
 - **モニタ消失時の座標スキップ (v1.5.0+)**: `MainWindow.OnNavigateRequested` / `OnNavigateRequestedB` は `Screen.AllScreens` から接続中モニタ名一覧を取得し `CoordinateStore.GetNext(connected)` に渡す。`MonitorFilter.IsCoordinateOnConnectedMonitor` で消失モニタの座標を除外する。`MonitorDeviceName` が空文字（旧 settings.json 互換）の座標は常に表示する。削除モードの `OverlayService.BuildMarkers` も同じフィルタを適用し、消失モニタ上のマーカーは描画しない（再接続で復活）
 - **カーソルジャンプは DPI コンテキスト経由が既定 (v1.5.1+)**: `CursorService.JumpTo` は `AppSettings.JumpStrategy`（既定 `DpiContext`）に従って経路を選ぶ。
   - `DpiContext` (既定): `SetThreadDpiAwarenessContext(PER_MONITOR_AWARE_V2)` でスレッドの DPI コンテキストを明示してから `SetCursorPos` を呼ぶ。Win11 + マルチ DPI モニタで OS 内部 DPI 仮想化キャッシュの誤動作を回避
@@ -205,6 +205,16 @@ v1.4.0 で Pro/Free 版を導入。BOOTH 配布のライセンスキーを設定
 - **Free 上限到達時の UX**: トースト・モーダルは出さず、保存もエフェクトも実行せず DebugLog のみ。理由は「作業中断を避ける」「設定画面の Free 表記とトレイのラベルで気付いてもらう」設計
 - **Set B 編集は技術的に許可**: PRO バッジ + ロック通知の静的表示で意図を伝え、リアルタイム変更傍受モーダルは実装しない（複数コントロールにまたがる傍受は複雑化の割に得るものが薄い）
 - **ライセンス検証の呼出**: 起動時に `LicenseService` コンストラクタ内で `Refresh()`、`Apply` 時に再評価。`StatusChanged` で `TrayIconService` のラベルが更新される
+
+## 自動起動（HKCU Run キー、v1.7.0+）
+
+Windows サインイン時の CursorJump 自動起動。`AppSettings.AutoStartEnabled`（デフォルト false）と `StartupService` で管理。
+
+- レジストリ `HKCU\Software\Microsoft\Windows\CurrentVersion\Run` の値名 `CursorJump` に exe パスを書き込む / 削除（管理者権限不要・per-user）
+- 設定画面「情報」タブの `AutoStartToggle` で ON/OFF。保存時に `SettingsWindow.OnSaveClick` → `StartupService.ApplyAutoStart(bool)` でレジストリ反映
+- `App.OnStartup` 終盤で `StartupService.SyncWithExePath(AutoStartEnabled)` を呼び、設定 ON なら現在の exe パスでレジストリ値を上書きする（Velopack 更新で exe パスが変わったときに自動追従）
+- **dev 実行で開発機を汚さない仕掛け**: `StartupService.IsInstalledByVelopack()` で exe パスに `\current\` を含むかで判定。Velopack の標準配置 `%LocalAppData%\CursorJump\current\CursorJump.App.exe` の場合のみ書き込みを許可。`dotnet run` / `bin\Debug` 直起動では何もしない（`DebugLog` にのみ記録）
+- 例外は全て `DebugLog` に記録して握りつぶす（起動・保存処理を妨げないため）
 
 ## 自動更新（Velopack + GitHub Releases）
 

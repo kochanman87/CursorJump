@@ -167,10 +167,10 @@
                                 </Grid>
                                 <StackPanel x:Name="PnlSaveMouse" Margin="0,4,0,4">
                                     <WrapPanel Margin="0,0,0,6">
-                                        <CheckBox x:Name="ChkSaveCtrl"  Style="{StaticResource ModifierChipStyle}" Content="Ctrl"/>
-                                        <CheckBox x:Name="ChkSaveAlt"   Style="{StaticResource ModifierChipStyle}" Content="Alt"/>
                                         <CheckBox x:Name="ChkSaveShift" Style="{StaticResource ModifierChipStyle}" Content="Shift"/>
+                                        <CheckBox x:Name="ChkSaveCtrl"  Style="{StaticResource ModifierChipStyle}" Content="Ctrl"/>
                                         <CheckBox x:Name="ChkSaveWin"   Style="{StaticResource ModifierChipStyle}" Content="Win"/>
+                                        <CheckBox x:Name="ChkSaveAlt"   Style="{StaticResource ModifierChipStyle}" Content="Alt"/>
                                     </WrapPanel>
                                     <StackPanel Orientation="Horizontal">
                                         <TextBlock Style="{StaticResource HintText}" Text="+" Margin="0,0,6,0"/>
@@ -230,10 +230,10 @@
                                 </Grid>
                                 <StackPanel x:Name="PnlNavMouse" Margin="0,4,0,4">
                                     <WrapPanel Margin="0,0,0,6">
-                                        <CheckBox x:Name="ChkNavCtrl"  Style="{StaticResource ModifierChipStyle}" Content="Ctrl"/>
-                                        <CheckBox x:Name="ChkNavAlt"   Style="{StaticResource ModifierChipStyle}" Content="Alt"/>
                                         <CheckBox x:Name="ChkNavShift" Style="{StaticResource ModifierChipStyle}" Content="Shift"/>
+                                        <CheckBox x:Name="ChkNavCtrl"  Style="{StaticResource ModifierChipStyle}" Content="Ctrl"/>
                                         <CheckBox x:Name="ChkNavWin"   Style="{StaticResource ModifierChipStyle}" Content="Win"/>
+                                        <CheckBox x:Name="ChkNavAlt"   Style="{StaticResource ModifierChipStyle}" Content="Alt"/>
                                     </WrapPanel>
                                     <StackPanel Orientation="Horizontal">
                                         <TextBlock Style="{StaticResource HintText}" Text="+" Margin="0,0,6,0"/>
@@ -295,10 +295,10 @@
                                 </Grid>
                                 <StackPanel x:Name="PnlMonNavMouse" Margin="0,4,0,4" Visibility="Collapsed">
                                     <WrapPanel Margin="0,0,0,6">
-                                        <CheckBox x:Name="ChkMonNavCtrl"  Style="{StaticResource ModifierChipStyle}" Content="Ctrl"/>
-                                        <CheckBox x:Name="ChkMonNavAlt"   Style="{StaticResource ModifierChipStyle}" Content="Alt"/>
                                         <CheckBox x:Name="ChkMonNavShift" Style="{StaticResource ModifierChipStyle}" Content="Shift"/>
+                                        <CheckBox x:Name="ChkMonNavCtrl"  Style="{StaticResource ModifierChipStyle}" Content="Ctrl"/>
                                         <CheckBox x:Name="ChkMonNavWin"   Style="{StaticResource ModifierChipStyle}" Content="Win"/>
+                                        <CheckBox x:Name="ChkMonNavAlt"   Style="{StaticResource ModifierChipStyle}" Content="Alt"/>
                                     </WrapPanel>
                                     <StackPanel Orientation="Horizontal">
                                         <TextBlock Style="{StaticResource HintText}" Text="+" Margin="0,0,6,0"/>
@@ -357,10 +357,10 @@
                                 </Grid>
                                 <StackPanel x:Name="PnlDispMouse" Margin="0,4,0,4">
                                     <WrapPanel Margin="0,0,0,6">
-                                        <CheckBox x:Name="ChkDispCtrl"  Style="{StaticResource ModifierChipStyle}" Content="Ctrl"/>
-                                        <CheckBox x:Name="ChkDispAlt"   Style="{StaticResource ModifierChipStyle}" Content="Alt"/>
                                         <CheckBox x:Name="ChkDispShift" Style="{StaticResource ModifierChipStyle}" Content="Shift"/>
+                                        <CheckBox x:Name="ChkDispCtrl"  Style="{StaticResource ModifierChipStyle}" Content="Ctrl"/>
                                         <CheckBox x:Name="ChkDispWin"   Style="{StaticResource ModifierChipStyle}" Content="Win"/>
+                                        <CheckBox x:Name="ChkDispAlt"   Style="{StaticResource ModifierChipStyle}" Content="Alt"/>
                                     </WrapPanel>
                                     <StackPanel Orientation="Horizontal">
                                         <TextBlock Style="{StaticResource HintText}" Text="+" Margin="0,0,6,0"/>
@@ -445,10 +445,10 @@
                                 </Grid>
                                 <StackPanel x:Name="PnlSaveBMouse" Margin="0,4,0,4">
                                     <WrapPanel Margin="0,0,0,6">
-                                        <CheckBox x:Name="ChkSaveBCtrl"  Style="{StaticResource ModifierChipStyle}" Content="Ctrl"/>
-                                        <CheckBox x:Name="ChkSaveBAlt"   Style="{StaticResource ModifierChipStyle}" Content="Alt"/>
                                         <CheckBox x:Name="ChkSaveBShift" Style="{StaticResource ModifierChipStyle}" Content="Shift"/>
+                                        <CheckBox x:Name="ChkSaveBCtrl"  Style="{StaticResource ModifierChipStyle}" Content="Ctrl"/>
                                         <CheckBox x:Name="ChkSaveBWin"   Style="{StaticResource ModifierChipStyle}" Content="Win"/>
+                                        <CheckBox x:Name="ChkSaveBAlt"   Style="{StaticResource ModifierChipStyle}" Content="Alt"/>
                                     </WrapPanel>
                                     <StackPanel Orientation="Horizontal">
                                         <TextBlock Style="{StaticResource HintText}" Text="+" Margin="0,0,6,0"/>
@@ -507,10 +507,10 @@
                                 </Grid>
                                 <StackPanel x:Name="PnlNavBMouse" Margin="0,4,0,4">
                                     <WrapPanel Margin="0,0,0,6">
-                                        <CheckBox x:Name="ChkNavBCtrl"  Style="{StaticResource ModifierChipStyle}" Content="Ctrl"/>
-                                        <CheckBox x:Name="ChkNavBAlt"   Style="{StaticResource ModifierChipStyle}" Content="Alt"/>
                                         <CheckBox x:Name="ChkNavBShift" Style="{StaticResource ModifierChipStyle}" Content="Shift"/>
+                                        <CheckBox x:Name="ChkNavBCtrl"  Style="{StaticResource ModifierChipStyle}" Content="Ctrl"/>
                                         <CheckBox x:Name="ChkNavBWin"   Style="{StaticResource ModifierChipStyle}" Content="Win"/>
+                                        <CheckBox x:Name="ChkNavBAlt"   Style="{StaticResource ModifierChipStyle}" Content="Alt"/>
                                     </WrapPanel>
                                     <StackPanel Orientation="Horizontal">
                                         <TextBlock Style="{StaticResource HintText}" Text="+" Margin="0,0,6,0"/>
@@ -938,61 +938,6 @@
                         </StackPanel>
                     </Border>
 
-                    <Border Style="{StaticResource CardBorder}">
-                        <StackPanel>
-                            <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
-                                <Border Style="{StaticResource CardIconBox}">
-                                    <TextBlock Style="{StaticResource FluentIcon}" Text="&#xE765;"/>
-                                </Border>
-                                <TextBlock Style="{StaticResource CardHeaderText}" Text="{DynamicResource Str.Usage.FKey.Title}" Margin="10,0,0,0"/>
-                            </StackPanel>
-                            <TextBlock TextWrapping="Wrap" LineHeight="22"
-                                       Foreground="{DynamicResource TextSecondaryBrush}" FontSize="13"
-                                       Text="{DynamicResource Str.Usage.FKey.Intro}"
-                                       Margin="0,0,0,8"/>
-                            <StackPanel Margin="4,0">
-                                <StackPanel Orientation="Horizontal" Margin="0,2">
-                                    <TextBlock Text="• " Foreground="{DynamicResource TextSecondaryBrush}" FontSize="13"/>
-                                    <TextBlock Text="{DynamicResource Str.Usage.FKey.Method1.Term}" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimaryBrush}" FontSize="13"/>
-                                    <TextBlock Text=" "/>
-                                    <TextBlock Text="{DynamicResource Str.Usage.FKey.Method1.Desc}" Foreground="{DynamicResource TextSecondaryBrush}" FontSize="13"/>
-                                </StackPanel>
-                                <StackPanel Orientation="Horizontal" Margin="0,2">
-                                    <TextBlock Text="• " Foreground="{DynamicResource TextSecondaryBrush}" FontSize="13"/>
-                                    <TextBlock Text="{DynamicResource Str.Usage.FKey.Method2.Term}" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimaryBrush}" FontSize="13"/>
-                                    <TextBlock Text=" "/>
-                                    <TextBlock Text="{DynamicResource Str.Usage.FKey.Method2.Desc}" Foreground="{DynamicResource TextSecondaryBrush}" FontSize="13"/>
-                                </StackPanel>
-                                <StackPanel Orientation="Horizontal" Margin="0,2">
-                                    <TextBlock Text="• " Foreground="{DynamicResource TextSecondaryBrush}" FontSize="13"/>
-                                    <TextBlock Text="{DynamicResource Str.Usage.FKey.Method3.Term}" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimaryBrush}" FontSize="13"/>
-                                    <TextBlock Text=" "/>
-                                    <TextBlock Text="{DynamicResource Str.Usage.FKey.Method3.Desc}" Foreground="{DynamicResource TextSecondaryBrush}" FontSize="13"/>
-                                </StackPanel>
-                            </StackPanel>
-                            <Border Background="{DynamicResource AccentSoftBrush}" CornerRadius="4" Padding="12,10" Margin="0,10,0,0"
-                                    BorderBrush="{DynamicResource AccentBrush}" BorderThickness="3,0,0,0">
-                                <TextBlock TextWrapping="Wrap" FontSize="12"
-                                           Foreground="{DynamicResource TextPrimaryBrush}"
-                                           Text="{DynamicResource Str.Usage.FKey.Tip}"/>
-                            </Border>
-                        </StackPanel>
-                    </Border>
-
-                    <Border Style="{StaticResource CardBorder}">
-                        <StackPanel>
-                            <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
-                                <Border Style="{StaticResource CardIconBox}">
-                                    <TextBlock Style="{StaticResource FluentIcon}" Text="&#xE7F4;"/>
-                                </Border>
-                                <TextBlock Style="{StaticResource CardHeaderText}" Text="{DynamicResource Str.Usage.MonitorNav.Title}" Margin="10,0,0,0"/>
-                            </StackPanel>
-                            <TextBlock TextWrapping="Wrap" LineHeight="22"
-                                       Foreground="{DynamicResource TextSecondaryBrush}" FontSize="13"
-                                       Text="{DynamicResource Str.Usage.MonitorNav.Body}"/>
-                        </StackPanel>
-                    </Border>
-
                 </StackPanel>
             </ScrollViewer>
 
@@ -1056,6 +1001,35 @@
                                     Style="{StaticResource SecondaryButtonStyle}"
                                     HorizontalAlignment="Left"
                                     Click="OnCheckNowClick"/>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- 自動起動カード -->
+                    <Border Style="{StaticResource CardBorder}">
+                        <StackPanel>
+                            <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
+                                <Border Style="{StaticResource CardIconBox}">
+                                    <TextBlock Style="{StaticResource FluentIcon}" Text="&#xE7E8;"/>
+                                </Border>
+                                <TextBlock Style="{StaticResource CardHeaderText}" Text="{DynamicResource Str.About.AutoStart}" Margin="10,0,0,0"/>
+                            </StackPanel>
+
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                                    <TextBlock Text="{DynamicResource Str.About.AutoStart}" FontSize="13"
+                                               Foreground="{DynamicResource TextPrimaryBrush}" FontWeight="SemiBold"/>
+                                    <TextBlock Text="{DynamicResource Str.About.AutoStartHint}" FontSize="11"
+                                               Foreground="{DynamicResource TextMutedBrush}" Margin="0,2,0,0"
+                                               TextWrapping="Wrap"/>
+                                </StackPanel>
+                                <CheckBox x:Name="AutoStartToggle" Grid.Column="1"
+                                          Style="{StaticResource ToggleSwitchStyle}"
+                                          VerticalAlignment="Center"/>
+                            </Grid>
                         </StackPanel>
                     </Border>
 

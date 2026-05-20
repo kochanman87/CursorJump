@@ -118,6 +118,12 @@ public sealed class AppSettings
     /// マルチモニタでのジャンプ位置ずれ調査用。常用するとフックコールバック内 I/O が増えるため通常は false。</summary>
     public bool VerboseLogging { get; set; } = false;
 
+    // ── 自動起動 ──
+    /// <summary>Windows サインイン時に CursorJump を自動起動するか。
+    /// レジストリ HKCU\Software\Microsoft\Windows\CurrentVersion\Run に値名 "CursorJump" で exe パスを登録する。
+    /// 既定 false（オプトイン）。旧 settings.json では未定義 → false。</summary>
+    public bool AutoStartEnabled { get; set; } = false;
+
     // ── カーソルジャンプ方式 ──
     /// <summary>カーソルジャンプの実装戦略。v1.5.1 で導入。
     /// 既定 = DpiContext (SetThreadDpiAwarenessContext + SetCursorPos)。

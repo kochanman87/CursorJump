@@ -95,6 +95,13 @@ public partial class App : Application
         {
             _ = Task.Run(RunStartupUpdateCheckAsync);
         }
+
+        // 自動起動レジストリの同期。Velopack 更新で exe パスが変わったケースに自動追従するため、
+        // 設定 ON ならば毎回現在の exe パスで上書きする。設定 OFF なら残留があれば削除する。
+        if (_settingsService != null)
+        {
+            StartupService.SyncWithExePath(_settingsService.Current.AutoStartEnabled);
+        }
     }
 
     private async Task RunStartupUpdateCheckAsync()

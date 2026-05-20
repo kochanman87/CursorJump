@@ -36,8 +36,9 @@ public partial class SettingsWindow : Window
         public override string ToString() => Loc.Get(ResourceKey);
     }
 
-    // 既定の ButtonOption セット。v1.6.1 で WheelUp/WheelDown を UI から除外し、MouseWheel に統合。
-    // 旧 settings.json に WheelUp/WheelDown が残っているケースだけ BuildButtonOptions で動的に追加表示する。
+    // 既定の ButtonOption セット。v1.7.0 で MiddleDoubleClick/MiddleTripleClick を UI から除外。
+    // v1.6.1 で WheelUp/WheelDown を UI から除外し、MouseWheel に統合。
+    // 旧 settings.json に除外済み値が残っているケースだけ BuildButtonOptions で動的に追加表示する。
     private static readonly ButtonOption[] DefaultButtonOptions =
     {
         new(MouseButtonType.Left,              "Str.Button.Left"),
@@ -47,27 +48,31 @@ public partial class SettingsWindow : Window
         new(MouseButtonType.XButton2,          "Str.Button.XButton2"),
         new(MouseButtonType.MiddleLeftChord,   "Str.Button.MiddleLeftChord"),
         new(MouseButtonType.MiddleRightChord,  "Str.Button.MiddleRightChord"),
-        new(MouseButtonType.MiddleDoubleClick, "Str.Button.MiddleDoubleClick"),
-        new(MouseButtonType.MiddleTripleClick, "Str.Button.MiddleTripleClick"),
         new(MouseButtonType.MouseWheel,        "Str.Button.MouseWheel"),
     };
 
     /// <summary>
     /// 各 ComboBox 用のオプション配列を構築する。
-    /// 現在値が旧 WheelUp/WheelDown のときだけ、その選択肢を動的に末尾に追加して表示を維持する
-    /// (移行は行わず保存形式は維持。新規割当は「マウスホイール」しか選べない)。
+    /// 現在値が UI から除外された旧値 (WheelUp/WheelDown/MiddleDoubleClick/MiddleTripleClick) のときだけ、
+    /// その選択肢を動的に末尾に追加して表示を維持する
+    /// (移行は行わず保存形式は維持。新規割当は除外済み値を選べない)。
     /// </summary>
     private static ButtonOption[] BuildButtonOptions(MouseButtonType currentValue)
     {
-        if (currentValue == MouseButtonType.WheelUp || currentValue == MouseButtonType.WheelDown)
+        string? legacyKey = currentValue switch
         {
-            string key = currentValue == MouseButtonType.WheelUp ? "Str.Button.WheelUp" : "Str.Button.WheelDown";
-            var extended = new ButtonOption[DefaultButtonOptions.Length + 1];
-            Array.Copy(DefaultButtonOptions, extended, DefaultButtonOptions.Length);
-            extended[^1] = new ButtonOption(currentValue, key);
-            return extended;
-        }
-        return DefaultButtonOptions;
+            MouseButtonType.WheelUp            => "Str.Button.WheelUp",
+            MouseButtonType.WheelDown          => "Str.Button.WheelDown",
+            MouseButtonType.MiddleDoubleClick  => "Str.Button.MiddleDoubleClick",
+            MouseButtonType.MiddleTripleClick  => "Str.Button.MiddleTripleClick",
+            _ => null
+        };
+        if (legacyKey is null) return DefaultButtonOptions;
+
+        var extended = new ButtonOption[DefaultButtonOptions.Length + 1];
+        Array.Copy(DefaultButtonOptions, extended, DefaultButtonOptions.Length);
+        extended[^1] = new ButtonOption(currentValue, legacyKey);
+        return extended;
     }
 
     // ===== キーボードトリガー（任意キー+修飾キー）の状態管理 =====
@@ -347,6 +352,7 @@ public partial class SettingsWindow : Window
         AutoUpdateToggle.IsChecked = s.AutoUpdateEnabled;
         UpdateLastCheckedLabel(s.LastUpdateCheckUtc);
         VerboseLoggingToggle.IsChecked = s.VerboseLogging;
+        AutoStartToggle.IsChecked = s.AutoStartEnabled;
     }
 
     private void UpdateLastCheckedLabel(string isoUtc)
@@ -779,6 +785,8 @@ public partial class SettingsWindow : Window
             LicenseKey = _settingsService.Current.LicenseKey,
             // 診断ログ
             VerboseLogging = VerboseLoggingToggle.IsChecked == true,
+            // 自動起動（情報タブのトグル）
+            AutoStartEnabled = AutoStartToggle.IsChecked == true,
             // バグ1 回避経路の切替は UI 露出していないので Current から維持
             // UseSendInputForJump は v1.5.0 時代の非推奨フィールド (後方互換のため保持)
             UseSendInputForJump = _settingsService.Current.UseSendInputForJump,
@@ -794,6 +802,8 @@ public partial class SettingsWindow : Window
                 MessageBoxImage.Error);
             return;
         }
+        // 自動起動のレジストリ反映（失敗してもユーザ操作はブロックしない）
+        StartupService.ApplyAutoStart(settings.AutoStartEnabled);
         DialogResult = true;
         Close();
     }
