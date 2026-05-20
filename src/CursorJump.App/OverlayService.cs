@@ -30,6 +30,12 @@ internal sealed class OverlayService : IDisposable
     private const double MarkerRadius = 15;
     private const double SnapDistancePhysical = 40; // 物理ピクセル
 
+    // 直近の Set A 追加追跡（350ms 以内に同じマーカーを再クリックすると Set B に昇格）
+    private const int PromoteToBWindowMs = 350;
+    private long _recentSetAAddTick;
+    private int _recentSetAAddPhysX;
+    private int _recentSetAAddPhysY;
+
     // ヘルプパネル関連
     private Border? _helpPanel;
     private string _currentMonitorDeviceName = string.Empty;
@@ -342,6 +348,7 @@ internal sealed class OverlayService : IDisposable
         _deleteStores = new List<(CoordinateStore, Color)>();
         _lastHighlighted = null;
         _markers.Clear();
+        _recentSetAAddTick = 0;
 
         if (_markerOverlay is not null)
         {
@@ -356,26 +363,49 @@ internal sealed class OverlayService : IDisposable
     {
         if (_deleteStores.Count == 0 || _markerOverlay is null) return;
 
+        var setAStore = _deleteStores[0].store;
         int closestIdx = FindNearestMarker(e.X, e.Y);
         if (closestIdx >= 0)
         {
-            // マーカー上: 該当ストアから削除
-            var (_, store, storeIdx, _, _) = _markers[closestIdx];
-            DebugLog.Write($"Marker clicked via hook: storeIdx={storeIdx}, physical=({e.X},{e.Y}) - removing");
-            store.RemoveAt(storeIdx);
+            var (_, store, storeIdx, markerPhysX, markerPhysY) = _markers[closestIdx];
+
+            // 昇格チェック: Pro 版 かつ Set A のマーカー かつ直近追加した座標 かつ 350ms 以内
+            if (_licenseService.IsPro
+                && _deleteStores.Count >= 2
+                && ReferenceEquals(store, setAStore)
+                && markerPhysX == _recentSetAAddPhysX
+                && markerPhysY == _recentSetAAddPhysY
+                && Environment.TickCount64 - _recentSetAAddTick <= PromoteToBWindowMs)
+            {
+                setAStore.RemoveAt(storeIdx);
+                var setBStore = _deleteStores[1].store;
+                setBStore.Add(markerPhysX, markerPhysY);
+                ShowShrinkCircle(markerPhysX, markerPhysY, _settingsService.Current.SaveCircleColorB);
+                _recentSetAAddTick = 0;
+                DebugLog.Write($"DeleteMode: promoted ({markerPhysX},{markerPhysY}) from Set A to Set B");
+            }
+            else
+            {
+                // 通常削除
+                DebugLog.Write($"Marker clicked via hook: storeIdx={storeIdx}, physical=({e.X},{e.Y}) - removing");
+                store.RemoveAt(storeIdx);
+                _recentSetAAddTick = 0;
+            }
         }
         else
         {
             // マーカー外: 先頭ストア（Set A）に追加。Free 版では上限を超えると追加せず無視（マーカー再描画もしないので視覚変化なし）
-            var firstStore = _deleteStores[0].store;
-            if (!_licenseService.IsPro && firstStore.Count >= LicenseService.FreeMaxCoordinates)
+            if (!_licenseService.IsPro && setAStore.Count >= LicenseService.FreeMaxCoordinates)
             {
-                DebugLog.Write($"Empty area clicked via hook: physical=({e.X},{e.Y}) - blocked by Free edition limit ({firstStore.Count}/{LicenseService.FreeMaxCoordinates})");
+                DebugLog.Write($"Empty area clicked via hook: physical=({e.X},{e.Y}) - blocked by Free edition limit ({setAStore.Count}/{LicenseService.FreeMaxCoordinates})");
             }
             else
             {
                 DebugLog.Write($"Empty area clicked via hook: physical=({e.X},{e.Y}) - adding to first store");
-                firstStore.Add(e.X, e.Y);
+                setAStore.Add(e.X, e.Y);
+                _recentSetAAddTick = Environment.TickCount64;
+                _recentSetAAddPhysX = e.X;
+                _recentSetAAddPhysY = e.Y;
             }
         }
 
@@ -473,6 +503,12 @@ internal sealed class OverlayService : IDisposable
 
         // ESC 行
         stack.Children.Add(BuildHelpLine("[ESC]", Loc.Get("Str.Overlay.DeleteMode.Exit")));
+
+        // ダブルクリック昇格行（Pro 版のみ表示）
+        if (_licenseService.IsPro)
+            stack.Children.Add(BuildHelpLine(
+                $"[{Loc.Get("Str.Overlay.DeleteMode.DoubleClick")}]",
+                Loc.Get("Str.Overlay.DeleteMode.AddSetB")));
 
         _helpPanel = new Border
         {

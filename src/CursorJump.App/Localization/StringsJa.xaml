@@ -147,6 +147,8 @@
     <sys:String x:Key="Str.Overlay.DeleteMode.AddDelete">追加/削除</sys:String>
     <sys:String x:Key="Str.Overlay.DeleteMode.DeleteAll">全削除</sys:String>
     <sys:String x:Key="Str.Overlay.DeleteMode.Exit">終了</sys:String>
+    <sys:String x:Key="Str.Overlay.DeleteMode.DoubleClick">ダブルクリック</sys:String>
+    <sys:String x:Key="Str.Overlay.DeleteMode.AddSetB">追加 (2 つ目)</sys:String>
 
     <!-- 使い方タブ -->
     <sys:String x:Key="Str.Usage.WhatIs.Title">CursorJumpとは</sys:String>
@@ -160,7 +162,7 @@
     <sys:String x:Key="Str.Usage.Basics.Step3.Title">モニタ内移動</sys:String>
     <sys:String x:Key="Str.Usage.Basics.Step3.Body">今カーソルがあるモニタの座標だけを循環します。</sys:String>
     <sys:String x:Key="Str.Usage.Basics.Step4.Title">座標表示・削除</sys:String>
-    <sys:String x:Key="Str.Usage.Basics.Step4.Body">マーカー付近をクリックで削除、空き場所をクリックで追加、ESC で終了します。</sys:String>
+    <sys:String x:Key="Str.Usage.Basics.Step4.Body">マーカー付近をクリックで削除、空き場所をクリックで追加、ESC で終了します。空き場所をダブルクリックすると 2 つ目の座標リストに追加されます（Pro 版）。</sys:String>
 
     <!-- ライセンス -->
     <sys:String x:Key="Str.Edition.Free">Free 版</sys:String>

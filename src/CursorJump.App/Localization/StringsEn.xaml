@@ -145,6 +145,8 @@
     <sys:String x:Key="Str.Overlay.DeleteMode.AddDelete">Add / Delete</sys:String>
     <sys:String x:Key="Str.Overlay.DeleteMode.DeleteAll">Delete all</sys:String>
     <sys:String x:Key="Str.Overlay.DeleteMode.Exit">Exit</sys:String>
+    <sys:String x:Key="Str.Overlay.DeleteMode.DoubleClick">Double-click</sys:String>
+    <sys:String x:Key="Str.Overlay.DeleteMode.AddSetB">Add (second list)</sys:String>
 
     <!-- Usage tab -->
     <sys:String x:Key="Str.Usage.WhatIs.Title">What is CursorJump?</sys:String>
@@ -158,7 +160,7 @@
     <sys:String x:Key="Str.Usage.Basics.Step3.Title">Cycle the current monitor only</sys:String>
     <sys:String x:Key="Str.Usage.Basics.Step3.Body">In-monitor navigation cycles only through coordinates saved on the monitor where the cursor currently is.</sys:String>
     <sys:String x:Key="Str.Usage.Basics.Step4.Title">Display / Delete coordinates</sys:String>
-    <sys:String x:Key="Str.Usage.Basics.Step4.Body">In display mode, markers appear at every saved position. Click near a marker to delete it; click on an empty area to add a new coordinate; press ESC to exit.</sys:String>
+    <sys:String x:Key="Str.Usage.Basics.Step4.Body">In display mode, markers appear at every saved position. Click near a marker to delete it; click on an empty area to add a new coordinate; press ESC to exit. Double-click on an empty area to add to the second coordinate list (Pro only).</sys:String>
     <sys:String x:Key="Str.Usage.FKey.Title">About keyboard triggers (F13–F24)</sys:String>
     <sys:String x:Key="Str.Usage.FKey.Intro">F13–F24 are "extended function keys" that don't exist as physical keys on a regular keyboard. You can send them with any of the following:</sys:String>
     <sys:String x:Key="Str.Usage.FKey.Method1.Term">VIA / QMK keyboards</sys:String>
