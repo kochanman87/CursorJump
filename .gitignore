@@ -11,3 +11,12 @@ Releases/
 
 # Secrets (license key plaintext, etc.)
 .secrets/
+
+# Codex review notes (local memo, not for repo)
+codex-cordreview.md
+
+# Local-only memos and assets (not for repo)
+AGENTS.md
+HANDOFF_AUTOUPDATE_DEBUG.md
+cursorjump_pro.png
+log.txt
