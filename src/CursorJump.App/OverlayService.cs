@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Interop;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
 using System.Windows.Shapes;
@@ -74,7 +75,14 @@ internal sealed class OverlayService : IDisposable
     /// </summary>
     private OverlayWindow EnsureTrailOverlay()
     {
-        if (_trailOverlay is not null) return _trailOverlay;
+        if (IsTrailOverlayHealthy()) return _trailOverlay!;
+
+        if (_trailOverlay is not null)
+        {
+            DebugLog.Write("EnsureTrailOverlay: existing overlay is unhealthy, recreating");
+            try { _trailOverlay.Close(); } catch (Exception ex) { DebugLog.Write($"EnsureTrailOverlay: close failed: {ex.Message}"); }
+            _trailOverlay = null;
+        }
 
         var overlay = new OverlayWindow(clickThrough: true);
         overlay.Show();
@@ -83,6 +91,29 @@ internal sealed class OverlayService : IDisposable
         _trailOverlay = overlay;
         DebugLog.Write("EnsureTrailOverlay: created singleton trail overlay");
         return _trailOverlay;
+    }
+
+    /// <summary>
+    /// シングルトンオーバーレイが生存しているか。HwndSource 破棄や予期せぬ Close で内部状態が壊れた
+    /// 場合に false を返し、EnsureTrailOverlay が再生成できるようにする。
+    /// 「移動エフェクトが突然出なくなる、再起動で直る」症状の自己修復用 (v1.7.2)。
+    /// </summary>
+    private bool IsTrailOverlayHealthy()
+    {
+        if (_trailOverlay is null) return false;
+        try
+        {
+            if (!_trailOverlay.IsLoaded) return false;
+            if (PresentationSource.FromVisual(_trailOverlay) is null) return false;
+            var hwnd = new WindowInteropHelper(_trailOverlay).Handle;
+            if (hwnd == IntPtr.Zero) return false;
+            return true;
+        }
+        catch (Exception ex)
+        {
+            DebugLog.Write($"IsTrailOverlayHealthy: exception treated as unhealthy: {ex.Message}");
+            return false;
+        }
     }
 
     /// <summary>
@@ -149,8 +180,12 @@ internal sealed class OverlayService : IDisposable
         // アニメ完了で要素のみ撤去 (オーバーレイは閉じない: 再利用)
         opacityAnim.Completed += (_, _) =>
         {
-            if (_trailOverlay is not null)
-                _trailOverlay.OverlayCanvasElement.Children.Remove(ellipse);
+            try
+            {
+                if (_trailOverlay is not null)
+                    _trailOverlay.OverlayCanvasElement.Children.Remove(ellipse);
+            }
+            catch (Exception ex) { DebugLog.Write($"ShowShrinkCircle.Completed exception: {ex.Message}"); }
         };
 
         scaleTransform.BeginAnimation(ScaleTransform.ScaleXProperty, scaleXAnim);
@@ -226,10 +261,15 @@ internal sealed class OverlayService : IDisposable
                 BeginTime = TimeSpan.FromMilliseconds(beginMs),
                 EasingFunction = new QuadraticEase { EasingMode = EasingMode.EaseIn }
             };
+            var segCapture = seg;
             anim.Completed += (_, _) =>
             {
-                if (_trailOverlay is not null)
-                    _trailOverlay.OverlayCanvasElement.Children.Remove(seg);
+                try
+                {
+                    if (_trailOverlay is not null)
+                        _trailOverlay.OverlayCanvasElement.Children.Remove(segCapture);
+                }
+                catch (Exception ex) { DebugLog.Write($"ShowTrail.seg.Completed exception: {ex.Message}"); }
             };
             seg.BeginAnimation(UIElement.OpacityProperty, anim);
         }
@@ -254,8 +294,12 @@ internal sealed class OverlayService : IDisposable
         };
         circleAnim.Completed += (_, _) =>
         {
-            if (_trailOverlay is not null)
-                _trailOverlay.OverlayCanvasElement.Children.Remove(targetCircle);
+            try
+            {
+                if (_trailOverlay is not null)
+                    _trailOverlay.OverlayCanvasElement.Children.Remove(targetCircle);
+            }
+            catch (Exception ex) { DebugLog.Write($"ShowTrail.target.Completed exception: {ex.Message}"); }
         };
         targetCircle.BeginAnimation(UIElement.OpacityProperty, circleAnim);
     }
@@ -705,10 +749,15 @@ internal sealed class OverlayService : IDisposable
             };
 
             // アニメ完了で個別要素のみ撤去 (オーバーレイは閉じない)
+            var ellipseCapture = ellipse;
             opacityAnim.Completed += (_, _) =>
             {
-                if (_trailOverlay is not null)
-                    _trailOverlay.OverlayCanvasElement.Children.Remove(ellipse);
+                try
+                {
+                    if (_trailOverlay is not null)
+                        _trailOverlay.OverlayCanvasElement.Children.Remove(ellipseCapture);
+                }
+                catch (Exception ex) { DebugLog.Write($"ShowClearAllShrinkCircles.Completed exception: {ex.Message}"); }
             };
 
             scaleTransform.BeginAnimation(ScaleTransform.ScaleXProperty, scaleXAnim);

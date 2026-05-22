@@ -120,12 +120,19 @@ internal static class StartupService
         try
         {
             string? path = GetCurrentExePath();
-            if (string.IsNullOrEmpty(path)) return false;
+            if (string.IsNullOrEmpty(path))
+            {
+                DebugLog.Write("StartupService.IsInstalledByVelopack: exe path is empty -> false");
+                return false;
+            }
             // Velopack の標準配置: %LocalAppData%\CursorJump\current\CursorJump.App.exe
-            return path.Contains(@"\current\", StringComparison.OrdinalIgnoreCase);
+            bool result = path.Contains(@"\current\", StringComparison.OrdinalIgnoreCase);
+            DebugLog.Write($"StartupService.IsInstalledByVelopack: path='{path}', containsCurrent={result}");
+            return result;
         }
-        catch
+        catch (Exception ex)
         {
+            DebugLog.Write($"StartupService.IsInstalledByVelopack failed: {ex.Message}");
             return false;
         }
     }
