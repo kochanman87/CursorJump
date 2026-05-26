@@ -70,6 +70,14 @@ internal sealed class OverlayService : IDisposable
     public void PreallocateTrailOverlay() => EnsureTrailOverlay();
 
     /// <summary>
+    /// 計装用: シングルトン軌跡オーバーレイの Canvas 子要素数。
+    /// アニメ完了取りこぼしによる蓄積リーク疑い (800MB 成長問題) の診断目的で一時的に追加。
+    /// オーバーレイ未生成時は -1 を返す。
+    /// </summary>
+    internal int TrailOverlayChildCount =>
+        _trailOverlay?.OverlayCanvasElement.Children.Count ?? -1;
+
+    /// <summary>
     /// シングルトンの軌跡用オーバーレイを必要に応じて生成する。
     /// 既存の WPF Window を使い回すため、HWND 生成のコストを 1 回で済ませる。
     /// </summary>

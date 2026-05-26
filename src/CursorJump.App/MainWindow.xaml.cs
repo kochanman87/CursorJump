@@ -117,6 +117,40 @@ public partial class MainWindow : Window
         // 軌跡/収縮円オーバーレイを起動時に 1 枚プリアロケートする (v1.6.1: HWND 生成コストを 1 回で済ませてジャンプ後のラグ/砂時計を解消)
         try { _overlayService.PreallocateTrailOverlay(); }
         catch (Exception ex) { DebugLog.Write($"MainWindow: PreallocateTrailOverlay failed: {ex.Message}"); }
+
+        StartMemoryDiagnosticsTimer();
+    }
+
+    // 800MB メモリ成長問題の診断用一時計装。1 分毎に WorkingSet / Private / GC.GetTotalMemory /
+    // _trailOverlay の Canvas 子要素数を debug.log に記録する。原因確定後に削除する想定。
+    private System.Windows.Threading.DispatcherTimer? _memDiagTimer;
+    private void StartMemoryDiagnosticsTimer()
+    {
+        try
+        {
+            LogMemorySnapshot("startup");
+            _memDiagTimer = new System.Windows.Threading.DispatcherTimer
+            {
+                Interval = TimeSpan.FromMinutes(1)
+            };
+            _memDiagTimer.Tick += (_, _) => LogMemorySnapshot("periodic");
+            _memDiagTimer.Start();
+        }
+        catch (Exception ex) { DebugLog.Write($"StartMemoryDiagnosticsTimer failed: {ex.Message}"); }
+    }
+
+    private void LogMemorySnapshot(string label)
+    {
+        try
+        {
+            using var proc = System.Diagnostics.Process.GetCurrentProcess();
+            long ws = proc.WorkingSet64 / (1024 * 1024);
+            long pm = proc.PrivateMemorySize64 / (1024 * 1024);
+            long gc = GC.GetTotalMemory(forceFullCollection: false) / (1024 * 1024);
+            int trail = _overlayService.TrailOverlayChildCount;
+            DebugLog.Write($"MemDiag[{label}]: WorkingSet={ws}MB, Private={pm}MB, GC.Total={gc}MB, TrailChildren={trail}");
+        }
+        catch (Exception ex) { DebugLog.Write($"LogMemorySnapshot failed: {ex.Message}"); }
     }
 
     private void OnSaveRequested(object? sender, MouseHookEventArgs e)
@@ -288,6 +322,8 @@ public partial class MainWindow : Window
 
     private void OnClosed(object? sender, EventArgs e)
     {
+        try { _memDiagTimer?.Stop(); _memDiagTimer = null; } catch { }
+
         if (_mouseHookService is not null)
         {
             _mouseHookService.SaveRequested -= OnSaveRequested;
