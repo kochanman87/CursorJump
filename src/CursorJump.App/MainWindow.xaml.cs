@@ -139,6 +139,8 @@ public partial class MainWindow : Window
         catch (Exception ex) { DebugLog.Write($"StartMemoryDiagnosticsTimer failed: {ex.Message}"); }
     }
 
+    // v1.7.4 計装: 前回 MemDiag tick 時点の累計 Remove 数。差分を取って「この 1 分で何個 Remove されたか」を出す。
+    private long _lastTrailRemoveTotal;
     private void LogMemorySnapshot(string label)
     {
         try
@@ -148,7 +150,10 @@ public partial class MainWindow : Window
             long pm = proc.PrivateMemorySize64 / (1024 * 1024);
             long gc = GC.GetTotalMemory(forceFullCollection: false) / (1024 * 1024);
             int trail = _overlayService.TrailOverlayChildCount;
-            DebugLog.Write($"MemDiag[{label}]: WorkingSet={ws}MB, Private={pm}MB, GC.Total={gc}MB, TrailChildren={trail}");
+            long curTotal = _overlayService.TrailRemoveSuccessTotal;
+            long removedSince = curTotal - _lastTrailRemoveTotal;
+            _lastTrailRemoveTotal = curTotal;
+            DebugLog.Write($"MemDiag[{label}]: WorkingSet={ws}MB, Private={pm}MB, GC.Total={gc}MB, TrailChildren={trail}, RemovedSinceLastTick={removedSince}, RemovedTotal={curTotal}");
         }
         catch (Exception ex) { DebugLog.Write($"LogMemorySnapshot failed: {ex.Message}"); }
     }

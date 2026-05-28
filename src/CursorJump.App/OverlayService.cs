@@ -77,13 +77,24 @@ internal sealed class OverlayService : IDisposable
     internal int TrailOverlayChildCount =>
         _trailOverlay?.OverlayCanvasElement.Children.Count ?? -1;
 
+    // v1.7.4 計装: アニメ完了で Remove に成功した子要素数の累計。
+    // MainWindow の MemDiag 定期ログから差分を取って「直近 1 分で何個 Remove されたか」を出す。
+    private long _trailRemoveSuccessTotal;
+    internal long TrailRemoveSuccessTotal => System.Threading.Interlocked.Read(ref _trailRemoveSuccessTotal);
+    private void OnTrailChildRemoved() => System.Threading.Interlocked.Increment(ref _trailRemoveSuccessTotal);
+
     /// <summary>
     /// シングルトンの軌跡用オーバーレイを必要に応じて生成する。
     /// 既存の WPF Window を使い回すため、HWND 生成のコストを 1 回で済ませる。
     /// </summary>
     private OverlayWindow EnsureTrailOverlay()
     {
-        if (IsTrailOverlayHealthy()) return _trailOverlay!;
+        if (IsTrailOverlayHealthy())
+        {
+            // v1.7.4 計装: 既存再利用パスも明示的にログ (頻度抑制のため最低限の情報のみ)
+            DebugLog.Write($"EnsureTrailOverlay: reused existing (IsVisible={_trailOverlay!.IsVisible}, Opacity={_trailOverlay.Opacity}, Topmost={_trailOverlay.Topmost}, children={_trailOverlay.OverlayCanvasElement.Children.Count})");
+            return _trailOverlay;
+        }
 
         if (_trailOverlay is not null)
         {
@@ -97,7 +108,7 @@ internal sealed class OverlayService : IDisposable
         overlay.CoverVirtualScreen();
         overlay.TrackDisplaySettingsChanges();
         _trailOverlay = overlay;
-        DebugLog.Write("EnsureTrailOverlay: created singleton trail overlay");
+        DebugLog.Write("EnsureTrailOverlay: created singleton trail overlay (fresh)");
         return _trailOverlay;
     }
 
@@ -144,6 +155,9 @@ internal sealed class OverlayService : IDisposable
     /// </summary>
     public void ShowShrinkCircle(int physicalX, int physicalY, string? colorOverride = null)
     {
+        // v1.7.4 計装: 呼出ログ (Enabled 含む)
+        DebugLog.Write($"ShowShrinkCircle: at=({physicalX},{physicalY}), SaveEffectEnabled={_settingsService.Current.SaveEffectEnabled}");
+
         if (!_settingsService.Current.SaveEffectEnabled) return;
         var color = ParseColor(colorOverride ?? _settingsService.Current.SaveCircleColor, Colors.Red);
         const double initialRadius = 30;
@@ -191,7 +205,10 @@ internal sealed class OverlayService : IDisposable
             try
             {
                 if (_trailOverlay is not null)
+                {
                     _trailOverlay.OverlayCanvasElement.Children.Remove(ellipse);
+                    OnTrailChildRemoved();
+                }
             }
             catch (Exception ex) { DebugLog.Write($"ShowShrinkCircle.Completed exception: {ex.Message}"); }
         };
@@ -208,6 +225,9 @@ internal sealed class OverlayService : IDisposable
     public void ShowTrail(int fromX, int fromY, int toX, int toY, string? colorOverride = null)
     {
         var settings = _settingsService.Current;
+        // v1.7.4 計装: 軌跡消失バグ調査用の入口ログ
+        DebugLog.Write($"ShowTrail.begin: from=({fromX},{fromY}) to=({toX},{toY}), TrailEffectEnabled={settings.TrailEffectEnabled}");
+
         if (!settings.TrailEffectEnabled) return;
 
         var color = ParseColor(colorOverride ?? settings.TrailColor, Colors.LimeGreen);
@@ -218,6 +238,7 @@ internal sealed class OverlayService : IDisposable
         double peakOpacity = Math.Clamp(settings.TrailOpacity, 0.05, 1.0);
 
         var overlay = EnsureTrailOverlay();
+        int childrenBefore = overlay.OverlayCanvasElement.Children.Count;
         // 連続 Navigate で前回アニメ要素が残っていれば一掃 (見栄え優先)
         ClearTrailOverlayChildren();
 
@@ -275,7 +296,10 @@ internal sealed class OverlayService : IDisposable
                 try
                 {
                     if (_trailOverlay is not null)
+                    {
                         _trailOverlay.OverlayCanvasElement.Children.Remove(segCapture);
+                        OnTrailChildRemoved();
+                    }
                 }
                 catch (Exception ex) { DebugLog.Write($"ShowTrail.seg.Completed exception: {ex.Message}"); }
             };
@@ -305,11 +329,19 @@ internal sealed class OverlayService : IDisposable
             try
             {
                 if (_trailOverlay is not null)
+                {
                     _trailOverlay.OverlayCanvasElement.Children.Remove(targetCircle);
+                    OnTrailChildRemoved();
+                }
             }
             catch (Exception ex) { DebugLog.Write($"ShowTrail.target.Completed exception: {ex.Message}"); }
         };
         targetCircle.BeginAnimation(UIElement.OpacityProperty, circleAnim);
+
+        // v1.7.4 計装: 軌跡描画完了直後の状態 (アニメ実行中、まだ要素は Canvas 上にある)
+        int childrenAfter = overlay.OverlayCanvasElement.Children.Count;
+        int segmentsAdded = segmentCount + 1; // セグメント + ターゲット円
+        DebugLog.Write($"ShowTrail.end: segmentsAdded={segmentsAdded}, childrenBefore={childrenBefore}, childrenAfter={childrenAfter}, IsVisible={overlay.IsVisible}, Opacity={overlay.Opacity}, Topmost={overlay.Topmost}");
     }
 
     /// <summary>
@@ -763,7 +795,10 @@ internal sealed class OverlayService : IDisposable
                 try
                 {
                     if (_trailOverlay is not null)
+                    {
                         _trailOverlay.OverlayCanvasElement.Children.Remove(ellipseCapture);
+                        OnTrailChildRemoved();
+                    }
                 }
                 catch (Exception ex) { DebugLog.Write($"ShowClearAllShrinkCircles.Completed exception: {ex.Message}"); }
             };
