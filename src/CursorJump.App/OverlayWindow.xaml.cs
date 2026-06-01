@@ -56,6 +56,35 @@ public partial class OverlayWindow : Window
     }
 
     /// <summary>
+    /// このウィンドウを最前面（topmost バンドの先頭）へ再昇格する。
+    /// WPF の Topmost プロパティは WS_EX_TOPMOST スタイルビットを示すだけで、
+    /// 起動時に 1 回 Topmost=true した常駐窓は、他の最前面窓（削除モードの marker overlay、
+    /// 他アプリの全画面・通知等）が後から上に乗ると OS の重なり順では沈む。
+    /// その状態でも IsVisible/Topmost は true のままなので「軌跡が突然消える」(v1.7.5 で修正)。
+    /// 描画前に本メソッドで重なり順だけを最前面へ戻す。SWP_NOACTIVATE でフォーカスは奪わない
+    /// （WS_EX_NOACTIVATE 方針と整合）。HWND 未生成時は何もしない。
+    /// </summary>
+    internal bool RaiseToTopmost()
+    {
+        try
+        {
+            var hwnd = new WindowInteropHelper(this).Handle;
+            if (hwnd == IntPtr.Zero) return false;
+            return NativeMethods.SetWindowPos(
+                hwnd,
+                NativeMethods.HWND_TOPMOST,
+                0, 0, 0, 0,
+                NativeMethods.SWP_NOSIZE | NativeMethods.SWP_NOMOVE
+                    | NativeMethods.SWP_NOACTIVATE | NativeMethods.SWP_NOOWNERZORDER);
+        }
+        catch (Exception ex)
+        {
+            DebugLog.Write($"OverlayWindow.RaiseToTopmost failed: {ex.Message}");
+            return false;
+        }
+    }
+
+    /// <summary>
     /// 物理ピクセル座標をこのウィンドウのWPF DIP座標に変換する。
     /// </summary>
     internal Point PhysicalToWpf(int physicalX, int physicalY)

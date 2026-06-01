@@ -91,8 +91,11 @@ internal sealed class OverlayService : IDisposable
     {
         if (IsTrailOverlayHealthy())
         {
+            // v1.7.5: 常駐窓は他の最前面窓に押されて Z オーダーが沈むことがある
+            // (Topmost プロパティは true のまま)。描画前に最前面へ再昇格して「軌跡が突然消える」を防ぐ。
+            bool raised = _trailOverlay!.RaiseToTopmost();
             // v1.7.4 計装: 既存再利用パスも明示的にログ (頻度抑制のため最低限の情報のみ)
-            DebugLog.Write($"EnsureTrailOverlay: reused existing (IsVisible={_trailOverlay!.IsVisible}, Opacity={_trailOverlay.Opacity}, Topmost={_trailOverlay.Topmost}, children={_trailOverlay.OverlayCanvasElement.Children.Count})");
+            DebugLog.Write($"EnsureTrailOverlay: reused existing (IsVisible={_trailOverlay.IsVisible}, Opacity={_trailOverlay.Opacity}, Topmost={_trailOverlay.Topmost}, children={_trailOverlay.OverlayCanvasElement.Children.Count}, raisedTopmost={raised})");
             return _trailOverlay;
         }
 

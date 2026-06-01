@@ -142,6 +142,17 @@ internal static class NativeMethods
     [DllImport("user32.dll")]
     internal static extern int SetWindowLong(IntPtr hWnd, int nIndex, int dwNewLong);
 
+    // ── Z オーダー再昇格 (常駐オーバーレイが最前面から沈むのを戻す。v1.7.5) ──
+    internal static readonly IntPtr HWND_TOPMOST = new IntPtr(-1);
+    internal const uint SWP_NOSIZE       = 0x0001;
+    internal const uint SWP_NOMOVE       = 0x0002;
+    internal const uint SWP_NOACTIVATE   = 0x0010;
+    internal const uint SWP_NOOWNERZORDER = 0x0200;
+
+    [DllImport("user32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    internal static extern bool SetWindowPos(IntPtr hWnd, IntPtr hWndInsertAfter, int X, int Y, int cx, int cy, uint uFlags);
+
     // ── Cursor APIs ──
     [DllImport("user32.dll")]
     internal static extern bool SetCursorPos(int x, int y);
