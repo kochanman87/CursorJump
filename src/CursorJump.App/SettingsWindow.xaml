@@ -548,6 +548,29 @@
                         </Border>
                     </Grid>
 
+                    <!-- ==== ジャンプ後ウィンドウアクティブ化カード ==== -->
+                    <Border Style="{StaticResource CardBorder}">
+                        <StackPanel>
+                            <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                                <Border Style="{StaticResource CardIconBox}">
+                                    <TextBlock Style="{StaticResource FluentIcon}" Text="&#xE8A7;"/>
+                                </Border>
+                                <TextBlock Style="{StaticResource CardHeaderText}" Text="{DynamicResource Str.Settings.Card.ActivateWindowOnJump}" Margin="10,0,0,0"/>
+                            </StackPanel>
+                            <Grid Margin="0,4">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="0" Text="{DynamicResource Str.Settings.ActivateWindowOnJump.Hint}"
+                                           Style="{StaticResource HintText}" TextWrapping="Wrap"
+                                           VerticalAlignment="Center" Margin="0,0,12,0"/>
+                                <CheckBox x:Name="ChkActivateWindowOnJump" Grid.Column="1"
+                                          Style="{StaticResource ToggleSwitchStyle}" VerticalAlignment="Center"/>
+                            </Grid>
+                        </StackPanel>
+                    </Border>
+
                     <!-- ==== エフェクトカード ==== -->
                     <Border Style="{StaticResource CardBorder}">
                         <StackPanel>

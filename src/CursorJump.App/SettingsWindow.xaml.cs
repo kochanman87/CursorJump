@@ -138,12 +138,12 @@ public partial class SettingsWindow : Window
         }
     }
 
-    private string _saveColor = "#FF0000";
-    private string _saveColorB = "#FF8800";
-    private string _trailColor = "#00FF00";
-    private string _trailColorB = "#FF8800";
-    private string _markerColor = "#0088FF";
-    private string _markerColorB = "#FF8800";
+    private string _saveColor = "#5BA8F0";
+    private string _saveColorB = "#FF7FA8";
+    private string _trailColor = "#5BA8F0";
+    private string _trailColorB = "#FF7FA8";
+    private string _markerColor = "#5BA8F0";
+    private string _markerColorB = "#FF7FA8";
     private UiTheme _currentTheme = UiTheme.Light;
     private UiLanguage _currentLanguage = UiLanguage.Auto;
 
@@ -301,6 +301,9 @@ public partial class SettingsWindow : Window
         TxtTrailColorBHex.Text = _trailColorB.ToUpperInvariant();
         TxtMarkerColorHex.Text  = _markerColor.ToUpperInvariant();
         TxtMarkerColorBHex.Text = _markerColorB.ToUpperInvariant();
+
+        // ジャンプ後にカーソル直下ウィンドウをアクティブ化
+        ChkActivateWindowOnJump.IsChecked = s.ActivateWindowUnderCursorOnJump;
 
         // エフェクト ON/OFF
         ChkSaveEffectEnabled.IsChecked = s.SaveEffectEnabled;
@@ -771,6 +774,8 @@ public partial class SettingsWindow : Window
             TrailThickness = SldTrailThickness.Value,
             TrailDurationMs = (int)Math.Round(SldTrailDuration.Value),
             TrailOpacity = SldTrailOpacity.Value,
+            // ジャンプ後にカーソル直下ウィンドウをアクティブ化
+            ActivateWindowUnderCursorOnJump = ChkActivateWindowOnJump.IsChecked == true,
             // 永続化された座標は SettingsService.Current 側を維持（OnSaveClick で上書きされないように）
             SavedCoordinatesA = _settingsService.Current.SavedCoordinatesA,
             SavedCoordinatesB = _settingsService.Current.SavedCoordinatesB,

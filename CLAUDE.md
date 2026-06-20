@@ -51,6 +51,7 @@ src/CursorJump.App/
 ├── MouseHookService.cs             # WH_MOUSE_LL低レベルフック + 座標表示モード（WH_KEYBOARD_LL併用）
 ├── KeyboardHookService.cs          # WH_KEYBOARD_LL常時フック（F13-F24キーボードトリガー）
 ├── CursorService.cs                # カーソル移動（SendInput(ABSOLUTE|VIRTUALDESK) または SetCursorPos）
+├── WindowActivator.cs              # ジャンプ後にカーソル直下のトップレベルウィンドウを前面化（AttachThreadInput 経由）
 ├── CoordinateStore.cs              # 座標リスト管理（Add/GetNext循環/GetNext(connected)/GetNextInMonitor/RemoveAt/Load/Changed）
 ├── MonitorFilter.cs                # 接続中モニタ判定の純粋関数（バグ3 対策、テスト容易性）
 ├── ShortcutFormatter.cs            # ショートカット表記（通常/削除モード用の compact 名対応）
@@ -69,6 +70,8 @@ src/CursorJump.App/
 ```
 
 ## アーキテクチャ上の注意点
+- **ジャンプ後ウィンドウアクティブ化 (v1.8.0+)**: `AppSettings.ActivateWindowUnderCursorOnJump`（既定 true）が ON のとき、`MainWindow` の各ナビ経路（`OnNavigateRequested` / `OnNavigateRequestedB` / `OnNavigateCurrentMonitorRequested`）が `CursorService.JumpTo` 直後に `WindowActivator.Activate(jumpX, jumpY)` を呼ぶ。`WindowFromPoint`（物理ピクセル）→ `GetAncestor(GA_ROOT)` でトップレベル化し前面化する。CursorJump はトレイ常駐＝非フォアグラウンドのため素の `SetForegroundWindow` は失敗しがち。現フォアグラウンドスレッドへ `AttachThreadInput` で一時接続してから前面化する定石を使う。自プロセス（オーバーレイ・不可視メインウィンドウ）は PID 比較で除外。例外・失敗は `DebugLog` に記録して握りつぶす。保存（Save）系には付けない。設定 UI は設定タブの「二つ目座標(Set B)」セクションの下・「エフェクト」カードの上に独立カードとして配置
+- **初期色は Set A=青 / Set B=ピンク で統一 (v1.8.0+)**: `AppSettings` の `SaveCircleColor`/`TrailColor`/`MarkerColor` = `#5BA8F0`、`*ColorB` = `#FF7FA8`（3効果とも同色）。`SettingsWindow.xaml.cs` のフォールバック初期値も同値に揃える。デフォルト変更は新規インストール（settings.json 不在）時のみ反映され、既存環境の保存値は維持される
 - **MainWindowは不可視**: Width=0, Height=0, Collapsed。HWNDメッセージ受信専用
 - **ShutdownMode=OnExplicitShutdown**: ウィンドウクローズでアプリ終了しない
 - **単一インスタンス制約**: `App.OnStartup` 冒頭で名前付き Mutex (`Local\CursorJump.App.SingleInstance.{GUID}`) による二重起動防止。`Local\` プレフィックスでユーザーセッション単位に限定（RDPマルチセッション可）。2個目起動時は MessageBox 通知後 `Shutdown(0)` で即終了。Mutex は `App` のフィールドとして保持（GC 防止）、`OnExit` で `ReleaseMutex` + `Dispose`。理由: フックの二重発火・settings.jsonの上書き競合・削除モードの不整合を防ぐため

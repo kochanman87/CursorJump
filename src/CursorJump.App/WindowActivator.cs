@@ -1,0 +1,70 @@
+using System;
+using System.Diagnostics;
+
+namespace CursorJump.App;
+
+/// <summary>
+/// 座標ジャンプ後、カーソル直下のウィンドウを前面化（アクティブ化）するヘルパー。
+/// CursorJump はトレイ常駐＝非フォアグラウンドのため、素の SetForegroundWindow は
+/// フォアグラウンド奪取制限で失敗（タスクバー点滅のみ）になりがち。
+/// 現フォアグラウンドスレッドへ AttachThreadInput で一時接続してから前面化する定石を使う。
+/// 失敗・例外はすべて DebugLog に記録して握りつぶす（ジャンプ本体を妨げない）。
+/// </summary>
+internal static class WindowActivator
+{
+    // 自プロセス（オーバーレイ等）を前面化しないための比較用。
+    private static readonly uint OwnProcessId = (uint)Process.GetCurrentProcess().Id;
+
+    /// <summary>
+    /// 物理ピクセル座標 (physX, physY) の直下にあるトップレベルウィンドウを前面化する。
+    /// 直下にウィンドウが無い／自プロセスのウィンドウならば何もしない。
+    /// </summary>
+    public static void Activate(int physX, int physY)
+    {
+        try
+        {
+            var pt = new NativeMethods.POINT { X = physX, Y = physY };
+            IntPtr hwnd = NativeMethods.WindowFromPoint(pt);
+            if (hwnd == IntPtr.Zero) return;
+
+            // 最上位トップレベルウィンドウへ正規化（子コントロールではなくウィンドウ本体を前面化）
+            IntPtr root = NativeMethods.GetAncestor(hwnd, NativeMethods.GA_ROOT);
+            if (root != IntPtr.Zero) hwnd = root;
+
+            // 自プロセス（透明オーバーレイ・不可視メインウィンドウ等）は前面化しない
+            NativeMethods.GetWindowThreadProcessId(hwnd, out uint targetPid);
+            if (targetPid == OwnProcessId) return;
+
+            IntPtr foreground = NativeMethods.GetForegroundWindow();
+            if (foreground == hwnd) return; // 既に前面
+
+            uint targetThread = NativeMethods.GetWindowThreadProcessId(hwnd, out _);
+            uint foregroundThread = NativeMethods.GetWindowThreadProcessId(foreground, out _);
+            uint currentThread = NativeMethods.GetCurrentThreadId();
+
+            // 現フォアグラウンドスレッドと自スレッドを入力的に接続してから前面化する。
+            bool attachedFg = false;
+            bool attachedTarget = false;
+            try
+            {
+                if (foregroundThread != 0 && foregroundThread != currentThread)
+                    attachedFg = NativeMethods.AttachThreadInput(currentThread, foregroundThread, true);
+                if (targetThread != 0 && targetThread != currentThread && targetThread != foregroundThread)
+                    attachedTarget = NativeMethods.AttachThreadInput(currentThread, targetThread, true);
+
+                bool ok = NativeMethods.SetForegroundWindow(hwnd);
+                if (!ok)
+                    DebugLog.Write($"WindowActivator: SetForegroundWindow returned false (hwnd={hwnd}, at=({physX},{physY}))");
+            }
+            finally
+            {
+                if (attachedFg) NativeMethods.AttachThreadInput(currentThread, foregroundThread, false);
+                if (attachedTarget) NativeMethods.AttachThreadInput(currentThread, targetThread, false);
+            }
+        }
+        catch (Exception ex)
+        {
+            DebugLog.Write($"WindowActivator.Activate exception: {ex.Message}");
+        }
+    }
+}

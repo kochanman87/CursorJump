@@ -197,6 +197,9 @@ public partial class MainWindow : Window
                 DebugLog.Write($"NavigateA after: actualCursor=({actual.X},{actual.Y}) delta=({actual.X - jumpX},{actual.Y - jumpY})");
         }
 
+        if (_settingsService.Current.ActivateWindowUnderCursorOnJump)
+            WindowActivator.Activate(jumpX, jumpY);
+
         _overlayService.ShowTrail(fromX, fromY, jumpX, jumpY);
     }
 
@@ -241,6 +244,10 @@ public partial class MainWindow : Window
 
         var (jumpX, jumpY, _) = ResolveJumpTarget(target);
         CursorService.JumpTo(jumpX, jumpY, _settingsService.Current.JumpStrategy);
+
+        if (_settingsService.Current.ActivateWindowUnderCursorOnJump)
+            WindowActivator.Activate(jumpX, jumpY);
+
         _overlayService.ShowTrail(e.X, e.Y, jumpX, jumpY);
     }
 
@@ -310,6 +317,9 @@ public partial class MainWindow : Window
             if (NativeMethods.GetCursorPos(out var actual))
                 DebugLog.Write($"NavigateB after: actualCursor=({actual.X},{actual.Y}) delta=({actual.X - jumpX},{actual.Y - jumpY})");
         }
+
+        if (_settingsService.Current.ActivateWindowUnderCursorOnJump)
+            WindowActivator.Activate(jumpX, jumpY);
 
         _overlayService.ShowTrail(fromX, fromY, jumpX, jumpY, _settingsService.Current.TrailColorB);
     }

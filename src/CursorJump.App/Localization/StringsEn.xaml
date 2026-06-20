@@ -55,6 +55,8 @@
     <sys:String x:Key="Str.Settings.Card.Display">Display / Delete</sys:String>
     <sys:String x:Key="Str.Settings.Card.SaveB">Save coordinate (Set B)</sys:String>
     <sys:String x:Key="Str.Settings.Card.NavigateB">Navigate coordinates (Set B)</sys:String>
+    <sys:String x:Key="Str.Settings.Card.ActivateWindowOnJump">Activate window after jump</sys:String>
+    <sys:String x:Key="Str.Settings.ActivateWindowOnJump.Hint">If there is a window under the cursor at the jump destination, bring it to the foreground (focus).</sys:String>
     <sys:String x:Key="Str.Settings.Card.Effects">Effects</sys:String>
 
     <!-- Common labels -->

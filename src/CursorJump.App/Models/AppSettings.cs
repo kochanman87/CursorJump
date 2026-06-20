@@ -69,12 +69,14 @@ public sealed class AppSettings
         VirtualKeyCode = 0
     };
 
-    public string SaveCircleColor { get; set; } = "#FF0000";
-    public string SaveCircleColorB { get; set; } = "#FF0000";
-    public string TrailColor { get; set; } = "#00FF00";
-    public string TrailColorB { get; set; } = "#00FF00";
-    public string MarkerColor { get; set; } = "#0088FF";
-    public string MarkerColorB { get; set; } = "#0088FF";
+    // 初期色は Set A=青 / Set B=ピンク で 3 効果（保存円・軌跡・マーカー）を統一する。
+    // デフォルト変更は新規インストール（settings.json 不在）時のみ反映。既存環境は保存値を維持する。
+    public string SaveCircleColor { get; set; } = "#5BA8F0";
+    public string SaveCircleColorB { get; set; } = "#FF7FA8";
+    public string TrailColor { get; set; } = "#5BA8F0";
+    public string TrailColorB { get; set; } = "#FF7FA8";
+    public string MarkerColor { get; set; } = "#5BA8F0";
+    public string MarkerColorB { get; set; } = "#FF7FA8";
 
     /// <summary>座標保存時の収縮円エフェクトを表示するか。false なら視覚効果のみスキップ（保存自体は動作）。</summary>
     public bool SaveEffectEnabled { get; set; } = true;
@@ -117,6 +119,11 @@ public sealed class AppSettings
     /// <summary>ジャンプ時の before/after 座標などの詳細ログを debug.log に出力するか。
     /// マルチモニタでのジャンプ位置ずれ調査用。常用するとフックコールバック内 I/O が増えるため通常は false。</summary>
     public bool VerboseLogging { get; set; } = false;
+
+    // ── ジャンプ後アクション ──
+    /// <summary>座標ジャンプ後、カーソル直下にウィンドウがあればそれを前面化（フォーカス）するか。
+    /// 既定 true。旧 settings.json では未定義 → C# 初期化値 true（オプトアウト）。</summary>
+    public bool ActivateWindowUnderCursorOnJump { get; set; } = true;
 
     // ── 自動起動 ──
     /// <summary>Windows サインイン時に CursorJump を自動起動するか。

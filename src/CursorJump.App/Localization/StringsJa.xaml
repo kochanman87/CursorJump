@@ -57,6 +57,8 @@
     <sys:String x:Key="Str.Settings.Card.Display">座標表示・削除</sys:String>
     <sys:String x:Key="Str.Settings.Card.SaveB">座標保存（2 つ目）</sys:String>
     <sys:String x:Key="Str.Settings.Card.NavigateB">座標移動（2 つ目）</sys:String>
+    <sys:String x:Key="Str.Settings.Card.ActivateWindowOnJump">ジャンプ後にウィンドウをアクティブ化</sys:String>
+    <sys:String x:Key="Str.Settings.ActivateWindowOnJump.Hint">カーソルのジャンプ先にウィンドウがあれば、そのウィンドウを前面化（フォーカス）します。</sys:String>
     <sys:String x:Key="Str.Settings.Card.Effects">エフェクト</sys:String>
 
     <!-- 共通ラベル -->

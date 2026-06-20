@@ -176,6 +176,15 @@ internal static class NativeMethods
     [DllImport("user32.dll")]
     internal static extern bool AttachThreadInput(uint idAttach, uint idAttachTo, bool fAttach);
 
+    // カーソル直下のウィンドウ取得＆トップレベル正規化（ジャンプ後アクティブ化に使用）
+    [DllImport("user32.dll")]
+    internal static extern IntPtr WindowFromPoint(POINT Point);
+
+    internal const uint GA_ROOT = 2;
+
+    [DllImport("user32.dll")]
+    internal static extern IntPtr GetAncestor(IntPtr hWnd, uint gaFlags);
+
     // ── SendInput（合成マウス入力）──
     internal const uint INPUT_MOUSE = 0;
     internal const uint MOUSEEVENTF_MIDDLEDOWN = 0x0020;
