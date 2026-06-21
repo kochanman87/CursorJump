@@ -8,6 +8,17 @@
 - 外部NuGetパッケージは [Velopack](https://github.com/velopack/velopack)（自動更新）と `System.Management`（WMI で物理モニタインチ取得）
 - ユニットテストは `tests/CursorJump.Tests/`（xUnit）。`dotnet test tests/CursorJump.Tests/ -o build_check/tests/` で実行。本体は `internal sealed`/`internal static` を `InternalsVisibleTo("CursorJump.Tests")` で公開している
 
+## 公開リポジトリ（OSS）— 個人情報を絶対にアップしない
+
+このリポジトリは **GitHub で全世界に公開**している。コミット・ファイル・履歴のすべてが永久に世界中から閲覧・クローン可能になる前提で扱うこと。
+
+- **コミットの author/committer メールは GitHub の noreply を使う**: `git config --global user.email "126936997+kochanman87@users.noreply.github.com"`。本名入りの個人 Gmail（実アドレスはこのファイルにも記載しない）を author に入れない。コミット前に `git config user.email` が noreply であることを確認する
+- **個人情報をコミット対象ファイルに書かない**: 本名・個人メール・会社ID（社員番号等）・社名・電話番号・住所・絶対パス（`C:\Users\<本名>\...` 等のユーザー名露出）はソース・コメント・ドキュメント・テストデータ・ログ文字列のいずれにも入れない。**git 管理下の全テキストが公開対象**
+- **意図的に公開してよいのは**: GitHub ハンドル `kochanman87`、リポジトリ URL `https://github.com/kochanman87/CursorJump`、BOOTH ストア URL `https://kochanman87.booth.pm/...` のみ
+- **シークレットは別管理**（[ライセンスシステム](#ライセンスシステムfree--pro-版) 参照）: ライセンスキー平文・APIキー・トークン・秘密鍵は `.secrets/`（gitignore 済み）か配信物のみに置き、ソースには SHA256 ハッシュのみ
+- **コミット前チェック**: 新規ファイル追加時は `git grep -i -E "本名|個人メール|会社ID|C:\\\\Users\\\\<本名>"` 相当で個人情報が混入していないか確認。`settings.json`/`debug.log`/`.secrets/` が追跡対象に入っていないか（`git ls-files` で）確認
+- **履歴に個人情報が入ってしまったら**: `git filter-repo --mailmap`（メール）等で全履歴を書き換え → 全 ref（ブランチ＋**タグも忘れず**）を force push。force push 後も GitHub 上に古いコミットが ghost として一時残存するため、即時消去が必要なら GitHub Support にキャッシュパージを依頼する。実施前に必ず `git bundle create --all` 等でバックアップを取る（2026-06-21 に Gmail 流出を全履歴から除去した実績あり）
+
 ## バージョニング
 - バージョンは `src/CursorJump.App/CursorJump.App.csproj` の `<Version>` で `MAJOR.MINOR.PATCH`（例: `1.1.0`）形式で管理する
 - **機能追加・バグ修正・品質改善などコード変更を行ったときは、コミット前に必ず `<Version>` を更新する**（更新漏れが頻発しているため明示）
