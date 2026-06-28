@@ -637,6 +637,16 @@ public partial class SettingsWindow : Window
         // Pro 追加機能 PRO バッジ
         if (ProFeaturesProBadge is not null)
             ProFeaturesProBadge.Visibility = isPro ? Visibility.Collapsed : Visibility.Visible;
+
+        // Pro 未適用時は Pro 限定カード（Set B・追加機能 3 種）を操作不可にし、薄いグレーで表示する。
+        // IsEnabled=false で配下のトグル/コンボ/スライダーを一括で動かせなくし、
+        // Opacity を下げて「ロックされている」ことを視覚的に明示する。
+        foreach (var card in new[] { CardSaveB, CardNavB, CardReset, CardActWin, CardClkBack })
+        {
+            if (card is null) continue;
+            card.IsEnabled = isPro;
+            card.Opacity = isPro ? 1.0 : 0.45;
+        }
     }
 
     private void OnLicenseApplyClick(object sender, RoutedEventArgs e)

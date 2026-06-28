@@ -92,7 +92,7 @@ src/CursorJump.App/
 - **UPイベント消費**: DOWNイベント消費時にフラグを立て、対応するUPイベントも消費する（右クリックメニュー抑止）
 - **XButtonのUP消費**: `WM_XBUTTONUP`はボタン種別が`mouseData >> 16`で判定が必要（L/R/Mと異なる）
 - **座標系**: マウスフック・SetCursorPosは物理ピクセル座標。WPFオーバーレイ描画時はTransformFromDeviceでDIP変換
-- **設定ファイル**: `%APPDATA%/CursorJump/settings.json`（System.Text.Json）。`AppSettings.SavedCoordinatesA` / `SavedCoordinatesB` に Set A/B の座標が永続化される。`CoordinateStore.Changed` イベントで `MainWindow` が `_settingsService.Save()` を呼び戻し書きする。`AutoStartEnabled` (v1.7.0+) で Windows 起動時の自動起動を制御（実体はレジストリ HKCU Run キー、`StartupService` 経由）
+- **設定ファイル**: `%APPDATA%/CursorJump/settings.json`（System.Text.Json）。`AppSettings.SavedCoordinatesA` / `SavedCoordinatesB` に Set A/B の座標が永続化される。**enum は `TolerantEnumConverterFactory`（SettingsService.cs）で読み書きし、未知・削除済みの enum 値があっても例外を投げず既定値にフォールバックする（v1.9.1）。** 標準の `JsonStringEnumConverter` は未知値で例外→`Load` が設定全体（ライセンスキー含む）を初期化する事故があったため恒久対策。enum 値を削除・改名しても旧 settings.json で全設定喪失しない`CoordinateStore.Changed` イベントで `MainWindow` が `_settingsService.Save()` を呼び戻し書きする。`AutoStartEnabled` (v1.7.0+) で Windows 起動時の自動起動を制御（実体はレジストリ HKCU Run キー、`StartupService` 経由）
 - **モニタ消失時の座標スキップ (v1.5.0+)**: `MainWindow.OnNavigateRequested` / `OnNavigateRequestedB` は `Screen.AllScreens` から接続中モニタ名一覧を取得し `CoordinateStore.GetNext(connected)` に渡す。`MonitorFilter.IsCoordinateOnConnectedMonitor` で消失モニタの座標を除外する。`MonitorDeviceName` が空文字（旧 settings.json 互換）の座標は常に表示する。削除モードの `OverlayService.BuildMarkers` も同じフィルタを適用し、消失モニタ上のマーカーは描画しない（再接続で復活）
 - **カーソルジャンプは DPI コンテキスト経由が既定 (v1.5.1+)**: `CursorService.JumpTo` は `AppSettings.JumpStrategy`（既定 `DpiContext`）に従って経路を選ぶ。
   - `DpiContext` (既定): `SetThreadDpiAwarenessContext(PER_MONITOR_AWARE_V2)` でスレッドの DPI コンテキストを明示してから `SetCursorPos` を呼ぶ。Win11 + マルチ DPI モニタで OS 内部 DPI 仮想化キャッシュの誤動作を回避
@@ -204,8 +204,9 @@ v1.4.0 で Pro/Free 版を導入。BOOTH 配布のライセンスキーを設定
 
 ### Free 版の制限
 - 座標保存は **3 個まで**（`LicenseService.FreeMaxCoordinates`）。Set A のみが対象。上限到達時の追加要求は静かに無視（DebugLog のみ）。削除モードで 1 個削除すれば再保存可能
-- **Set B（第2座標セット）は機能無効**: `MainWindow.OnSaveRequestedB` / `OnNavigateRequestedB` で `IsPro == false` なら早期 return。設定画面で Set B のショートカットは編集可能だが、トリガーは反応しない（PRO バッジ + 案内テキストで明示）
+- **Set B（第2座標セット）は機能無効**: `MainWindow.OnSaveRequestedB` / `OnNavigateRequestedB` で `IsPro == false` なら早期 return
 - 設定画面の Set B セクションに **`PRO` バッジ** と「Pro 版でのみ動作します」ロック通知が表示される（Pro 化で消える）
+- **Pro 未適用時は Pro 限定カードを操作不可にする (v1.9.1+)**: `UpdateLicenseUI` が Set B 2 枚（`CardSaveB`/`CardNavB`）と Pro 追加機能 3 枚（`CardReset`/`CardActWin`/`CardClkBack`）の Border に `IsEnabled = IsPro` を設定。Free ではカードごとグレーアウトしてトグル/コンボ/スライダーを操作できない（旧仕様の「編集は許可」は廃止）
 - **Pro 追加機能 3 種（v1.9.0+: 循環リセット / 前面ウィンドウ中央へ / クリック位置に戻る）も Free では無効**: 各 `MainWindow` ハンドラ冒頭で `IsPro == false` なら早期 return（`OnLeftClickObserved` も Free では履歴を貯めない）。設定画面「Pro 追加機能」セクションに `PRO` バッジ（`ProFeaturesProBadge`）を表示。3 種とも既定で全トリガー無効（利用者が機能ごとに ON）
 
 ### キー設計（秀丸方式 + ハッシュ埋め込み）
@@ -226,7 +227,7 @@ v1.4.0 で Pro/Free 版を導入。BOOTH 配布のライセンスキーを設定
 
 ### 設計ポリシー
 - **Free 上限到達時の UX**: トースト・モーダルは出さず、保存もエフェクトも実行せず DebugLog のみ。理由は「作業中断を避ける」「設定画面の Free 表記とトレイのラベルで気付いてもらう」設計
-- **Set B 編集は技術的に許可**: PRO バッジ + ロック通知の静的表示で意図を伝え、リアルタイム変更傍受モーダルは実装しない（複数コントロールにまたがる傍受は複雑化の割に得るものが薄い）
+- **Pro 限定カードは Free 時 `IsEnabled=false` で操作不可 (v1.9.1+)**: 旧仕様（Set B は編集だけ許可しトリガーだけ無効）から変更し、Set B・Pro 追加機能のカードを Free ではグレーアウトしてトグル自体を動かせなくした。PRO バッジ + ロック通知も併記
 - **ライセンス検証の呼出**: 起動時に `LicenseService` コンストラクタ内で `Refresh()`、`Apply` 時に再評価。`StatusChanged` で `TrayIconService` のラベルが更新される
 
 ## 自動起動（HKCU Run キー、v1.7.0+）

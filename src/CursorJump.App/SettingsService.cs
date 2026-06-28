@@ -1,6 +1,7 @@
 using System;
 using System.IO;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using CursorJump.App.Models;
 
 namespace CursorJump.App;
@@ -16,7 +17,10 @@ public sealed class SettingsService
     {
         WriteIndented = true,
         PropertyNameCaseInsensitive = true,
-        Converters = { new System.Text.Json.Serialization.JsonStringEnumConverter() }
+        // 既定の JsonStringEnumConverter は未知の文字列で例外を投げ、Load が設定全体（ライセンスキー含む）を
+        // 初期化してしまう。削除・改名された enum 値が settings.json に残っていても安全に読み込めるよう、
+        // 未知値を既定値として読み飛ばす寛容なコンバータを使う（v1.9.1 恒久対策）。
+        Converters = { new TolerantEnumConverterFactory() }
     };
 
     private volatile AppSettings _current = new();
@@ -93,4 +97,44 @@ public sealed class SettingsService
         _current = settings;
         return true;
     }
+}
+
+/// <summary>
+/// enum を文字列で読み書きする寛容なコンバータ。読み込み時、未知・削除された値に出会っても
+/// 例外を投げず既定値(default)にフォールバックする。これにより settings.json の 1 フィールドが
+/// 古い enum 値でも、設定全体（ライセンスキー・座標など）が失われない（v1.9.1）。
+/// 書き込み形式は標準の JsonStringEnumConverter と同じ（Flags はカンマ区切り）。
+/// </summary>
+internal sealed class TolerantEnumConverterFactory : JsonConverterFactory
+{
+    public override bool CanConvert(Type typeToConvert) => typeToConvert.IsEnum;
+
+    public override JsonConverter CreateConverter(Type typeToConvert, JsonSerializerOptions options)
+        => (JsonConverter)Activator.CreateInstance(
+            typeof(TolerantEnumConverter<>).MakeGenericType(typeToConvert))!;
+}
+
+internal sealed class TolerantEnumConverter<T> : JsonConverter<T> where T : struct, Enum
+{
+    public override T Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+    {
+        switch (reader.TokenType)
+        {
+            case JsonTokenType.String:
+                string? s = reader.GetString();
+                // "Mouse, Keyboard" のような Flags 結合も Enum.TryParse が解釈する。
+                // 未知値（削除された enum 名等）は false → 既定値にフォールバック。
+                return !string.IsNullOrEmpty(s) && Enum.TryParse<T>(s, ignoreCase: true, out var v)
+                    ? v
+                    : default;
+            case JsonTokenType.Number when reader.TryGetInt64(out long n):
+                return (T)Enum.ToObject(typeof(T), n); // 数値表現も後方互換で許容
+            default:
+                reader.Skip();
+                return default;
+        }
+    }
+
+    public override void Write(Utf8JsonWriter writer, T value, JsonSerializerOptions options)
+        => writer.WriteStringValue(value.ToString());
 }

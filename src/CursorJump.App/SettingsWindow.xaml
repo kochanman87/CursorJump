@@ -424,7 +424,7 @@
                         </Grid.ColumnDefinitions>
 
                         <!-- Card B1: 座標保存（Set B） -->
-                        <Border Grid.Column="0" Style="{StaticResource CardBorder}">
+                        <Border x:Name="CardSaveB" Grid.Column="0" Style="{StaticResource CardBorder}">
                             <StackPanel>
                                 <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
                                     <Border Style="{StaticResource CardIconBox}">
@@ -486,7 +486,7 @@
                         </Border>
 
                         <!-- Card B2: 座標移動（Set B） -->
-                        <Border Grid.Column="2" Style="{StaticResource CardBorder}">
+                        <Border x:Name="CardNavB" Grid.Column="2" Style="{StaticResource CardBorder}">
                             <StackPanel>
                                 <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
                                     <Border Style="{StaticResource CardIconBox}">
@@ -570,7 +570,7 @@
                         </Grid.ColumnDefinitions>
 
                         <!-- Pro Card 1: ジャンプ循環リセット -->
-                        <Border Grid.Column="0" Style="{StaticResource CardBorder}">
+                        <Border x:Name="CardReset" Grid.Column="0" Style="{StaticResource CardBorder}">
                             <StackPanel>
                                 <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
                                     <Border Style="{StaticResource CardIconBox}">
@@ -638,7 +638,7 @@
                         </Border>
 
                         <!-- Pro Card 2: フォアグラウンド窓中央へジャンプ -->
-                        <Border Grid.Column="2" Style="{StaticResource CardBorder}">
+                        <Border x:Name="CardActWin" Grid.Column="2" Style="{StaticResource CardBorder}">
                             <StackPanel>
                                 <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
                                     <Border Style="{StaticResource CardIconBox}">
@@ -707,7 +707,7 @@
                     </Grid>
 
                     <!-- Pro Card 3: 左クリック履歴で戻る -->
-                    <Border Style="{StaticResource CardBorder}">
+                    <Border x:Name="CardClkBack" Style="{StaticResource CardBorder}">
                         <StackPanel>
                             <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
                                 <Border Style="{StaticResource CardIconBox}">
