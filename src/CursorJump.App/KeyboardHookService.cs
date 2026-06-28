@@ -38,6 +38,17 @@ internal sealed class KeyboardHookService : IDisposable
     public event EventHandler<MouseHookEventArgs>? SaveRequestedB;
     /// <summary>第2座標セット（Set B）の座標移動リクエスト。</summary>
     public event EventHandler<MouseHookEventArgs>? NavigateRequestedB;
+
+    // ── Pro 追加機能（v1.9.0+） ──
+    /// <summary>ジャンプ循環リセットのリクエスト（Pro）。</summary>
+    public event EventHandler<MouseHookEventArgs>? ResetCycleRequested;
+    /// <summary>フォアグラウンド窓中央へジャンプのリクエスト（Pro）。</summary>
+    public event EventHandler<MouseHookEventArgs>? ActiveWindowJumpRequested;
+    /// <summary>左クリック履歴を 1 つ戻るリクエスト（Pro）。</summary>
+    public event EventHandler<MouseHookEventArgs>? ClickHistoryBackRequested;
+
+    // 修飾キー連打ジェスチャ検出（観測専用、キーは消費しない）。
+    private readonly ModifierGestureDetector _gestureDetector = new();
     /// <summary>削除モード中に DisplayDeleteShortcut がマッチしたとき発火（全削除に使用）。</summary>
     public event EventHandler<MouseHookEventArgs>? DeleteAllConfirmRequested;
     /// <summary>削除モード中に SaveShortcut がマッチしたとき発火（追加/削除ハイブリッド）。</summary>
@@ -74,12 +85,14 @@ internal sealed class KeyboardHookService : IDisposable
         DebugLog.Write("KeyboardHookService: Suspend()");
         _suspended = true;
         _swallowNextKeyUp.Clear();
+        _gestureDetector.Reset();
     }
 
     public void Resume()
     {
         DebugLog.Write("KeyboardHookService: Resume()");
         _suspended = false;
+        _gestureDetector.Reset();
     }
 
     /// <summary>削除モード中はキーボードトリガーを無視する。</summary>
@@ -87,6 +100,7 @@ internal sealed class KeyboardHookService : IDisposable
     {
         DebugLog.Write("KeyboardHookService: EnterDeleteMode()");
         _deleteMode = true;
+        _gestureDetector.Reset();
         // Clear しない: DisplayDelete KEYDOWN で登録した swallow が KEYUP 前に
         // 消えると、UP がアプリへ素通りする（非同期 RaiseAsync 経由の競合）
     }
@@ -96,6 +110,7 @@ internal sealed class KeyboardHookService : IDisposable
     {
         DebugLog.Write("KeyboardHookService: ExitDeleteMode()");
         _deleteMode = false;
+        _gestureDetector.Reset();
     }
 
     private IntPtr HookCallback(int nCode, IntPtr wParam, IntPtr lParam)
@@ -105,6 +120,21 @@ internal sealed class KeyboardHookService : IDisposable
 
         int msg = wParam.ToInt32();
         int vkCode = Marshal.ReadInt32(lParam);
+
+        // 修飾キー連打ジェスチャ検出（Pro、v1.9.0+）。
+        // 観測専用＝キーは一切消費しない。down/up 双方を投入する。
+        // サスペンド中・削除モード中は検出を行わない（_gestureDetector はその遷移時に Reset 済み）。
+        if (!_suspended && !_deleteMode)
+        {
+            bool gDown = msg == NativeMethods.WM_KEYDOWN || msg == NativeMethods.WM_SYSKEYDOWN;
+            bool gUp = msg == NativeMethods.WM_KEYUP || msg == NativeMethods.WM_SYSKEYUP;
+            if (gDown || gUp)
+            {
+                var gesture = _gestureDetector.Feed(vkCode, gDown, Environment.TickCount64);
+                if (gesture is not null && gesture.Value != ModifierGesture.None)
+                    TryFireGesture(gesture.Value);
+            }
+        }
 
         // KU イベント: F13-F24 は消費、任意キーはパススルー（共存仕様）
         if (msg == NativeMethods.WM_KEYUP || msg == NativeMethods.WM_SYSKEYUP)
@@ -209,10 +239,63 @@ internal sealed class KeyboardHookService : IDisposable
                 RaiseAsync(NavigateRequestedB, GetCurrentCursorArgs());
                 return CompleteKeyEvent(vkCode, nCode, wParam, lParam);
             }
+
+            // ── Pro 追加機能（v1.9.0+） ──
+            if (IsKeyboardShortcutMatch(vkCode, settings.ResetCycleShortcut))
+            {
+                DebugLog.Write($"KeyboardHookService: ResetCycleRequested (vk=0x{vkCode:X2})");
+                RaiseAsync(ResetCycleRequested, GetCurrentCursorArgs());
+                return CompleteKeyEvent(vkCode, nCode, wParam, lParam);
+            }
+
+            if (IsKeyboardShortcutMatch(vkCode, settings.ActiveWindowJumpShortcut))
+            {
+                DebugLog.Write($"KeyboardHookService: ActiveWindowJumpRequested (vk=0x{vkCode:X2})");
+                RaiseAsync(ActiveWindowJumpRequested, GetCurrentCursorArgs());
+                return CompleteKeyEvent(vkCode, nCode, wParam, lParam);
+            }
+
+            if (IsKeyboardShortcutMatch(vkCode, settings.ClickHistoryBackShortcut))
+            {
+                DebugLog.Write($"KeyboardHookService: ClickHistoryBackRequested (vk=0x{vkCode:X2})");
+                RaiseAsync(ClickHistoryBackRequested, GetCurrentCursorArgs());
+                return CompleteKeyEvent(vkCode, nCode, wParam, lParam);
+            }
         }
 
         return NativeMethods.CallNextHookEx(_hookHandle, nCode, wParam, lParam);
     }
+
+    /// <summary>
+    /// 完了した修飾キー連打ジェスチャに対応するショートカット（Pro 3 種）があれば発火する。
+    /// ジェスチャは観測専用のため、ここではキーを消費しない。
+    /// </summary>
+    private void TryFireGesture(ModifierGesture gesture)
+    {
+        var s = _settingsService.Current;
+        if (GestureMatches(s.ResetCycleShortcut, gesture))
+        {
+            DebugLog.Write($"KeyboardHookService: ResetCycleRequested (gesture={gesture})");
+            RaiseAsync(ResetCycleRequested, GetCurrentCursorArgs());
+            return;
+        }
+        if (GestureMatches(s.ActiveWindowJumpShortcut, gesture))
+        {
+            DebugLog.Write($"KeyboardHookService: ActiveWindowJumpRequested (gesture={gesture})");
+            RaiseAsync(ActiveWindowJumpRequested, GetCurrentCursorArgs());
+            return;
+        }
+        if (GestureMatches(s.ClickHistoryBackShortcut, gesture))
+        {
+            DebugLog.Write($"KeyboardHookService: ClickHistoryBackRequested (gesture={gesture})");
+            RaiseAsync(ClickHistoryBackRequested, GetCurrentCursorArgs());
+        }
+    }
+
+    private static bool GestureMatches(ActionShortcut sc, ModifierGesture gesture)
+        => sc.EnabledTriggers.HasFlag(TriggerType.ModifierSequence)
+           && sc.ModifierGesture != ModifierGesture.None
+           && sc.ModifierGesture == gesture;
 
     private static bool IsKeyboardShortcutMatch(int vkCode, ActionShortcut shortcut)
     {

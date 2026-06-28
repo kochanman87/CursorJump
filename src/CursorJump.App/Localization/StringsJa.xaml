@@ -75,6 +75,22 @@
     <sys:String x:Key="Str.Settings.SetB.Header">2 つ目の座標リスト</sys:String>
     <sys:String x:Key="Str.Settings.SetB.Description">上のセクションとは別に、もう 1 セットの座標を保存・循環できます。削除モード中は色分けで同時に表示されます。</sys:String>
 
+    <!-- Pro 追加機能（v1.9.0+） -->
+    <sys:String x:Key="Str.Settings.ProFeatures.Header">Pro 追加機能</sys:String>
+    <sys:String x:Key="Str.Settings.ProFeatures.Description">Pro 版でのみ動作する追加アクションです。各機能はマウス・キーボード・修飾キー連打のいずれでもトリガーできます。</sys:String>
+    <sys:String x:Key="Str.Settings.Card.ResetCycle">循環リセット</sys:String>
+    <sys:String x:Key="Str.Settings.Card.ResetCycle.Desc">座標の循環を先頭に戻します。次回の移動が 1 番目の座標から始まります（その場では動きません）。Set A / B 両方が対象です。</sys:String>
+    <sys:String x:Key="Str.Settings.Card.ActiveWindowJump">前面ウィンドウ中央へ</sys:String>
+    <sys:String x:Key="Str.Settings.Card.ActiveWindowJump.Desc">今いちばん手前のウィンドウの中央へカーソルを一発で飛ばします。遠くに出たアプリへの移動に便利です。</sys:String>
+    <sys:String x:Key="Str.Settings.Card.ClickHistoryBack">クリック位置に戻る</sys:String>
+    <sys:String x:Key="Str.Settings.Card.ClickHistoryBack.Desc">普段の左クリック位置を自動で記録し、直前のクリック位置へカーソルを戻します（エディタの「戻る」に近い動作）。</sys:String>
+    <sys:String x:Key="Str.Settings.Trigger.Gesture">修飾キー連打</sys:String>
+    <sys:String x:Key="Str.Settings.Gesture.CtrlDoubleTap">Ctrl をダブルタップ</sys:String>
+    <sys:String x:Key="Str.Settings.Gesture.ShiftDoubleTap">Shift をダブルタップ</sys:String>
+    <sys:String x:Key="Str.Settings.Gesture.AltDoubleTap">Alt をダブルタップ（一部アプリでメニューが一瞬反応）</sys:String>
+    <sys:String x:Key="Str.Settings.ClickHistoryDepth">履歴の深さ</sys:String>
+    <sys:String x:Key="Str.Settings.ClickHistoryDepth.Hint">押すたびに最近のクリック位置を順に巡回します（端まで行くと先頭へ戻る循環。今カーソルがある位置は飛ばします）。値＝巡回に含める最近クリック数（2〜10）。</sys:String>
+
     <!-- エフェクトカード -->
     <sys:String x:Key="Str.Settings.Effect.Save.Title">保存エフェクト</sys:String>
     <sys:String x:Key="Str.Settings.Effect.Save.Hint">座標保存時の収縮円アニメーション</sys:String>
@@ -108,6 +124,7 @@
     <sys:String x:Key="Str.Settings.Validation.ConflictKind.Mouse">マウス</sys:String>
     <sys:String x:Key="Str.Settings.Validation.ConflictKind.Keyboard">キーボード</sys:String>
     <sys:String x:Key="Str.Settings.Validation.ConflictKind.Both">マウス/キーボード両方の</sys:String>
+    <sys:String x:Key="Str.Settings.Validation.ConflictKind.Gesture">修飾キー連打</sys:String>
 
     <!-- アクション名（競合エラーで使用） -->
     <sys:String x:Key="Str.Settings.Action.Save">座標保存</sys:String>
@@ -116,6 +133,9 @@
     <sys:String x:Key="Str.Settings.Action.Display">座標表示・削除</sys:String>
     <sys:String x:Key="Str.Settings.Action.SaveB">座標保存（2 つ目）</sys:String>
     <sys:String x:Key="Str.Settings.Action.NavigateB">座標移動（2 つ目）</sys:String>
+    <sys:String x:Key="Str.Settings.Action.ResetCycle">循環リセット</sys:String>
+    <sys:String x:Key="Str.Settings.Action.ActiveWindowJump">前面ウィンドウ中央へ</sys:String>
+    <sys:String x:Key="Str.Settings.Action.ClickHistoryBack">クリック位置に戻る</sys:String>
 
     <!-- マウスボタン名 -->
     <sys:String x:Key="Str.Button.Left">左クリック</sys:String>

@@ -20,6 +20,8 @@ public partial class MainWindow : Window
     private readonly CoordinateStore _coordinateStore = new();
     private readonly CoordinateStore _coordinateStoreB = new();
     private readonly OverlayService _overlayService;
+    // 通常左クリック位置の内部履歴（Pro: 戻る機能用、v1.9.0+）。
+    private readonly ClickHistory _clickHistory = new();
 
     public MainWindow(SettingsService settingsService, LicenseService licenseService)
     {
@@ -79,6 +81,10 @@ public partial class MainWindow : Window
             _mouseHookService.DisplayDeleteRequested += OnDisplayDeleteRequested;
             _mouseHookService.SaveRequestedB += OnSaveRequestedB;
             _mouseHookService.NavigateRequestedB += OnNavigateRequestedB;
+            _mouseHookService.ResetCycleRequested += OnResetCycleRequested;
+            _mouseHookService.ActiveWindowJumpRequested += OnActiveWindowJumpRequested;
+            _mouseHookService.ClickHistoryBackRequested += OnClickHistoryBackRequested;
+            _mouseHookService.LeftClickObserved += OnLeftClickObserved;
             _mouseHookService.Install();
 
             _overlayService.SetMouseHookService(_mouseHookService);
@@ -101,6 +107,9 @@ public partial class MainWindow : Window
             _keyboardHookService.DisplayDeleteRequested += OnDisplayDeleteRequested;
             _keyboardHookService.SaveRequestedB += OnSaveRequestedB;
             _keyboardHookService.NavigateRequestedB += OnNavigateRequestedB;
+            _keyboardHookService.ResetCycleRequested += OnResetCycleRequested;
+            _keyboardHookService.ActiveWindowJumpRequested += OnActiveWindowJumpRequested;
+            _keyboardHookService.ClickHistoryBackRequested += OnClickHistoryBackRequested;
             _keyboardHookService.Install();
 
             _overlayService.SetKeyboardHookService(_keyboardHookService);
@@ -324,6 +333,74 @@ public partial class MainWindow : Window
         _overlayService.ShowTrail(fromX, fromY, jumpX, jumpY, _settingsService.Current.TrailColorB);
     }
 
+    // ── Pro 追加機能（v1.9.0+） ──
+
+    /// <summary>ジャンプ循環リセット。Set A/B 両方の循環インデックスを先頭前へ戻す（即ジャンプはしない）。</summary>
+    private void OnResetCycleRequested(object? sender, MouseHookEventArgs e)
+    {
+        if (!_licenseService.IsPro)
+        {
+            DebugLog.Write("OnResetCycleRequested: blocked (Pro-only)");
+            return;
+        }
+        _coordinateStore.ResetCursor();
+        _coordinateStoreB.ResetCursor();
+        DebugLog.Write("OnResetCycleRequested: A/B cycle indices reset");
+    }
+
+    /// <summary>フォアグラウンドウィンドウ中央へカーソルをジャンプする。</summary>
+    private void OnActiveWindowJumpRequested(object? sender, MouseHookEventArgs e)
+    {
+        if (!_licenseService.IsPro)
+        {
+            DebugLog.Write("OnActiveWindowJumpRequested: blocked (Pro-only)");
+            return;
+        }
+        var center = WindowActivator.GetForegroundWindowCenter();
+        if (center is null)
+        {
+            DebugLog.Write("OnActiveWindowJumpRequested: no foreground window (or own) — no-op");
+            return;
+        }
+        int fromX = e.X;
+        int fromY = e.Y;
+        var (jumpX, jumpY) = center.Value;
+        CursorService.JumpTo(jumpX, jumpY, _settingsService.Current.JumpStrategy);
+        if (_settingsService.Current.ActivateWindowUnderCursorOnJump)
+            WindowActivator.Activate(jumpX, jumpY);
+        _overlayService.ShowTrail(fromX, fromY, jumpX, jumpY);
+    }
+
+    /// <summary>通常左クリックを観測して履歴に記録する（消費はしない）。</summary>
+    private void OnLeftClickObserved(object? sender, MouseHookEventArgs e)
+    {
+        if (!_licenseService.IsPro) return;
+        if (_settingsService.Current.ClickHistoryBackShortcut.EnabledTriggers == TriggerType.None) return;
+        _clickHistory.Record(e.X, e.Y);
+    }
+
+    /// <summary>左クリック履歴を 1 つ過去へ遡ってカーソルを戻す（Cursor の Ctrl+Z 風）。</summary>
+    private void OnClickHistoryBackRequested(object? sender, MouseHookEventArgs e)
+    {
+        if (!_licenseService.IsPro)
+        {
+            DebugLog.Write("OnClickHistoryBackRequested: blocked (Pro-only)");
+            return;
+        }
+        int depth = Math.Clamp(_settingsService.Current.ClickHistoryDepth, 1, ClickHistory.MaxDepth);
+        // e.X/e.Y は押下時の現在カーソル位置。そこに近い記録（今いる場所）はスキップして手前へ戻る。
+        var target = _clickHistory.Back(depth, e.X, e.Y, ClickHistory.SkipRadiusPx);
+        if (target is null) return;
+
+        int fromX = e.X;
+        int fromY = e.Y;
+        var (jumpX, jumpY) = target.Value;
+        CursorService.JumpTo(jumpX, jumpY, _settingsService.Current.JumpStrategy);
+        if (_settingsService.Current.ActivateWindowUnderCursorOnJump)
+            WindowActivator.Activate(jumpX, jumpY);
+        _overlayService.ShowTrail(fromX, fromY, jumpX, jumpY);
+    }
+
     private static Color ParseColor(string hex, Color fallback)
     {
         try
@@ -347,6 +424,10 @@ public partial class MainWindow : Window
             _mouseHookService.DisplayDeleteRequested -= OnDisplayDeleteRequested;
             _mouseHookService.SaveRequestedB -= OnSaveRequestedB;
             _mouseHookService.NavigateRequestedB -= OnNavigateRequestedB;
+            _mouseHookService.ResetCycleRequested -= OnResetCycleRequested;
+            _mouseHookService.ActiveWindowJumpRequested -= OnActiveWindowJumpRequested;
+            _mouseHookService.ClickHistoryBackRequested -= OnClickHistoryBackRequested;
+            _mouseHookService.LeftClickObserved -= OnLeftClickObserved;
             _mouseHookService.Dispose();
             _mouseHookService = null;
         }
@@ -359,6 +440,9 @@ public partial class MainWindow : Window
             _keyboardHookService.DisplayDeleteRequested -= OnDisplayDeleteRequested;
             _keyboardHookService.SaveRequestedB -= OnSaveRequestedB;
             _keyboardHookService.NavigateRequestedB -= OnNavigateRequestedB;
+            _keyboardHookService.ResetCycleRequested -= OnResetCycleRequested;
+            _keyboardHookService.ActiveWindowJumpRequested -= OnActiveWindowJumpRequested;
+            _keyboardHookService.ClickHistoryBackRequested -= OnClickHistoryBackRequested;
             _keyboardHookService.Dispose();
             _keyboardHookService = null;
         }

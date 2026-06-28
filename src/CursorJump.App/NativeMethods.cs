@@ -185,6 +185,20 @@ internal static class NativeMethods
     [DllImport("user32.dll")]
     internal static extern IntPtr GetAncestor(IntPtr hWnd, uint gaFlags);
 
+    // ウィンドウ矩形取得（フォアグラウンド窓中央ジャンプに使用、v1.9.0+）
+    [StructLayout(LayoutKind.Sequential)]
+    internal struct RECT
+    {
+        public int Left;
+        public int Top;
+        public int Right;
+        public int Bottom;
+    }
+
+    [DllImport("user32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    internal static extern bool GetWindowRect(IntPtr hWnd, out RECT lpRect);
+
     // ── SendInput（合成マウス入力）──
     internal const uint INPUT_MOUSE = 0;
     internal const uint MOUSEEVENTF_MIDDLEDOWN = 0x0020;

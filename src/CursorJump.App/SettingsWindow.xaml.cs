@@ -36,6 +36,30 @@ public partial class SettingsWindow : Window
         public override string ToString() => Loc.Get(ResourceKey);
     }
 
+    /// <summary>
+    /// 修飾キー連打ジェスチャ ComboBox の表示用 wrapper（v1.9.0+）。ButtonOption と同様、
+    /// ToString() で現在言語のリソース名を返すため言語切替時に再評価される。
+    /// </summary>
+    public sealed class GestureOption
+    {
+        public ModifierGesture Value { get; }
+        public string ResourceKey { get; }
+        public GestureOption(ModifierGesture value, string key)
+        {
+            Value = value;
+            ResourceKey = key;
+        }
+        public override string ToString() => Loc.Get(ResourceKey);
+    }
+
+    // 連打ジェスチャの選択肢（None は「未使用」= トグル OFF で表現するため含めない）。
+    private static readonly GestureOption[] GestureOptions =
+    {
+        new(ModifierGesture.CtrlDoubleTap,  "Str.Settings.Gesture.CtrlDoubleTap"),
+        new(ModifierGesture.ShiftDoubleTap, "Str.Settings.Gesture.ShiftDoubleTap"),
+        new(ModifierGesture.AltDoubleTap,   "Str.Settings.Gesture.AltDoubleTap"),
+    };
+
     // 既定の ButtonOption セット。v1.7.0 で MiddleDoubleClick/MiddleTripleClick を UI から除外。
     // v1.6.1 で WheelUp/WheelDown を UI から除外し、MouseWheel に統合。
     // 旧 settings.json に除外済み値が残っているケースだけ BuildButtonOptions で動的に追加表示する。
@@ -208,7 +232,8 @@ public partial class SettingsWindow : Window
 
     private void RefreshButtonComboBoxes()
     {
-        foreach (var combo in new[] { CmbSaveBtn, CmbNavBtn, CmbMonNavBtn, CmbDispBtn, CmbSaveBBtn, CmbNavBBtn })
+        foreach (var combo in new[] { CmbSaveBtn, CmbNavBtn, CmbMonNavBtn, CmbDispBtn, CmbSaveBBtn, CmbNavBBtn,
+                                       CmbResetBtn, CmbActWinBtn, CmbClkBackBtn })
         {
             var selected = combo.SelectedItem as ButtonOption;
             var current = selected?.Value ?? MouseButtonType.Left;
@@ -216,6 +241,16 @@ public partial class SettingsWindow : Window
             combo.ItemsSource = BuildButtonOptions(current);
             if (selected is not null)
                 combo.SelectedItem = FindButtonOptionIn((ButtonOption[])combo.ItemsSource, current);
+        }
+
+        // 連打ジェスチャ ComboBox も ToString() が Loc.Get 依存なので強制リフレッシュ。
+        foreach (var combo in new[] { CmbResetGesture, CmbActWinGesture, CmbClkBackGesture })
+        {
+            var selected = combo.SelectedItem as GestureOption;
+            combo.ItemsSource = null;
+            combo.ItemsSource = GestureOptions;
+            if (selected is not null)
+                combo.SelectedItem = FindGestureOption(selected.Value);
         }
     }
 
@@ -227,6 +262,20 @@ public partial class SettingsWindow : Window
         CmbDispBtn.ItemsSource = DefaultButtonOptions;
         CmbSaveBBtn.ItemsSource = DefaultButtonOptions;
         CmbNavBBtn.ItemsSource = DefaultButtonOptions;
+        CmbResetBtn.ItemsSource = DefaultButtonOptions;
+        CmbActWinBtn.ItemsSource = DefaultButtonOptions;
+        CmbClkBackBtn.ItemsSource = DefaultButtonOptions;
+
+        CmbResetGesture.ItemsSource = GestureOptions;
+        CmbActWinGesture.ItemsSource = GestureOptions;
+        CmbClkBackGesture.ItemsSource = GestureOptions;
+    }
+
+    private static GestureOption FindGestureOption(ModifierGesture g)
+    {
+        foreach (var opt in GestureOptions)
+            if (opt.Value == g) return opt;
+        return GestureOptions[0];
     }
 
     private void InitKeyboardSlots()
@@ -237,6 +286,9 @@ public partial class SettingsWindow : Window
         _keyboardSlots["Disp"]   = new("Disp",   LblDispKey,   BtnDispKeyRecord,   ChkDispCtrl,   ChkDispAlt,   ChkDispShift,   ChkDispWin,   ChkDispKeyboardEnabled);
         _keyboardSlots["SaveB"]  = new("SaveB",  LblSaveBKey,  BtnSaveBKeyRecord,  ChkSaveBCtrl,  ChkSaveBAlt,  ChkSaveBShift,  ChkSaveBWin,  ChkSaveBKeyboardEnabled);
         _keyboardSlots["NavB"]   = new("NavB",   LblNavBKey,   BtnNavBKeyRecord,   ChkNavBCtrl,   ChkNavBAlt,   ChkNavBShift,   ChkNavBWin,   ChkNavBKeyboardEnabled);
+        _keyboardSlots["Reset"]   = new("Reset",   LblResetKey,   BtnResetKeyRecord,   ChkResetCtrl,   ChkResetAlt,   ChkResetShift,   ChkResetWin,   ChkResetKeyboardEnabled);
+        _keyboardSlots["ActWin"]  = new("ActWin",  LblActWinKey,  BtnActWinKeyRecord,  ChkActWinCtrl,  ChkActWinAlt,  ChkActWinShift,  ChkActWinWin,  ChkActWinKeyboardEnabled);
+        _keyboardSlots["ClkBack"] = new("ClkBack", LblClkBackKey, BtnClkBackKeyRecord, ChkClkBackCtrl, ChkClkBackAlt, ChkClkBackShift, ChkClkBackWin, ChkClkBackKeyboardEnabled);
 
         // 修飾キー変更時にキーボードラベルを再描画（修飾キー checkbox はマウス/キーボード共通）
         foreach (var slot in _keyboardSlots.Values)
@@ -281,6 +333,29 @@ public partial class SettingsWindow : Window
             ChkNavBMouseEnabled, PnlNavBMouse,
             ChkNavBCtrl, ChkNavBAlt, ChkNavBShift, ChkNavBWin, CmbNavBBtn,
             ChkNavBKeyboardEnabled, PnlNavBKeyboard);
+
+        // ── Pro 追加機能（v1.9.0+）。マウス/キーボードは共通ヘルパー、連打ジェスチャは個別に反映 ──
+        LoadShortcutUI(s.ResetCycleShortcut, "Reset",
+            ChkResetMouseEnabled, PnlResetMouse,
+            ChkResetCtrl, ChkResetAlt, ChkResetShift, ChkResetWin, CmbResetBtn,
+            ChkResetKeyboardEnabled, PnlResetKeyboard);
+        LoadGestureUI(s.ResetCycleShortcut, ChkResetGestureEnabled, PnlResetGesture, CmbResetGesture);
+
+        LoadShortcutUI(s.ActiveWindowJumpShortcut, "ActWin",
+            ChkActWinMouseEnabled, PnlActWinMouse,
+            ChkActWinCtrl, ChkActWinAlt, ChkActWinShift, ChkActWinWin, CmbActWinBtn,
+            ChkActWinKeyboardEnabled, PnlActWinKeyboard);
+        LoadGestureUI(s.ActiveWindowJumpShortcut, ChkActWinGestureEnabled, PnlActWinGesture, CmbActWinGesture);
+
+        LoadShortcutUI(s.ClickHistoryBackShortcut, "ClkBack",
+            ChkClkBackMouseEnabled, PnlClkBackMouse,
+            ChkClkBackCtrl, ChkClkBackAlt, ChkClkBackShift, ChkClkBackWin, CmbClkBackBtn,
+            ChkClkBackKeyboardEnabled, PnlClkBackKeyboard);
+        LoadGestureUI(s.ClickHistoryBackShortcut, ChkClkBackGestureEnabled, PnlClkBackGesture, CmbClkBackGesture);
+
+        // クリック履歴の深さ
+        SldClickHistoryDepth.Value = Math.Clamp(s.ClickHistoryDepth, (int)SldClickHistoryDepth.Minimum, (int)SldClickHistoryDepth.Maximum);
+        UpdateClickHistoryDepthLabel();
 
         // 色
         _saveColor   = s.SaveCircleColor;
@@ -435,6 +510,25 @@ public partial class SettingsWindow : Window
         slot.RefreshLabel();
     }
 
+    /// <summary>修飾キー連打トリガー（Pro 3 種）の UI を反映する。</summary>
+    private static void LoadGestureUI(ActionShortcut shortcut,
+        CheckBox chkGestureEnabled, System.Windows.Controls.Panel pnlGesture, ComboBox cmbGesture)
+    {
+        bool gestureOn = shortcut.EnabledTriggers.HasFlag(TriggerType.ModifierSequence);
+        chkGestureEnabled.IsChecked = gestureOn;
+        pnlGesture.Visibility = gestureOn ? Visibility.Visible : Visibility.Collapsed;
+        var g = shortcut.ModifierGesture == ModifierGesture.None ? ModifierGesture.CtrlDoubleTap : shortcut.ModifierGesture;
+        cmbGesture.SelectedItem = FindGestureOption(g);
+    }
+
+    private void OnClickHistoryDepthChanged(object sender, RoutedPropertyChangedEventArgs<double> e) => UpdateClickHistoryDepthLabel();
+
+    private void UpdateClickHistoryDepthLabel()
+    {
+        if (TxtClickHistoryDepth is not null && SldClickHistoryDepth is not null)
+            TxtClickHistoryDepth.Text = $"{SldClickHistoryDepth.Value:0}";
+    }
+
     private void OnTriggerEnabledChanged(object sender, RoutedEventArgs e)
     {
         if (PnlSaveMouse is null) return;
@@ -451,6 +545,17 @@ public partial class SettingsWindow : Window
         UpdateTriggerPanel(ChkSaveBKeyboardEnabled, PnlSaveBKeyboard);
         UpdateTriggerPanel(ChkNavBMouseEnabled, PnlNavBMouse);
         UpdateTriggerPanel(ChkNavBKeyboardEnabled, PnlNavBKeyboard);
+
+        // Pro 追加機能（マウス / キーボード / 連打）
+        UpdateTriggerPanel(ChkResetMouseEnabled, PnlResetMouse);
+        UpdateTriggerPanel(ChkResetKeyboardEnabled, PnlResetKeyboard);
+        UpdateTriggerPanel(ChkResetGestureEnabled, PnlResetGesture);
+        UpdateTriggerPanel(ChkActWinMouseEnabled, PnlActWinMouse);
+        UpdateTriggerPanel(ChkActWinKeyboardEnabled, PnlActWinKeyboard);
+        UpdateTriggerPanel(ChkActWinGestureEnabled, PnlActWinGesture);
+        UpdateTriggerPanel(ChkClkBackMouseEnabled, PnlClkBackMouse);
+        UpdateTriggerPanel(ChkClkBackKeyboardEnabled, PnlClkBackKeyboard);
+        UpdateTriggerPanel(ChkClkBackGestureEnabled, PnlClkBackGesture);
     }
 
     private static void UpdateTriggerPanel(CheckBox chk, System.Windows.Controls.Panel pnl)
@@ -528,6 +633,10 @@ public partial class SettingsWindow : Window
             SetBProBadge.Visibility = isPro ? Visibility.Collapsed : Visibility.Visible;
         if (SetBProLockedNotice is not null)
             SetBProLockedNotice.Visibility = isPro ? Visibility.Collapsed : Visibility.Visible;
+
+        // Pro 追加機能 PRO バッジ
+        if (ProFeaturesProBadge is not null)
+            ProFeaturesProBadge.Visibility = isPro ? Visibility.Collapsed : Visibility.Visible;
     }
 
     private void OnLicenseApplyClick(object sender, RoutedEventArgs e)
@@ -674,6 +783,19 @@ public partial class SettingsWindow : Window
             ChkNavBMouseEnabled, ChkNavBCtrl, ChkNavBAlt, ChkNavBShift, ChkNavBWin, CmbNavBBtn,
             ChkNavBKeyboardEnabled, _keyboardSlots["NavB"].VirtualKeyCode);
 
+        var resetShortcut = ReadProShortcutUI(
+            ChkResetMouseEnabled, ChkResetCtrl, ChkResetAlt, ChkResetShift, ChkResetWin, CmbResetBtn,
+            ChkResetKeyboardEnabled, _keyboardSlots["Reset"].VirtualKeyCode,
+            ChkResetGestureEnabled, CmbResetGesture);
+        var actWinShortcut = ReadProShortcutUI(
+            ChkActWinMouseEnabled, ChkActWinCtrl, ChkActWinAlt, ChkActWinShift, ChkActWinWin, CmbActWinBtn,
+            ChkActWinKeyboardEnabled, _keyboardSlots["ActWin"].VirtualKeyCode,
+            ChkActWinGestureEnabled, CmbActWinGesture);
+        var clkBackShortcut = ReadProShortcutUI(
+            ChkClkBackMouseEnabled, ChkClkBackCtrl, ChkClkBackAlt, ChkClkBackShift, ChkClkBackWin, CmbClkBackBtn,
+            ChkClkBackKeyboardEnabled, _keyboardSlots["ClkBack"].VirtualKeyCode,
+            ChkClkBackGestureEnabled, CmbClkBackGesture);
+
         if (saveShortcut.EnabledTriggers == TriggerType.None ||
             navShortcut.EnabledTriggers == TriggerType.None ||
             dispShortcut.EnabledTriggers == TriggerType.None)
@@ -698,7 +820,8 @@ public partial class SettingsWindow : Window
 
         if (NeedsModifier(saveShortcut) || NeedsModifier(navShortcut) ||
             NeedsModifier(monNavShortcut) || NeedsModifier(dispShortcut) ||
-            NeedsModifier(saveBShortcut) || NeedsModifier(navBShortcut))
+            NeedsModifier(saveBShortcut) || NeedsModifier(navBShortcut) ||
+            NeedsModifier(resetShortcut) || NeedsModifier(actWinShortcut) || NeedsModifier(clkBackShortcut))
         {
             MessageBox.Show(Loc.Get("Str.Settings.Validation.NoModifier"),
                 Loc.Get("Str.AppName"), MessageBoxButton.OK, MessageBoxImage.Warning);
@@ -715,7 +838,8 @@ public partial class SettingsWindow : Window
 
         if (KeyboardNeedsModifier(saveShortcut) || KeyboardNeedsModifier(navShortcut) ||
             KeyboardNeedsModifier(monNavShortcut) || KeyboardNeedsModifier(dispShortcut) ||
-            KeyboardNeedsModifier(saveBShortcut) || KeyboardNeedsModifier(navBShortcut))
+            KeyboardNeedsModifier(saveBShortcut) || KeyboardNeedsModifier(navBShortcut) ||
+            KeyboardNeedsModifier(resetShortcut) || KeyboardNeedsModifier(actWinShortcut) || KeyboardNeedsModifier(clkBackShortcut))
         {
             MessageBox.Show(Loc.Get("Str.Settings.Validation.KeyboardNoModifier"),
                 Loc.Get("Str.AppName"), MessageBoxButton.OK, MessageBoxImage.Warning);
@@ -730,18 +854,21 @@ public partial class SettingsWindow : Window
             ("Str.Settings.Action.Display", dispShortcut),
             ("Str.Settings.Action.SaveB", saveBShortcut),
             ("Str.Settings.Action.NavigateB", navBShortcut),
+            ("Str.Settings.Action.ResetCycle", resetShortcut),
+            ("Str.Settings.Action.ActiveWindowJump", actWinShortcut),
+            ("Str.Settings.Action.ClickHistoryBack", clkBackShortcut),
         };
         for (int i = 0; i < actions.Length; i++)
         {
             for (int j = i + 1; j < actions.Length; j++)
             {
-                var (mouseDup, keyboardDup) = DetectShortcutConflict(actions[i].Shortcut, actions[j].Shortcut);
-                if (!mouseDup && !keyboardDup) continue;
-                string kind = mouseDup && keyboardDup
-                    ? Loc.Get("Str.Settings.Validation.ConflictKind.Both")
-                    : mouseDup
-                        ? Loc.Get("Str.Settings.Validation.ConflictKind.Mouse")
-                        : Loc.Get("Str.Settings.Validation.ConflictKind.Keyboard");
+                var (mouseDup, keyboardDup, gestureDup) = DetectShortcutConflict(actions[i].Shortcut, actions[j].Shortcut);
+                if (!mouseDup && !keyboardDup && !gestureDup) continue;
+                var kindParts = new List<string>();
+                if (mouseDup) kindParts.Add(Loc.Get("Str.Settings.Validation.ConflictKind.Mouse"));
+                if (keyboardDup) kindParts.Add(Loc.Get("Str.Settings.Validation.ConflictKind.Keyboard"));
+                if (gestureDup) kindParts.Add(Loc.Get("Str.Settings.Validation.ConflictKind.Gesture"));
+                string kind = string.Join(" / ", kindParts);
                 MessageBox.Show(
                     string.Format(
                         Loc.Get("Str.Settings.Validation.ConflictFormat"),
@@ -761,6 +888,10 @@ public partial class SettingsWindow : Window
             DisplayDeleteShortcut = dispShortcut,
             SaveShortcutB = saveBShortcut,
             NavigateShortcutB = navBShortcut,
+            ResetCycleShortcut = resetShortcut,
+            ActiveWindowJumpShortcut = actWinShortcut,
+            ClickHistoryBackShortcut = clkBackShortcut,
+            ClickHistoryDepth = (int)Math.Round(SldClickHistoryDepth.Value),
             SaveCircleColor  = _saveColor,
             SaveCircleColorB = _saveColorB,
             TrailColor       = _trailColor,
@@ -900,7 +1031,30 @@ public partial class SettingsWindow : Window
         };
     }
 
-    private static (bool mouse, bool keyboard) DetectShortcutConflict(ActionShortcut a, ActionShortcut b)
+    /// <summary>Pro 追加機能（v1.9.0+）。マウス/キーボードに加えて連打ジェスチャトリガーも読み取る。</summary>
+    private static ActionShortcut ReadProShortcutUI(
+        CheckBox chkMouseEnabled,
+        CheckBox chkCtrl, CheckBox chkAlt, CheckBox chkShift, CheckBox chkWin, ComboBox cmbBtn,
+        CheckBox chkKeyboardEnabled, int virtualKeyCode,
+        CheckBox chkGestureEnabled, ComboBox cmbGesture)
+    {
+        var sc = ReadShortcutUI(chkMouseEnabled, chkCtrl, chkAlt, chkShift, chkWin, cmbBtn,
+            chkKeyboardEnabled, virtualKeyCode);
+        var gesture = (cmbGesture.SelectedItem as GestureOption)?.Value ?? ModifierGesture.None;
+        if (chkGestureEnabled.IsChecked == true && gesture != ModifierGesture.None)
+        {
+            sc.EnabledTriggers |= TriggerType.ModifierSequence;
+            sc.ModifierGesture = gesture;
+        }
+        else
+        {
+            // トグル OFF でも選択中のジェスチャ値は保持する（再 ON 時の利便性）。
+            sc.ModifierGesture = gesture;
+        }
+        return sc;
+    }
+
+    private static (bool mouse, bool keyboard, bool gesture) DetectShortcutConflict(ActionShortcut a, ActionShortcut b)
     {
         bool mouseDup =
             a.EnabledTriggers.HasFlag(TriggerType.Mouse) && b.EnabledTriggers.HasFlag(TriggerType.Mouse)
@@ -910,7 +1064,11 @@ public partial class SettingsWindow : Window
             a.EnabledTriggers.HasFlag(TriggerType.Keyboard) && b.EnabledTriggers.HasFlag(TriggerType.Keyboard)
             && a.VirtualKeyCode == b.VirtualKeyCode;
 
-        return (mouseDup, keyboardDup);
+        bool gestureDup =
+            a.EnabledTriggers.HasFlag(TriggerType.ModifierSequence) && b.EnabledTriggers.HasFlag(TriggerType.ModifierSequence)
+            && a.ModifierGesture != ModifierGesture.None && a.ModifierGesture == b.ModifierGesture;
+
+        return (mouseDup, keyboardDup, gestureDup);
     }
 
     private static ButtonOption FindButtonOption(MouseButtonType type) =>

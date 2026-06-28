@@ -6,19 +6,38 @@ namespace CursorJump.App.Models;
 [Flags]
 public enum TriggerType
 {
-    None     = 0,
-    Mouse    = 1,
-    Keyboard = 2,
+    None            = 0,
+    Mouse           = 1,
+    Keyboard        = 2,
+    /// <summary>修飾キーの連打ジェスチャ（v1.9.0+）。Pro 機能 3 種専用。<see cref="ModifierGesture"/> で具体的なジェスチャを指定する。</summary>
+    ModifierSequence = 4,
+}
+
+/// <summary>
+/// 修飾キーの連打ジェスチャのプリセット（v1.9.0+）。観測専用でキーは消費しない。
+/// 順次タップ（前のキーを離してから次を押す）で成立し、同時押し（チャード）では成立しない。
+/// </summary>
+public enum ModifierGesture
+{
+    None,
+    /// <summary>Ctrl を素早く 2 回タップ。</summary>
+    CtrlDoubleTap,
+    /// <summary>Shift を素早く 2 回タップ。</summary>
+    ShiftDoubleTap,
+    /// <summary>Alt を素早く 2 回タップ。単独タップで一部アプリのメニューバーが一瞬反応する点に注意。</summary>
+    AltDoubleTap,
 }
 
 public sealed class ActionShortcut
 {
-    /// <summary>有効なトリガーの組み合わせ。Mouse | Keyboard のように複数指定可能。</summary>
+    /// <summary>有効なトリガーの組み合わせ。Mouse | Keyboard | ModifierSequence のように複数指定可能。</summary>
     public TriggerType EnabledTriggers { get; set; } = TriggerType.Mouse;
     public ModifierKeyFlags Modifiers { get; set; } = ModifierKeyFlags.Control | ModifierKeyFlags.Windows;
     public MouseButtonType MouseButton { get; set; } = MouseButtonType.Left;
     /// <summary>キーボードトリガーの仮想キーコード（例: VK_F13=0x7C）。Keyboard フラグが有効な時に使用。</summary>
     public int VirtualKeyCode { get; set; } = 0;
+    /// <summary>修飾キー連打ジェスチャ（v1.9.0+）。ModifierSequence フラグが有効な時に使用。</summary>
+    public ModifierGesture ModifierGesture { get; set; } = ModifierGesture.None;
 }
 
 public sealed class AppSettings
@@ -68,6 +87,45 @@ public sealed class AppSettings
         MouseButton = MouseButtonType.Right,
         VirtualKeyCode = 0
     };
+
+    // ── Pro 追加機能（v1.9.0+） 3 種。いずれも既定無効（利用者が各機能ごとに ON）。 ──
+
+    /// <summary>ジャンプ循環リセット（Set A/B 両方の循環インデックスを先頭前へ戻す）。Pro 限定。既定無効。
+    /// 既定プリセット = Ctrl ダブルタップ（ON にすると即使える想定値）。</summary>
+    public ActionShortcut ResetCycleShortcut { get; set; } = new()
+    {
+        EnabledTriggers = TriggerType.None,
+        Modifiers = ModifierKeyFlags.Control | ModifierKeyFlags.Windows | ModifierKeyFlags.Shift,
+        MouseButton = MouseButtonType.Middle,
+        VirtualKeyCode = 0,
+        ModifierGesture = ModifierGesture.CtrlDoubleTap
+    };
+
+    /// <summary>フォアグラウンドウィンドウ中央へジャンプ。Pro 限定。既定無効。
+    /// 既定プリセット = Shift ダブルタップ。</summary>
+    public ActionShortcut ActiveWindowJumpShortcut { get; set; } = new()
+    {
+        EnabledTriggers = TriggerType.None,
+        Modifiers = ModifierKeyFlags.Alt | ModifierKeyFlags.Windows,
+        MouseButton = MouseButtonType.Middle,
+        VirtualKeyCode = 0,
+        ModifierGesture = ModifierGesture.ShiftDoubleTap
+    };
+
+    /// <summary>通常左クリック履歴を 1 つ戻る（Cursor の Ctrl+Z 風）。Pro 限定。既定無効。
+    /// 既定プリセット = Alt ダブルタップ。</summary>
+    public ActionShortcut ClickHistoryBackShortcut { get; set; } = new()
+    {
+        EnabledTriggers = TriggerType.None,
+        Modifiers = ModifierKeyFlags.Alt | ModifierKeyFlags.Windows,
+        MouseButton = MouseButtonType.Left,
+        VirtualKeyCode = 0,
+        ModifierGesture = ModifierGesture.AltDoubleTap
+    };
+
+    /// <summary>左クリック履歴の巡回に含める最近クリック数（1..10）。戻るショートカットを押すたびに最近 N 件を循環する。
+    /// 既定 2＝最近 2 点を行き来。循環式なので 1 は実質意味がなく（その場でスキップされ動かない）、最小実用値は 2。</summary>
+    public int ClickHistoryDepth { get; set; } = 2;
 
     // 初期色は Set A=青 / Set B=ピンク で 3 効果（保存円・軌跡・マーカー）を統一する。
     // デフォルト変更は新規インストール（settings.json 不在）時のみ反映。既存環境は保存値を維持する。

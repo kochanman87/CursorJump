@@ -217,4 +217,59 @@ public class CoordinateStoreTests
             new SavedCoordinate(10, 10, @"\\.\DISPLAY1"));
         Assert.Null(store.GetPrevInMonitor(@"\\.\DISPLAY2"));
     }
+
+    // ── v1.9.0: ResetCursor（循環リセット） ──
+
+    [Fact]
+    public void ResetCursor_makes_next_return_first_again()
+    {
+        var store = BuildStoreWith(
+            new SavedCoordinate(10, 10, @"\\.\DISPLAY1"),
+            new SavedCoordinate(20, 20, @"\\.\DISPLAY1"),
+            new SavedCoordinate(30, 30, @"\\.\DISPLAY1"));
+
+        var connected = new[] { @"\\.\DISPLAY1" };
+
+        // 2,3 番目まで進める
+        store.GetNext(connected);
+        var second = store.GetNext(connected);
+        Assert.Equal((20, 20), (second!.X, second.Y));
+
+        store.ResetCursor();
+
+        // リセット後は先頭から再開し、座標数は不変
+        var afterReset = store.GetNext(connected);
+        Assert.Equal((10, 10), (afterReset!.X, afterReset.Y));
+        Assert.Equal(3, store.Count);
+    }
+
+    [Fact]
+    public void ResetCursor_no_args_getnext_restarts_from_first()
+    {
+        var store = BuildStoreWith(
+            new SavedCoordinate(10, 10, @"\\.\DISPLAY1"),
+            new SavedCoordinate(20, 20, @"\\.\DISPLAY1"));
+
+        store.GetNext();
+        store.GetNext(); // index 1
+        store.ResetCursor();
+        var first = store.GetNext();
+        Assert.Equal((10, 10), (first!.X, first.Y));
+    }
+
+    [Fact]
+    public void ResetCursor_also_resets_per_monitor_index()
+    {
+        var store = BuildStoreWith(
+            new SavedCoordinate(10, 10, @"\\.\DISPLAY1"),
+            new SavedCoordinate(20, 20, @"\\.\DISPLAY1"),
+            new SavedCoordinate(30, 30, @"\\.\DISPLAY1"));
+
+        store.GetNextInMonitor(@"\\.\DISPLAY1"); // index 0
+        store.GetNextInMonitor(@"\\.\DISPLAY1"); // index 1
+        store.ResetCursor();
+
+        var afterReset = store.GetNextInMonitor(@"\\.\DISPLAY1");
+        Assert.Equal((10, 10), (afterReset!.X, afterReset.Y));
+    }
 }

@@ -73,6 +73,22 @@
     <sys:String x:Key="Str.Settings.SetB.Header">Second coordinate set (independent)</sys:String>
     <sys:String x:Key="Str.Settings.SetB.Description">Manages a separate coordinate list from Set A. The two cycle independently and are shown side-by-side with distinct colors in delete mode.</sys:String>
 
+    <!-- Pro extra features (v1.9.0+) -->
+    <sys:String x:Key="Str.Settings.ProFeatures.Header">Pro extra features</sys:String>
+    <sys:String x:Key="Str.Settings.ProFeatures.Description">Extra actions that only work in the Pro edition. Each can be triggered by mouse, keyboard, or a modifier-key tap gesture.</sys:String>
+    <sys:String x:Key="Str.Settings.Card.ResetCycle">Reset cycle</sys:String>
+    <sys:String x:Key="Str.Settings.Card.ResetCycle.Desc">Rewinds the coordinate cycle so the next navigation starts from the first coordinate (does not move the cursor right away). Applies to both Set A and Set B.</sys:String>
+    <sys:String x:Key="Str.Settings.Card.ActiveWindowJump">Jump to active window center</sys:String>
+    <sys:String x:Key="Str.Settings.Card.ActiveWindowJump.Desc">Jumps the cursor to the center of the current foreground window in one shot. Handy for apps that open far from the cursor.</sys:String>
+    <sys:String x:Key="Str.Settings.Card.ClickHistoryBack">Back to click position</sys:String>
+    <sys:String x:Key="Str.Settings.Card.ClickHistoryBack.Desc">Automatically records your normal left-click positions and sends the cursor back to the most recent one (similar to an editor's "go back").</sys:String>
+    <sys:String x:Key="Str.Settings.Trigger.Gesture">Modifier tap gesture</sys:String>
+    <sys:String x:Key="Str.Settings.Gesture.CtrlDoubleTap">Double-tap Ctrl</sys:String>
+    <sys:String x:Key="Str.Settings.Gesture.ShiftDoubleTap">Double-tap Shift</sys:String>
+    <sys:String x:Key="Str.Settings.Gesture.AltDoubleTap">Double-tap Alt (briefly flashes the menu in some apps)</sys:String>
+    <sys:String x:Key="Str.Settings.ClickHistoryDepth">History depth</sys:String>
+    <sys:String x:Key="Str.Settings.ClickHistoryDepth.Hint">Each press cycles through your recent click positions (wraps around at the end; the position under the cursor is skipped). Value = how many recent clicks to cycle (2–10).</sys:String>
+
     <!-- Effects card -->
     <sys:String x:Key="Str.Settings.Effect.Save.Title">Save effect</sys:String>
     <sys:String x:Key="Str.Settings.Effect.Save.Hint">Shrinking-circle animation when saving a coordinate</sys:String>
@@ -106,6 +122,7 @@
     <sys:String x:Key="Str.Settings.Validation.ConflictKind.Mouse">mouse</sys:String>
     <sys:String x:Key="Str.Settings.Validation.ConflictKind.Keyboard">keyboard</sys:String>
     <sys:String x:Key="Str.Settings.Validation.ConflictKind.Both">mouse and keyboard</sys:String>
+    <sys:String x:Key="Str.Settings.Validation.ConflictKind.Gesture">modifier tap gesture</sys:String>
 
     <!-- Action names (used in conflict error) -->
     <sys:String x:Key="Str.Settings.Action.Save">Save coordinate</sys:String>
@@ -114,6 +131,9 @@
     <sys:String x:Key="Str.Settings.Action.Display">Display/Delete</sys:String>
     <sys:String x:Key="Str.Settings.Action.SaveB">Save coordinate (Set B)</sys:String>
     <sys:String x:Key="Str.Settings.Action.NavigateB">Navigate coordinates (Set B)</sys:String>
+    <sys:String x:Key="Str.Settings.Action.ResetCycle">Reset cycle</sys:String>
+    <sys:String x:Key="Str.Settings.Action.ActiveWindowJump">Jump to active window center</sys:String>
+    <sys:String x:Key="Str.Settings.Action.ClickHistoryBack">Back to click position</sys:String>
 
     <!-- Mouse button names -->
     <sys:String x:Key="Str.Button.Left">Left click</sys:String>

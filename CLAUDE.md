@@ -62,8 +62,10 @@ src/CursorJump.App/
 ├── MouseHookService.cs             # WH_MOUSE_LL低レベルフック + 座標表示モード（WH_KEYBOARD_LL併用）
 ├── KeyboardHookService.cs          # WH_KEYBOARD_LL常時フック（F13-F24キーボードトリガー）
 ├── CursorService.cs                # カーソル移動（SendInput(ABSOLUTE|VIRTUALDESK) または SetCursorPos）
-├── WindowActivator.cs              # ジャンプ後にカーソル直下のトップレベルウィンドウを前面化（AttachThreadInput 経由）
-├── CoordinateStore.cs              # 座標リスト管理（Add/GetNext循環/GetNext(connected)/GetNextInMonitor/RemoveAt/Load/Changed）
+├── WindowActivator.cs              # ジャンプ後にカーソル直下のトップレベルウィンドウを前面化（AttachThreadInput 経由）+ GetForegroundWindowCenter（v1.9.0 機能2）
+├── CoordinateStore.cs              # 座標リスト管理（Add/GetNext循環/GetNext(connected)/GetNextInMonitor/RemoveAt/Load/Changed/ResetCursor）
+├── ClickHistory.cs                 # 左クリック位置の内部履歴リングバッファ（v1.9.0 機能3、Pro、純粋ロジック・テスト対象）
+├── ModifierGestureDetector.cs      # 修飾キー連打ジェスチャ検出（v1.9.0、観測専用・テスト対象）
 ├── MonitorFilter.cs                # 接続中モニタ判定の純粋関数（バグ3 対策、テスト容易性）
 ├── ShortcutFormatter.cs            # ショートカット表記（通常/削除モード用の compact 名対応）
 ├── OverlayService.cs               # オーバーレイアニメーション（収縮円、軌跡、マーカー）
@@ -113,7 +115,9 @@ src/CursorJump.App/
 - **`EnterDeleteMode`/`ExitDeleteMode` は swallow フラグをクリアしない**: `_swallowNextLeftUp`/`_swallowNextRightUp` は対応する UP 到達時に自然消費される。削除モード遷移時にクリアすると、Chord 成立 → `BeginInvoke` → `EnterDeleteMode` → 物理 RUP という非同期経路で直前に立てたフラグが潰され、コンテキストメニューが出る不具合を招く
 - **swallow フラグはタイムアウト方式 (v1.5.0+)**: `_swallowNextLeftUp` 等は内部実装が `Environment.TickCount64` ベースの「期限」(`SwallowTimeoutMs=500`) で、UP 到達なしでも 500ms 経過で自動失効する。Win11 のフックタイムアウト (300ms) で UP イベントが取り逃がされてもフラグが永続残留せず、以降の左クリックが食われる症状（バグ4）を防ぐ。プロパティの `get`/`set` は API 互換のため bool に見えるが内部は long 値の比較
 - **DebugLog は非同期キュー方式 (v1.5.0+)**: `Write()` は `BlockingCollection<string>` に積むだけで即 return（数 us）。バックグラウンドスレッドが順次 `File.AppendAllText` で書き出す。フックコールバック内で同期 I/O が走らないためフックタイムアウト誘発を防ぐ。`App.OnExit` で `DebugLog.Flush(500ms)` を呼んで終了時の取りこぼしを防ぐ。物理モニタのインチサイズは WMI (`Root\WMI\WmiMonitorBasicDisplayParams`) から取得し `Task.Run` で非同期実行（起動を妨げない）
-- **TriggerType [Flags] enum**: `Mouse=1, Keyboard=2`。`EnabledTriggers` に複数フラグをセットすることでOR動作。旧settings.jsonは `EnabledTriggers` 不在 → デフォルト `Mouse` として扱われ後方互換。JSONはJsonStringEnumConverterで文字列保存（例: `"Mouse, Keyboard"`）
+- **TriggerType [Flags] enum**: `Mouse=1, Keyboard=2, ModifierSequence=4`(v1.9.0+)。`EnabledTriggers` に複数フラグをセットすることでOR動作。旧settings.jsonは `EnabledTriggers` 不在 → デフォルト `Mouse` として扱われ後方互換。JSONはJsonStringEnumConverterで文字列保存（例: `"Mouse, Keyboard"`）
+- **Pro 追加機能 3 種 (v1.9.0+)**: `ResetCycleShortcut`(循環リセット=`CoordinateStore.ResetCursor` で Set A/B 両方の `_currentIndex`/`_monitorIndices` を先頭前へ。即ジャンプなし) / `ActiveWindowJumpShortcut`(フォアグラウンド窓中央=`WindowActivator.GetForegroundWindowCenter`→`JumpTo`) / `ClickHistoryBackShortcut`(左クリック履歴を戻る=`ClickHistory` リングバッファ、`ClickHistoryDepth`=巡回に含める最近クリック数 既定2/最大10。**`Back` は最近 depth 件を新しい順に循環**＝端まで行ったら先頭(最新)へラップ(`_pos` ポインタ)。**現在カーソルに近い記録(`SkipRadiusPx=40`、削除モードの `SnapDistancePhysical` と同値)はスキップして次へ**＝無意味なその場ジャンプを回避。窓内全件がカーソル付近のときのみ null。`Record` は直前記録と同一地点(`DedupRadiusPx=8`)の連打=ダブルクリックを重複登録しない。循環式なので depth=1 は実質無意味＝設定スライダー最小は2)。いずれも `MainWindow` ハンドラ冒頭で `IsPro` ゲート。`MouseHookService.LeftClickObserved` がどのショートカットにもマッチしない通常左クリックを**消費せず**観測して `ClickHistory.Record`（`ClickHistoryBackShortcut.EnabledTriggers != None` のときだけ発火）。新ショートカットは Save/Nav 等と同様 `MouseHookService` の全アクション列挙箇所（`AnyShortcutUsesWheel`/`AnyShortcutUsesMiddleExtended`/`FindShortcutByButton`/`FindMiddleSinglePressMatch`/`FireShortcutOnUiThread`）にも登録済み
+- **修飾キー連打トリガー (v1.9.0+、上記3種専用)**: `ActionShortcut.ModifierGesture`(enum: None/CtrlDoubleTap/ShiftDoubleTap/AltDoubleTap) + `TriggerType.ModifierSequence` フラグで指定。各修飾キー単独のダブルタップのみ（3連シーケンス案は「どのショートカットか分かりにくい」というフィードバックで廃止）。`KeyboardHookService` が全キー down/up を `ModifierGestureDetector.Feed` に投入し、**観測専用＝キーは消費せず** `CallNextHookEx` で素通し（通常の修飾キー操作を壊さない）。順次タップ（前のキーを離してから次を押す）判定なので `Ctrl+Shift+キー` 同時押し（チャード）や文字キー混在では成立しない。Alt ダブルタップは単独タップで一部アプリのメニューバーが一瞬反応する副作用あり（許容、UI 注記）。サスペンド/削除モード遷移時は `Detector.Reset()`
 - **SavedCoordinate**: `record SavedCoordinate(int X, int Y, string MonitorDeviceName = "")`。保存時に `Screen.FromPoint` でモニタ名を記録。`""` は旧settings.jsonとの後方互換のデフォルト値
 
 ### テーマシステム（Light/Dark）
@@ -160,7 +164,10 @@ VIAキーボードカスタマイズツールのマクロ機能でF13-F24を送�
 ### データモデル
 ```csharp
 [Flags]
-public enum TriggerType { None = 0, Mouse = 1, Keyboard = 2 }
+public enum TriggerType { None = 0, Mouse = 1, Keyboard = 2, ModifierSequence = 4 } // ModifierSequence は v1.9.0+、Pro追加機能3種専用
+
+// 修飾キー連打ジェスチャ (v1.9.0+)
+public enum ModifierGesture { None, CtrlDoubleTap, ShiftDoubleTap, AltDoubleTap }
 
 public sealed class ActionShortcut
 {
@@ -168,6 +175,7 @@ public sealed class ActionShortcut
     public ModifierKeyFlags Modifiers { get; set; } = ...;
     public MouseButtonType MouseButton { get; set; } = ...;
     public int VirtualKeyCode { get; set; } = 0;  // VK_F13=0x7C〜VK_F24=0x87
+    public ModifierGesture ModifierGesture { get; set; } = ModifierGesture.None; // v1.9.0+
 }
 ```
 
@@ -198,6 +206,7 @@ v1.4.0 で Pro/Free 版を導入。BOOTH 配布のライセンスキーを設定
 - 座標保存は **3 個まで**（`LicenseService.FreeMaxCoordinates`）。Set A のみが対象。上限到達時の追加要求は静かに無視（DebugLog のみ）。削除モードで 1 個削除すれば再保存可能
 - **Set B（第2座標セット）は機能無効**: `MainWindow.OnSaveRequestedB` / `OnNavigateRequestedB` で `IsPro == false` なら早期 return。設定画面で Set B のショートカットは編集可能だが、トリガーは反応しない（PRO バッジ + 案内テキストで明示）
 - 設定画面の Set B セクションに **`PRO` バッジ** と「Pro 版でのみ動作します」ロック通知が表示される（Pro 化で消える）
+- **Pro 追加機能 3 種（v1.9.0+: 循環リセット / 前面ウィンドウ中央へ / クリック位置に戻る）も Free では無効**: 各 `MainWindow` ハンドラ冒頭で `IsPro == false` なら早期 return（`OnLeftClickObserved` も Free では履歴を貯めない）。設定画面「Pro 追加機能」セクションに `PRO` バッジ（`ProFeaturesProBadge`）を表示。3 種とも既定で全トリガー無効（利用者が機能ごとに ON）
 
 ### キー設計（秀丸方式 + ハッシュ埋め込み）
 - **キー文字列**: 全購入者共通の固定値。**平文値はこのリポジトリには絶対に書かない**（BOOTH 配信 .txt と手元の `.secrets/key.txt`（gitignore 済み）のみに保管）

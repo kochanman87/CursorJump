@@ -186,6 +186,18 @@ internal sealed class CoordinateStore
         return true;
     }
 
+    /// <summary>
+    /// 座標は保持したまま循環インデックスのみ先頭前 (-1) へ戻す（v1.9.0+）。
+    /// 次の <see cref="GetNext()"/> / <see cref="GetNext(IReadOnlyList{string})"/> は先頭の有効座標を、
+    /// <see cref="GetNextInMonitor(string)"/> は各モニタ先頭から再開する。即ジャンプはしない。
+    /// 座標自体は変更しないため <see cref="Changed"/> は発火しない（無駄な永続化を避ける）。
+    /// </summary>
+    public void ResetCursor()
+    {
+        _currentIndex = -1;
+        _monitorIndices.Clear();
+    }
+
     /// <summary>全座標を削除し、インデックスをリセットする。</summary>
     public void Clear()
     {

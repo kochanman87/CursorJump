@@ -107,6 +107,17 @@ internal sealed class MouseHookService : IDisposable
     /// <summary>第2座標セット（Set B）の座標移動リクエスト。</summary>
     public event EventHandler<MouseHookEventArgs>? NavigateRequestedB;
 
+    // ── Pro 追加機能（v1.9.0+） ──
+    /// <summary>ジャンプ循環リセットのリクエスト（Pro）。</summary>
+    public event EventHandler<MouseHookEventArgs>? ResetCycleRequested;
+    /// <summary>フォアグラウンド窓中央へジャンプのリクエスト（Pro）。</summary>
+    public event EventHandler<MouseHookEventArgs>? ActiveWindowJumpRequested;
+    /// <summary>左クリック履歴を 1 つ戻るリクエスト（Pro）。</summary>
+    public event EventHandler<MouseHookEventArgs>? ClickHistoryBackRequested;
+    /// <summary>通常の左クリック（どのショートカットにもマッチせず素通しされたもの）を観測。
+    /// クリック履歴記録用。消費はしない。</summary>
+    public event EventHandler<MouseHookEventArgs>? LeftClickObserved;
+
     // 削除モード用イベント
     public event EventHandler<MouseHookEventArgs>? DeleteModeClicked;
     public event EventHandler<MouseHookEventArgs>? DeleteModeMoved;
@@ -488,6 +499,41 @@ internal sealed class MouseHookService : IDisposable
                     RaiseAsync(NavigateRequestedB, args);
                     return (IntPtr)1;
                 }
+
+                // ── Pro 追加機能（v1.9.0+） ──
+                if (IsShortcutMatch(pressedButton.Value, settings.ResetCycleShortcut))
+                {
+                    DebugLog.Write($"HookCallback: ResetCycleRequested matched (button={pressedButton.Value})");
+                    SetSwallowUpFlag(pressedButton.Value);
+                    RaiseAsync(ResetCycleRequested, args);
+                    return (IntPtr)1;
+                }
+
+                if (IsShortcutMatch(pressedButton.Value, settings.ActiveWindowJumpShortcut))
+                {
+                    DebugLog.Write($"HookCallback: ActiveWindowJumpRequested matched (button={pressedButton.Value})");
+                    SetSwallowUpFlag(pressedButton.Value);
+                    RaiseAsync(ActiveWindowJumpRequested, args);
+                    return (IntPtr)1;
+                }
+
+                if (IsShortcutMatch(pressedButton.Value, settings.ClickHistoryBackShortcut))
+                {
+                    DebugLog.Write($"HookCallback: ClickHistoryBackRequested matched (button={pressedButton.Value})");
+                    SetSwallowUpFlag(pressedButton.Value);
+                    RaiseAsync(ClickHistoryBackRequested, args);
+                    return (IntPtr)1;
+                }
+            }
+
+            // ── 通常左クリックの観測（クリック履歴記録用、v1.9.0+） ──
+            // ここに到達した左クリックはどのショートカットにもマッチせず素通しされるもの。
+            // 機能が有効なときだけ座標を非同期通知する（消費はしない＝return しない）。
+            // DebugLog はホットパスのためここでは呼ばない。
+            if (msg == NativeMethods.WM_LBUTTONDOWN
+                && _settingsService.Current.ClickHistoryBackShortcut.EnabledTriggers != TriggerType.None)
+            {
+                RaiseAsync(LeftClickObserved, new MouseHookEventArgs(hookStruct.pt.X, hookStruct.pt.Y));
             }
 
             // ── ホイールトリガー ──
@@ -537,6 +583,24 @@ internal sealed class MouseHookService : IDisposable
                     {
                         DebugLog.Write($"HookCallback: NavigateRequestedB matched (wheel direction={direction})");
                         RaiseAsync(NavigateRequestedB, args);
+                        return (IntPtr)1;
+                    }
+                    if (MatchWheelShortcut(legacyWheelButton, settings.ResetCycleShortcut))
+                    {
+                        DebugLog.Write($"HookCallback: ResetCycleRequested matched (wheel direction={direction})");
+                        RaiseAsync(ResetCycleRequested, args);
+                        return (IntPtr)1;
+                    }
+                    if (MatchWheelShortcut(legacyWheelButton, settings.ActiveWindowJumpShortcut))
+                    {
+                        DebugLog.Write($"HookCallback: ActiveWindowJumpRequested matched (wheel direction={direction})");
+                        RaiseAsync(ActiveWindowJumpRequested, args);
+                        return (IntPtr)1;
+                    }
+                    if (MatchWheelShortcut(legacyWheelButton, settings.ClickHistoryBackShortcut))
+                    {
+                        DebugLog.Write($"HookCallback: ClickHistoryBackRequested matched (wheel direction={direction})");
+                        RaiseAsync(ClickHistoryBackRequested, args);
                         return (IntPtr)1;
                     }
                 }
@@ -805,7 +869,10 @@ internal sealed class MouseHookService : IDisposable
         UsesMiddleExtended(s.NavigateCurrentMonitorShortcut) ||
         UsesMiddleExtended(s.DisplayDeleteShortcut) ||
         UsesMiddleExtended(s.SaveShortcutB) ||
-        UsesMiddleExtended(s.NavigateShortcutB);
+        UsesMiddleExtended(s.NavigateShortcutB) ||
+        UsesMiddleExtended(s.ResetCycleShortcut) ||
+        UsesMiddleExtended(s.ActiveWindowJumpShortcut) ||
+        UsesMiddleExtended(s.ClickHistoryBackShortcut);
 
     private static bool UsesMiddleExtended(ActionShortcut sc) =>
         sc.EnabledTriggers.HasFlag(TriggerType.Mouse) &&
@@ -820,7 +887,10 @@ internal sealed class MouseHookService : IDisposable
         UsesWheel(s.NavigateCurrentMonitorShortcut) ||
         UsesWheel(s.DisplayDeleteShortcut) ||
         UsesWheel(s.SaveShortcutB) ||
-        UsesWheel(s.NavigateShortcutB);
+        UsesWheel(s.NavigateShortcutB) ||
+        UsesWheel(s.ResetCycleShortcut) ||
+        UsesWheel(s.ActiveWindowJumpShortcut) ||
+        UsesWheel(s.ClickHistoryBackShortcut);
 
     private static bool UsesWheel(ActionShortcut sc) =>
         sc.EnabledTriggers.HasFlag(TriggerType.Mouse) &&
@@ -848,13 +918,16 @@ internal sealed class MouseHookService : IDisposable
         if (s.DisplayDeleteShortcut.EnabledTriggers.HasFlag(TriggerType.Mouse) && s.DisplayDeleteShortcut.MouseButton == btn) return s.DisplayDeleteShortcut;
         if (s.SaveShortcutB.EnabledTriggers.HasFlag(TriggerType.Mouse) && s.SaveShortcutB.MouseButton == btn) return s.SaveShortcutB;
         if (s.NavigateShortcutB.EnabledTriggers.HasFlag(TriggerType.Mouse) && s.NavigateShortcutB.MouseButton == btn) return s.NavigateShortcutB;
+        if (s.ResetCycleShortcut.EnabledTriggers.HasFlag(TriggerType.Mouse) && s.ResetCycleShortcut.MouseButton == btn) return s.ResetCycleShortcut;
+        if (s.ActiveWindowJumpShortcut.EnabledTriggers.HasFlag(TriggerType.Mouse) && s.ActiveWindowJumpShortcut.MouseButton == btn) return s.ActiveWindowJumpShortcut;
+        if (s.ClickHistoryBackShortcut.EnabledTriggers.HasFlag(TriggerType.Mouse) && s.ClickHistoryBackShortcut.MouseButton == btn) return s.ClickHistoryBackShortcut;
         return null;
     }
 
     /// <summary>Middle 単押し（MouseButton==Middle）のアクションで修飾キーもマッチするもの。</summary>
     private static ActionShortcut? FindMiddleSinglePressMatch(AppSettings s)
     {
-        ActionShortcut[] all = { s.SaveShortcut, s.NavigateShortcut, s.NavigateCurrentMonitorShortcut, s.DisplayDeleteShortcut, s.SaveShortcutB, s.NavigateShortcutB };
+        ActionShortcut[] all = { s.SaveShortcut, s.NavigateShortcut, s.NavigateCurrentMonitorShortcut, s.DisplayDeleteShortcut, s.SaveShortcutB, s.NavigateShortcutB, s.ResetCycleShortcut, s.ActiveWindowJumpShortcut, s.ClickHistoryBackShortcut };
         foreach (var sc in all)
         {
             if (!sc.EnabledTriggers.HasFlag(TriggerType.Mouse)) continue;
@@ -901,6 +974,9 @@ internal sealed class MouseHookService : IDisposable
             else if (ReferenceEquals(sc, s.DisplayDeleteShortcut)) DisplayDeleteRequested?.Invoke(this, args);
             else if (ReferenceEquals(sc, s.SaveShortcutB)) SaveRequestedB?.Invoke(this, args);
             else if (ReferenceEquals(sc, s.NavigateShortcutB)) NavigateRequestedB?.Invoke(this, args);
+            else if (ReferenceEquals(sc, s.ResetCycleShortcut)) ResetCycleRequested?.Invoke(this, args);
+            else if (ReferenceEquals(sc, s.ActiveWindowJumpShortcut)) ActiveWindowJumpRequested?.Invoke(this, args);
+            else if (ReferenceEquals(sc, s.ClickHistoryBackShortcut)) ClickHistoryBackRequested?.Invoke(this, args);
         };
         if (dispatcher is null) fire();
         else dispatcher.BeginInvoke(fire);

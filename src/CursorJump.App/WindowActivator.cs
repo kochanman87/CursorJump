@@ -35,6 +35,50 @@ internal static class WindowActivator
             NativeMethods.GetWindowThreadProcessId(hwnd, out uint targetPid);
             if (targetPid == OwnProcessId) return;
 
+            ActivateWindow(hwnd, physX, physY);
+        }
+        catch (Exception ex)
+        {
+            DebugLog.Write($"WindowActivator.Activate exception: {ex.Message}");
+        }
+    }
+
+    /// <summary>
+    /// 現在フォアグラウンドのウィンドウの中心物理座標を返す（v1.9.0+）。
+    /// 取得失敗・自プロセス・最小化/不正矩形の場合は null。
+    /// </summary>
+    public static (int X, int Y)? GetForegroundWindowCenter()
+    {
+        try
+        {
+            IntPtr hwnd = NativeMethods.GetForegroundWindow();
+            if (hwnd == IntPtr.Zero) return null;
+
+            IntPtr root = NativeMethods.GetAncestor(hwnd, NativeMethods.GA_ROOT);
+            if (root != IntPtr.Zero) hwnd = root;
+
+            NativeMethods.GetWindowThreadProcessId(hwnd, out uint pid);
+            if (pid == OwnProcessId) return null; // 自プロセスは対象外
+
+            if (!NativeMethods.GetWindowRect(hwnd, out var rc)) return null;
+            int w = rc.Right - rc.Left;
+            int h = rc.Bottom - rc.Top;
+            if (w <= 0 || h <= 0) return null; // 最小化・不正矩形
+
+            return (rc.Left + w / 2, rc.Top + h / 2);
+        }
+        catch (Exception ex)
+        {
+            DebugLog.Write($"WindowActivator.GetForegroundWindowCenter exception: {ex.Message}");
+            return null;
+        }
+    }
+
+    /// <summary>指定 HWND を AttachThreadInput 経由で前面化する内部実装。</summary>
+    private static void ActivateWindow(IntPtr hwnd, int physX, int physY)
+    {
+        try
+        {
             IntPtr foreground = NativeMethods.GetForegroundWindow();
             if (foreground == hwnd) return; // 既に前面
 
