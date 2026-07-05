@@ -46,8 +46,10 @@ internal static class WindowActivator
     /// <summary>
     /// 現在フォアグラウンドのウィンドウの中心物理座標を返す（v1.9.0+）。
     /// 取得失敗・自プロセス・最小化/不正矩形の場合は null。
+    /// <paramref name="verboseLog"/> が true のとき GetWindowRect の生値を DebugLog に記録する
+    /// （DPI 仮想化の切り分け用。座標が視覚位置の定数倍になっていれば仮想化を疑う）。
     /// </summary>
-    public static (int X, int Y)? GetForegroundWindowCenter()
+    public static (int X, int Y)? GetForegroundWindowCenter(bool verboseLog = false)
     {
         try
         {
@@ -64,6 +66,9 @@ internal static class WindowActivator
             int w = rc.Right - rc.Left;
             int h = rc.Bottom - rc.Top;
             if (w <= 0 || h <= 0) return null; // 最小化・不正矩形
+
+            if (verboseLog)
+                DebugLog.Write($"GetForegroundWindowCenter: hwnd={hwnd}, rect=({rc.Left},{rc.Top})-({rc.Right},{rc.Bottom}), center=({rc.Left + w / 2},{rc.Top + h / 2})");
 
             return (rc.Left + w / 2, rc.Top + h / 2);
         }

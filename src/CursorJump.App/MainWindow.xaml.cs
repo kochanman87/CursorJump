@@ -356,7 +356,7 @@ public partial class MainWindow : Window
             DebugLog.Write("OnActiveWindowJumpRequested: blocked (Pro-only)");
             return;
         }
-        var center = WindowActivator.GetForegroundWindowCenter();
+        var center = WindowActivator.GetForegroundWindowCenter(_settingsService.Current.VerboseLogging);
         if (center is null)
         {
             DebugLog.Write("OnActiveWindowJumpRequested: no foreground window (or own) — no-op");
@@ -365,7 +365,20 @@ public partial class MainWindow : Window
         int fromX = e.X;
         int fromY = e.Y;
         var (jumpX, jumpY) = center.Value;
+
+        if (_settingsService.Current.VerboseLogging)
+        {
+            DebugLog.Write($"ActiveWindowJump before: jump=({jumpX},{jumpY}) fromCursor=({fromX},{fromY})");
+        }
+
         CursorService.JumpTo(jumpX, jumpY, _settingsService.Current.JumpStrategy);
+
+        if (_settingsService.Current.VerboseLogging)
+        {
+            if (NativeMethods.GetCursorPos(out var actual))
+                DebugLog.Write($"ActiveWindowJump after: actualCursor=({actual.X},{actual.Y}) delta=({actual.X - jumpX},{actual.Y - jumpY})");
+        }
+
         if (_settingsService.Current.ActivateWindowUnderCursorOnJump)
             WindowActivator.Activate(jumpX, jumpY);
         _overlayService.ShowTrail(fromX, fromY, jumpX, jumpY);
