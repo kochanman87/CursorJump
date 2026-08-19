@@ -107,6 +107,11 @@ internal static class DebugLog
             }
             Write($"  VirtualScreen: Left={System.Windows.SystemParameters.VirtualScreenLeft}, Top={System.Windows.SystemParameters.VirtualScreenTop}, Width={System.Windows.SystemParameters.VirtualScreenWidth}, Height={System.Windows.SystemParameters.VirtualScreenHeight}");
 
+            // デバイス名 ↔ 安定キー ↔ フレンドリ名 ↔ Bounds の対応表 (v1.9.3)。
+            // ドック着脱で \.\DISPLAYn が振り直されても、キーで物理モニタを追跡できるようにする。
+            // 以降は SystemEvents.DisplaySettingsChanged のたびに MonitorIdentity 側が同じ表を出力する。
+            MonitorIdentity.LogTable("startup");
+
             // 物理インチ (WMI、非同期。失敗は無視)
             Task.Run(WriteMonitorPhysicalSize);
         }

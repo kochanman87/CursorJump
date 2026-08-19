@@ -199,6 +199,30 @@ internal static class NativeMethods
     [return: MarshalAs(UnmanagedType.Bool)]
     internal static extern bool GetWindowRect(IntPtr hWnd, out RECT lpRect);
 
+    // ── モニタの安定キー取得 (v1.9.3) ──
+    // EnumDisplayDevices に EDD_GET_DEVICE_INTERFACE_NAME を渡すと、DeviceID に
+    // モニタのデバイスインターフェースパス
+    // (\?\DISPLAY#<EDID製造元/型番>#<インスタンス&UID>#{GUID}) が入る。
+    // EDID 由来のハードウェア ID と出力ポート UID を含むため、
+    // \.\DISPLAYn と違いドック着脱で振り直されない。
+    internal const uint EDD_GET_DEVICE_INTERFACE_NAME = 0x00000001;
+
+    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
+    internal struct DISPLAY_DEVICE
+    {
+        public int cb;
+        [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 32)]  public string DeviceName;
+        [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 128)] public string DeviceString;
+        public int StateFlags;
+        [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 128)] public string DeviceID;
+        [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 128)] public string DeviceKey;
+    }
+
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    internal static extern bool EnumDisplayDevices(
+        string? lpDevice, uint iDevNum, ref DISPLAY_DEVICE lpDisplayDevice, uint dwFlags);
+
     // ── SendInput（合成マウス入力）──
     internal const uint INPUT_MOUSE = 0;
     internal const uint MOUSEEVENTF_MIDDLEDOWN = 0x0020;

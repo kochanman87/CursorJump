@@ -861,10 +861,8 @@ internal sealed class OverlayService : IDisposable
         // マーカーエフェクトが無効なら描画をスキップ（モード自体は継続 = ESC/クリック追加は動作）
         if (_settingsService.Current.MarkerEffectEnabled)
         {
-            // 接続中モニタ一覧（消失モニタの座標は描画対象外。バグ3対策）
-            var connectedScreens = System.Windows.Forms.Screen.AllScreens;
-            var connected = new string[connectedScreens.Length];
-            for (int s = 0; s < connectedScreens.Length; s++) connected[s] = connectedScreens[s].DeviceName;
+            // 接続中モニタのスナップショット（消失モニタの座標は描画対象外。バグ3対策）
+            var monitors = MonitorIdentity.Snapshot();
 
             foreach (var (store, color) in _deleteStores)
             {
@@ -872,8 +870,12 @@ internal sealed class OverlayService : IDisposable
                 for (int i = 0; i < coordinates.Count; i++)
                 {
                     var coord = coordinates[i];
-                    if (!MonitorFilter.IsCoordinateOnConnectedMonitor(coord, connected)) continue;
-                    var pos = overlay.PhysicalToWpf(coord.X, coord.Y);
+                    if (!MonitorFilter.IsCoordinateOnConnectedMonitor(coord, monitors)) continue;
+
+                    // マーカーは「保存時の絶対座標」ではなく「実際のジャンプ先」に描く。
+                    // ドック着脱でデバイス名が振り直されても、見えている位置と飛ぶ位置が一致する（v1.9.3）。
+                    var resolved = JumpTargetResolver.Resolve(coord, monitors);
+                    var pos = overlay.PhysicalToWpf(resolved.X, resolved.Y);
                     double canvasX = pos.X - overlay.Left;
                     double canvasY = pos.Y - overlay.Top;
 
@@ -903,7 +905,8 @@ internal sealed class OverlayService : IDisposable
                     Canvas.SetTop(label, canvasY - label.DesiredSize.Height / 2);
                     overlay.OverlayCanvasElement.Children.Add(label);
 
-                    _markers.Add((ellipse, store, i, coord.X, coord.Y));
+                    // ヒットテストも描画位置（解決後の座標）で行う
+                    _markers.Add((ellipse, store, i, resolved.X, resolved.Y));
                 }
             }
             DebugLog.Write($"BuildMarkers: drew {_markers.Count} markers across {_deleteStores.Count} stores");

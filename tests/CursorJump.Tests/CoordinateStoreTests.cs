@@ -69,12 +69,13 @@ public class CoordinateStoreTests
     [Fact]
     public void Load_returns_false_when_no_migration_needed()
     {
-        // 新フォーマット: MonitorRelativeX/Y がすでに 0 以上 → 補完不要
+        // 新フォーマット (v1.9.3): MonitorRelativeX/Y に加えて MonitorKey / MonitorFingerprint も
+        // 埋まっている → 補完不要
         var store = new CoordinateStore();
         bool migrated = store.Load(new[]
         {
-            new SavedCoordinate(100, 200, @"\\.\DISPLAY1", 100, 200),
-            new SavedCoordinate(300, 400, @"\\.\DISPLAY1", 300, 400),
+            new SavedCoordinate(100, 200, @"\\.\DISPLAY1", 100, 200, "KEY_A", "MonA|1920x1080"),
+            new SavedCoordinate(300, 400, @"\\.\DISPLAY1", 300, 400, "KEY_A", "MonA|1920x1080"),
         });
         Assert.False(migrated);
         var all = store.GetAll();
@@ -271,5 +272,113 @@ public class CoordinateStoreTests
 
         var afterReset = store.GetNextInMonitor(@"\\.\DISPLAY1");
         Assert.Equal((10, 10), (afterReset!.X, afterReset.Y));
+    }
+
+    // ── v1.9.3: モニタ安定キー（ドック着脱でのデバイス名振り直し対策） ──
+
+    private static MonitorInfo Mon(string name, string key, string friendly, int left)
+        => new MonitorInfo(name, key, friendly, new System.Drawing.Rectangle(left, 0, 1920, 1080));
+
+    [Fact]
+    public void Load_does_not_overwrite_an_existing_key()
+    {
+        var store = new CoordinateStore();
+        bool migrated = store.Load(new[]
+        {
+            new SavedCoordinate(100, 200,
+                System.Windows.Forms.Screen.PrimaryScreen!.DeviceName, 100, 200, "KEY_ALREADY_SET", "Mon|1x1"),
+        });
+
+        Assert.False(migrated);
+        Assert.Equal("KEY_ALREADY_SET", store.GetAll()[0].MonitorKey);
+    }
+
+    [Fact]
+    public void Load_leaves_key_empty_when_the_saved_monitor_is_not_connected()
+    {
+        // 存在しないデバイス名 → 補完しようがないので空のまま（従来動作へフォールバック）
+        var store = new CoordinateStore();
+        bool migrated = store.Load(new[]
+        {
+            new SavedCoordinate(100, 200, @"\\.\DISPLAY_NOT_CONNECTED", 100, 200),
+        });
+
+        Assert.False(migrated);
+        Assert.Equal(string.Empty, store.GetAll()[0].MonitorKey);
+    }
+
+    [Fact]
+    public void Load_backfills_key_from_the_current_device_name_mapping()
+    {
+        // 実機依存: 安定キーが取得できる環境でのみ補完を検証する
+        var primary = System.Windows.Forms.Screen.PrimaryScreen!.DeviceName;
+        var snapshot = MonitorIdentity.Snapshot();
+        string expectedKey = string.Empty;
+        foreach (var m in snapshot)
+        {
+            if (m.GdiDeviceName == primary) { expectedKey = m.StableKey; break; }
+        }
+        if (string.IsNullOrEmpty(expectedKey)) return; // キー非対応環境ではスキップ
+
+        var store = new CoordinateStore();
+        bool migrated = store.Load(new[] { new SavedCoordinate(100, 200, primary, 100, 200) });
+
+        Assert.True(migrated);
+        Assert.Equal(expectedKey, store.GetAll()[0].MonitorKey);
+    }
+
+    [Fact]
+    public void GetNextInMonitor_groups_by_stable_key_not_device_name()
+    {
+        // 保存時 DISPLAY1 だった 2 点が、再接続後は DISPLAY2 という名前のモニタに乗っている
+        var store = BuildStoreWith(
+            new SavedCoordinate(10, 10, @"\\.\DISPLAY1", 10, 10, "KEY_A", "MonA|1920x1080"),
+            new SavedCoordinate(20, 20, @"\\.\DISPLAY1", 20, 20, "KEY_A", "MonA|1920x1080"),
+            new SavedCoordinate(30, 30, @"\\.\DISPLAY2", 30, 30, "KEY_B", "MonB|1920x1080"));
+
+        var monitorA = Mon(@"\\.\DISPLAY2", "KEY_A", "MonA", 1920);
+
+        var first  = store.GetNextInMonitor(monitorA);
+        var second = store.GetNextInMonitor(monitorA);
+        var third  = store.GetNextInMonitor(monitorA);
+
+        // KEY_A の 2 点だけを循環する（名前が DISPLAY2 でも KEY_B の座標は拾わない）
+        Assert.Equal((10, 10), (first!.X, first.Y));
+        Assert.Equal((20, 20), (second!.X, second.Y));
+        Assert.Equal((10, 10), (third!.X, third.Y));
+    }
+
+    [Fact]
+    public void GetNextInMonitor_returns_null_when_key_has_no_coordinates()
+    {
+        var store = BuildStoreWith(
+            new SavedCoordinate(10, 10, @"\\.\DISPLAY1", 10, 10, "KEY_A", "MonA|1920x1080"));
+
+        Assert.Null(store.GetNextInMonitor(Mon(@"\\.\DISPLAY1", "KEY_OTHER", "MonZ", 0)));
+    }
+
+    [Fact]
+    public void GetNext_with_snapshot_skips_coordinates_whose_key_is_gone()
+    {
+        var store = BuildStoreWith(
+            new SavedCoordinate(10, 10, @"\\.\DISPLAY1", 10, 10, "KEY_A", "MonA|1920x1080"),
+            new SavedCoordinate(20, 20, @"\\.\DISPLAY2", 20, 20, "KEY_GONE", "Gone|1920x1080"),
+            new SavedCoordinate(30, 30, @"\\.\DISPLAY3", 30, 30, "KEY_C", "MonC|1920x1080"));
+
+        // 名前は 3 つとも存在するが、KEY_GONE の物理モニタだけ外れている
+        var monitors = new[]
+        {
+            Mon(@"\\.\DISPLAY1", "KEY_C", "MonC", 0),
+            Mon(@"\\.\DISPLAY2", "KEY_A", "MonA", 1920),
+            Mon(@"\\.\DISPLAY3", "KEY_X", "MonX", 3840),
+        };
+
+        var first  = store.GetNext(monitors);
+        var second = store.GetNext(monitors);
+        var third  = store.GetNext(monitors);
+
+        Assert.Equal((10, 10), (first!.X, first.Y));
+        Assert.Equal((30, 30), (second!.X, second.Y));  // KEY_GONE をスキップ
+        Assert.Equal((10, 10), (third!.X, third.Y));
     }
 }

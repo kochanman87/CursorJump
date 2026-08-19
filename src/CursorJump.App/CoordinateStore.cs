@@ -11,7 +11,8 @@ internal sealed class CoordinateStore
 {
     private readonly List<SavedCoordinate> _coordinates = new();
     private int _currentIndex = -1;
-    // モニタ別の循環インデックス（GetNextInMonitor 用）
+    // モニタ別の循環インデックス（GetNextInMonitor 用）。
+    // キーはモニタの安定キー（取得できない環境ではデバイス名）＝ MonitorInfo.GroupKey。
     private readonly Dictionary<string, int> _monitorIndices = new();
 
     /// <summary>座標リストが変更された（Add/RemoveAt/Clear/Load）ときに発火。永続化フックに使う。</summary>
@@ -21,12 +22,42 @@ internal sealed class CoordinateStore
 
     public void Add(int x, int y)
     {
-        var screen = Screen.FromPoint(new Point(x, y));
-        // モニタ内相対座標 (左上原点からのピクセルオフセット) も同時に記録する。
-        // 再生時にモニタの現 Bounds から絶対座標を再計算することで PerMonitorV2 環境の DPI 仮想化バグを回避する。
-        int relX = x - screen.Bounds.Left;
-        int relY = y - screen.Bounds.Top;
-        _coordinates.Add(new SavedCoordinate(x, y, screen.DeviceName, relX, relY));
+        string deviceName = string.Empty;
+        string key = string.Empty;
+        string fingerprint = string.Empty;
+        int relX = -1, relY = -1;
+
+        // モニタ内相対座標 (左上原点からのピクセルオフセット) と、
+        // ドック着脱を跨いで安定なモニタキー（v1.9.3+）を同時に記録する。
+        // 再生時はキーで物理モニタを特定し、その現 Bounds から絶対座標を再計算する。
+        try
+        {
+            var monitors = MonitorIdentity.Snapshot();
+            var monitor = MonitorIdentity.FromPoint(monitors, x, y);
+            if (monitor is not null)
+            {
+                deviceName  = monitor.Value.GdiDeviceName;
+                key         = monitor.Value.StableKey;
+                fingerprint = monitor.Value.Fingerprint;
+                relX = x - monitor.Value.Bounds.Left;
+                relY = y - monitor.Value.Bounds.Top;
+            }
+        }
+        catch (Exception ex)
+        {
+            DebugLog.Write($"CoordinateStore.Add: monitor snapshot failed: {ex.GetType().Name}");
+        }
+
+        if (string.IsNullOrEmpty(deviceName))
+        {
+            // スナップショット取得失敗 / どのモニタ矩形にも含まれない座標 → 従来動作
+            var screen = Screen.FromPoint(new Point(x, y));
+            deviceName = screen.DeviceName;
+            relX = x - screen.Bounds.Left;
+            relY = y - screen.Bounds.Top;
+        }
+
+        _coordinates.Add(new SavedCoordinate(x, y, deviceName, relX, relY, key, fingerprint));
         Changed?.Invoke();
     }
 
@@ -41,15 +72,21 @@ internal sealed class CoordinateStore
     /// 接続中のモニタに存在する座標のみを循環して返す。
     /// 未接続モニタの座標は飛ばし、該当0件なら null。
     /// </summary>
+    public SavedCoordinate? GetNext(IReadOnlyList<MonitorInfo> monitors)
+        => GetNextFiltered(c => MonitorFilter.IsCoordinateOnConnectedMonitor(c, monitors));
+
+    /// <summary>デバイス名一覧のみで判定する簡易版（従来動作）。</summary>
     public SavedCoordinate? GetNext(IReadOnlyList<string> connectedDeviceNames)
+        => GetNextFiltered(c => MonitorFilter.IsCoordinateOnConnectedMonitor(c, connectedDeviceNames));
+
+    private SavedCoordinate? GetNextFiltered(Func<SavedCoordinate, bool> isConnected)
     {
         if (_coordinates.Count == 0) return null;
 
         var indices = new List<int>();
         for (int i = 0; i < _coordinates.Count; i++)
         {
-            if (MonitorFilter.IsCoordinateOnConnectedMonitor(_coordinates[i], connectedDeviceNames))
-                indices.Add(i);
+            if (isConnected(_coordinates[i])) indices.Add(i);
         }
         if (indices.Count == 0) return null;
 
@@ -74,27 +111,27 @@ internal sealed class CoordinateStore
     /// 指定モニタ内の座標のみを循環して返す。
     /// 該当モニタに座標が存在しない場合は null を返す（フォールバックなし）。
     /// </summary>
-    public SavedCoordinate? GetNextInMonitor(string monitorDeviceName)
+    public SavedCoordinate? GetNextInMonitor(MonitorInfo monitor)
     {
-        // 該当モニタの座標インデックス一覧を取得
-        var indices = _coordinates
-            .Select((c, i) => (coord: c, index: i))
-            .Where(t => t.coord.MonitorDeviceName == monitorDeviceName)
-            .Select(t => t.index)
-            .ToList();
-
+        var indices = IndicesOnMonitor(monitor);
         if (indices.Count == 0) return null;
 
+        string groupKey = monitor.GroupKey;
+
         // モニタ別インデックスを取得（未登録なら -1 から開始）
-        if (!_monitorIndices.TryGetValue(monitorDeviceName, out int lastRawIndex))
+        if (!_monitorIndices.TryGetValue(groupKey, out int lastRawIndex))
             lastRawIndex = -1;
 
         // 次のインデックス位置を循環
         int nextPos = (lastRawIndex + 1) % indices.Count;
-        _monitorIndices[monitorDeviceName] = nextPos;
+        _monitorIndices[groupKey] = nextPos;
 
         return _coordinates[indices[nextPos]];
     }
+
+    /// <summary>デバイス名のみで指定する簡易版（安定キー非対応環境・旧テスト互換）。</summary>
+    public SavedCoordinate? GetNextInMonitor(string monitorDeviceName)
+        => GetNextInMonitor(NameOnly(monitorDeviceName));
 
     /// <summary>
     /// GetNext の逆方向版。直近インデックスから 1 つ戻った座標を循環で返す。
@@ -111,15 +148,21 @@ internal sealed class CoordinateStore
     /// 接続中モニタ限定 GetNext の逆方向版。
     /// 「次に小さい有効インデックス」を探し、無ければ末尾 (= 最大の有効インデックス)。
     /// </summary>
+    public SavedCoordinate? GetPrev(IReadOnlyList<MonitorInfo> monitors)
+        => GetPrevFiltered(c => MonitorFilter.IsCoordinateOnConnectedMonitor(c, monitors));
+
+    /// <summary>デバイス名一覧のみで判定する簡易版（従来動作）。</summary>
     public SavedCoordinate? GetPrev(IReadOnlyList<string> connectedDeviceNames)
+        => GetPrevFiltered(c => MonitorFilter.IsCoordinateOnConnectedMonitor(c, connectedDeviceNames));
+
+    private SavedCoordinate? GetPrevFiltered(Func<SavedCoordinate, bool> isConnected)
     {
         if (_coordinates.Count == 0) return null;
 
         var indices = new List<int>();
         for (int i = 0; i < _coordinates.Count; i++)
         {
-            if (MonitorFilter.IsCoordinateOnConnectedMonitor(_coordinates[i], connectedDeviceNames))
-                indices.Add(i);
+            if (isConnected(_coordinates[i])) indices.Add(i);
         }
         if (indices.Count == 0) return null;
 
@@ -141,25 +184,51 @@ internal sealed class CoordinateStore
     /// <summary>
     /// GetNextInMonitor の逆方向版。初回 (未登録) は末尾の有効座標、それ以降は循環で 1 つ戻る。
     /// </summary>
-    public SavedCoordinate? GetPrevInMonitor(string monitorDeviceName)
+    public SavedCoordinate? GetPrevInMonitor(MonitorInfo monitor)
     {
-        var indices = _coordinates
-            .Select((c, i) => (coord: c, index: i))
-            .Where(t => t.coord.MonitorDeviceName == monitorDeviceName)
-            .Select(t => t.index)
-            .ToList();
-
+        var indices = IndicesOnMonitor(monitor);
         if (indices.Count == 0) return null;
 
+        string groupKey = monitor.GroupKey;
+
         int nextPos;
-        if (!_monitorIndices.TryGetValue(monitorDeviceName, out int lastRawIndex))
+        if (!_monitorIndices.TryGetValue(groupKey, out int lastRawIndex))
             nextPos = indices.Count - 1;
         else
             nextPos = (lastRawIndex - 1 + indices.Count) % indices.Count;
 
-        _monitorIndices[monitorDeviceName] = nextPos;
+        _monitorIndices[groupKey] = nextPos;
         return _coordinates[indices[nextPos]];
     }
+
+    /// <summary>デバイス名のみで指定する簡易版（安定キー非対応環境・旧テスト互換）。</summary>
+    public SavedCoordinate? GetPrevInMonitor(string monitorDeviceName)
+        => GetPrevInMonitor(NameOnly(monitorDeviceName));
+
+    /// <summary>
+    /// 指定モニタに属する座標のインデックス一覧。
+    /// 座標・モニタの双方が安定キーを持つならキーで、そうでなければデバイス名で照合する。
+    /// </summary>
+    private List<int> IndicesOnMonitor(MonitorInfo monitor)
+    {
+        var indices = new List<int>();
+        for (int i = 0; i < _coordinates.Count; i++)
+        {
+            if (BelongsTo(_coordinates[i], monitor)) indices.Add(i);
+        }
+        return indices;
+    }
+
+    private static bool BelongsTo(SavedCoordinate coord, MonitorInfo monitor)
+    {
+        if (!string.IsNullOrEmpty(coord.MonitorKey) && !string.IsNullOrEmpty(monitor.StableKey))
+            return string.Equals(coord.MonitorKey, monitor.StableKey, StringComparison.OrdinalIgnoreCase);
+
+        return string.Equals(coord.MonitorDeviceName, monitor.GdiDeviceName, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static MonitorInfo NameOnly(string deviceName)
+        => new MonitorInfo(deviceName, string.Empty, string.Empty, Rectangle.Empty);
 
     public IReadOnlyList<SavedCoordinate> GetAll() => _coordinates.AsReadOnly();
 
@@ -167,9 +236,11 @@ internal sealed class CoordinateStore
     {
         if (index < 0 || index >= _coordinates.Count) return false;
 
-        // 削除座標が属するモニタのインデックスをリセット（ずれ防止）
-        var removedMonitor = _coordinates[index].MonitorDeviceName;
-        _monitorIndices.Remove(removedMonitor);
+        // 削除座標が属するモニタのインデックスをリセット（ずれ防止）。
+        // グルーピングキーは安定キー優先だが、旧データはデバイス名なので両方消す。
+        var removed = _coordinates[index];
+        if (!string.IsNullOrEmpty(removed.MonitorKey)) _monitorIndices.Remove(removed.MonitorKey);
+        if (!string.IsNullOrEmpty(removed.MonitorDeviceName)) _monitorIndices.Remove(removed.MonitorDeviceName);
 
         _coordinates.RemoveAt(index);
 
@@ -188,8 +259,8 @@ internal sealed class CoordinateStore
 
     /// <summary>
     /// 座標は保持したまま循環インデックスのみ先頭前 (-1) へ戻す（v1.9.0+）。
-    /// 次の <see cref="GetNext()"/> / <see cref="GetNext(IReadOnlyList{string})"/> は先頭の有効座標を、
-    /// <see cref="GetNextInMonitor(string)"/> は各モニタ先頭から再開する。即ジャンプはしない。
+    /// 次の <see cref="GetNext()"/> / <see cref="GetNext(IReadOnlyList{MonitorInfo})"/> は先頭の有効座標を、
+    /// <see cref="GetNextInMonitor(MonitorInfo)"/> は各モニタ先頭から再開する。即ジャンプはしない。
     /// 座標自体は変更しないため <see cref="Changed"/> は発火しない（無駄な永続化を避ける）。
     /// </summary>
     public void ResetCursor()
@@ -212,6 +283,8 @@ internal sealed class CoordinateStore
     /// 既存座標をクリアして指定リストで初期化する。アプリ起動時の永続化座標復元用。
     /// MonitorDeviceName が空の場合は座標から再判定する（旧 settings.json 互換）。
     /// MonitorRelativeX/Y が -1 (旧 settings.json 互換) なら、現在の Screen.Bounds から相対座標を補完する。
+    /// MonitorKey / MonitorFingerprint が空 (v1.9.2 以前のデータ) なら、
+    /// 「実行時点の DeviceName ↔ 物理モニタ対応」を正としてキーを補完する（v1.9.3+）。
     /// 補完が発生した場合は MainWindow 側の Changed イベント経由で settings.json に書き戻される
     /// (Changed は呼出側の責務で発火させる。Load 自体は発火しない仕様を維持)。
     /// </summary>
@@ -222,11 +295,18 @@ internal sealed class CoordinateStore
         _currentIndex = -1;
         _monitorIndices.Clear();
         bool migrated = false;
+
+        IReadOnlyList<MonitorInfo> monitors;
+        try { monitors = MonitorIdentity.Snapshot(); }
+        catch { monitors = Array.Empty<MonitorInfo>(); }
+
         foreach (var c in coordinates)
         {
             string monitor = c.MonitorDeviceName;
             int relX = c.MonitorRelativeX;
             int relY = c.MonitorRelativeY;
+            string key = c.MonitorKey;
+            string fingerprint = c.MonitorFingerprint;
 
             if (string.IsNullOrEmpty(monitor))
             {
@@ -262,7 +342,33 @@ internal sealed class CoordinateStore
                 catch { }
             }
 
-            _coordinates.Add(new SavedCoordinate(c.X, c.Y, monitor, relX, relY));
+            // 安定キー / フィンガープリントの補完（v1.9.3 マイグレーション）。
+            // 「実行時点の DeviceName ↔ 物理モニタ対応」を正とするため、
+            // 既に振り直しが起きている状態で初回起動すると誤ったキーが埋まる可能性がある
+            // （その場合は座標を保存し直せば解消する）。
+            if ((string.IsNullOrEmpty(key) || string.IsNullOrEmpty(fingerprint))
+                && !string.IsNullOrEmpty(monitor))
+            {
+                for (int i = 0; i < monitors.Count; i++)
+                {
+                    if (!string.Equals(monitors[i].GdiDeviceName, monitor, StringComparison.OrdinalIgnoreCase))
+                        continue;
+
+                    if (string.IsNullOrEmpty(key) && !string.IsNullOrEmpty(monitors[i].StableKey))
+                    {
+                        key = monitors[i].StableKey;
+                        migrated = true;
+                    }
+                    if (string.IsNullOrEmpty(fingerprint) && !string.IsNullOrEmpty(monitors[i].Fingerprint))
+                    {
+                        fingerprint = monitors[i].Fingerprint;
+                        migrated = true;
+                    }
+                    break;
+                }
+            }
+
+            _coordinates.Add(new SavedCoordinate(c.X, c.Y, monitor, relX, relY, key, fingerprint));
         }
         return migrated;
     }

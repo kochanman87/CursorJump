@@ -7,6 +7,7 @@
 - C#, WinExe, PerMonitorV2 DPI対応
 - 外部NuGetパッケージは [Velopack](https://github.com/velopack/velopack)（自動更新）と `System.Management`（WMI で物理モニタインチ取得）
 - ユニットテストは `tests/CursorJump.Tests/`（xUnit）。`dotnet test tests/CursorJump.Tests/ -o build_check/tests/` で実行。本体は `internal sealed`/`internal static` を `InternalsVisibleTo("CursorJump.Tests")` で公開している
+- ビルド確認・テスト・稼働中インスタンス観測の定石は `.claude/skills/run-cursorjump/SKILL.md`（本番常駐中でも安全な経路のみ）
 
 ## 公開リポジトリ（OSS）— 個人情報を絶対にアップしない
 
@@ -67,6 +68,8 @@ src/CursorJump.App/
 ├── ClickHistory.cs                 # 左クリック位置の内部履歴リングバッファ（v1.9.0 機能3、Pro、純粋ロジック・テスト対象）
 ├── ModifierGestureDetector.cs      # 修飾キー連打ジェスチャ検出（v1.9.0、観測専用・テスト対象）
 ├── MonitorFilter.cs                # 接続中モニタ判定の純粋関数（バグ3 対策、テスト容易性）
+├── MonitorIdentity.cs              # モニタの安定キー取得（EnumDisplayDevices）+ スナップショット/キャッシュ（v1.9.3）
+├── JumpTargetResolver.cs           # 保存座標→実ジャンプ座標の多段解決（純粋関数・テスト対象、v1.9.3）
 ├── ShortcutFormatter.cs            # ショートカット表記（通常/削除モード用の compact 名対応）
 ├── OverlayService.cs               # オーバーレイアニメーション（収縮円、軌跡、マーカー）
 ├── OverlayWindow.xaml / .cs        # 透明オーバーレイウィンドウ基盤
@@ -94,13 +97,23 @@ src/CursorJump.App/
 - **XButtonのUP消費**: `WM_XBUTTONUP`はボタン種別が`mouseData >> 16`で判定が必要（L/R/Mと異なる）
 - **座標系**: マウスフック・SetCursorPosは物理ピクセル座標。WPFオーバーレイ描画時はTransformFromDeviceでDIP変換
 - **設定ファイル**: `%APPDATA%/CursorJump/settings.json`（System.Text.Json）。`AppSettings.SavedCoordinatesA` / `SavedCoordinatesB` に Set A/B の座標が永続化される。**enum は `TolerantEnumConverterFactory`（SettingsService.cs）で読み書きし、未知・削除済みの enum 値があっても例外を投げず既定値にフォールバックする（v1.9.1）。** 標準の `JsonStringEnumConverter` は未知値で例外→`Load` が設定全体（ライセンスキー含む）を初期化する事故があったため恒久対策。enum 値を削除・改名しても旧 settings.json で全設定喪失しない`CoordinateStore.Changed` イベントで `MainWindow` が `_settingsService.Save()` を呼び戻し書きする。`AutoStartEnabled` (v1.7.0+) で Windows 起動時の自動起動を制御（実体はレジストリ HKCU Run キー、`StartupService` 経由）
-- **モニタ消失時の座標スキップ (v1.5.0+)**: `MainWindow.OnNavigateRequested` / `OnNavigateRequestedB` は `Screen.AllScreens` から接続中モニタ名一覧を取得し `CoordinateStore.GetNext(connected)` に渡す。`MonitorFilter.IsCoordinateOnConnectedMonitor` で消失モニタの座標を除外する。`MonitorDeviceName` が空文字（旧 settings.json 互換）の座標は常に表示する。削除モードの `OverlayService.BuildMarkers` も同じフィルタを適用し、消失モニタ上のマーカーは描画しない（再接続で復活）
+- **モニタ消失時の座標スキップ (v1.5.0+、v1.9.3 で安定キー化)**: `MainWindow.OnNavigateRequested` / `OnNavigateRequestedB` は `MonitorIdentity.Snapshot()` で接続中モニタ一覧（デバイス名 + 安定キー + フレンドリ名 + Bounds）を取得し `CoordinateStore.GetNext(monitors)` に渡す。`MonitorFilter.IsCoordinateOnConnectedMonitor` が消失モニタの座標を除外する。**判定の実体は `JumpTargetResolver.FindMonitor` と共通**で、「ナビゲート対象になる座標」と「削除モードで描画される座標」が必ず一致する。モニタ情報を一切持たない座標（旧 settings.json 互換）は常に表示する。削除モードの `OverlayService.BuildMarkers` も同じフィルタを適用し、消失モニタ上のマーカーは描画しない（再接続で復活）
 - **カーソルジャンプは DPI コンテキスト経由が既定 (v1.5.1+)**: `CursorService.JumpTo` は `AppSettings.JumpStrategy`（既定 `DpiContext`）に従って経路を選ぶ。
   - `DpiContext` (既定): `SetThreadDpiAwarenessContext(PER_MONITOR_AWARE_V2)` でスレッドの DPI コンテキストを明示してから `SetCursorPos` を呼ぶ。Win11 + マルチ DPI モニタで OS 内部 DPI 仮想化キャッシュの誤動作を回避
   - `SendInputVirtualDesk`: v1.5.0 で導入した `SendInput(MOUSEEVENTF_ABSOLUTE | VIRTUALDESK)` 経路。Dynabook + 異 DPI で効かなかったため既定から外したが退避路として保持
   - `LegacySetCursorPos`: 素の `SetCursorPos` (デバッグ用)
   - 旧 `UseSendInputForJump` フィールドは v1.5.1 以降は読み込みのみ受け付け、実効しない
-- **保存座標は「物理絶対 + モニタ別相対」で記録 (v1.5.1+)**: `SavedCoordinate.MonitorRelativeX/Y` に所属モニタ内の左上原点からのオフセットを保存。`MainWindow.ResolveJumpTarget` が再生時に「該当モニタの現 Bounds + 相対オフセット」で絶対座標を再計算する。これにより OS の DPI 仮想化に依存せず視覚的に正しい位置にカーソルが飛ぶ。`MonitorRelativeX/Y == -1` (旧データ) は `CoordinateStore.Load` 内で `Screen.AllScreens` から自動補完され、起動直後に settings.json へ書き戻される
+- **保存座標は「物理絶対 + モニタ別相対 + モニタ安定キー」で記録 (v1.5.1+ / キーは v1.9.3+)**: `SavedCoordinate.MonitorRelativeX/Y` に所属モニタ内の左上原点からのオフセットを保存し、再生時に「該当モニタの現 Bounds + 相対オフセット」で絶対座標を再計算する。これにより OS の DPI 仮想化に依存せず視覚的に正しい位置にカーソルが飛ぶ。`MonitorRelativeX/Y == -1` (旧データ) は `CoordinateStore.Load` 内で自動補完され、起動直後に settings.json へ書き戻される
+- **モニタの identity は `\\.\DISPLAYn` ではなく安定キーで持つ (v1.9.3+)**: `\\.\DISPLAYn`（`Screen.DeviceName`）は**アダプタ出力の並び順に過ぎず、ディスプレイ着脱・ドック再接続で物理モニタへ振り直される**。名前で照合していた v1.9.2 以前は、USB-C ドックを抜き挿しすると 3 枚の名前が 1 つずつ巡回し「保存箇所が 1 枚隣のモニタに飛ぶ」バグがあった（調査メモ: `docs/investigations/monitor-identity-jump-bug.md`）。対策として `MonitorIdentity` が `EnumDisplayDevices(deviceName, 0, ..., EDD_GET_DEVICE_INTERFACE_NAME)` でモニタのデバイスインターフェースパス（`\\?\DISPLAY#<EDID製造元/型番>#<インスタンス&UID>#{GUID}`）を取得し、これを `SavedCoordinate.MonitorKey` に保存する。EDID 由来のハードウェア ID と出力ポート UID を含むため、同型番 2 枚でも区別でき、同じドックの同じポートに戻せば同じ値になる。取得失敗時はキー空文字で従来のデバイス名照合へフォールバック（例外は `DebugLog` に記録して握りつぶす）。スナップショットは `SystemEvents.DisplaySettingsChanged` でキャッシュ無効化される
+- **ジャンプ先の解決は `JumpTargetResolver`（純粋関数、v1.9.3+）**: 「保存座標 + モニタスナップショット → 物理絶対座標」を返す。旧 `MainWindow.ResolveJumpTarget` を差し替えたもので、`MonitorInfo` のリストを引数に取るためモニタ構成をテストで自由に組める（`tests/CursorJump.Tests/JumpTargetResolverTests.cs` で「デバイス名が巡回入れ替わりしたスナップショット」を再現）。照合は多段:
+  1. `key` — `MonitorKey` 一致（本命）
+  2. `fingerprint` — `MonitorFingerprint`（フレンドリ名 + 解像度）が**一意に**一致。ドックのポートを変えて UID が変わった場合の受け皿。曖昧（同型番 2 枚等）なら採用しない。**Windows が返すフレンドリ名は `Generic PnP Monitor` になりがちで実質同型番扱いになりやすいため、この段はあまり当てにしない**
+  3. `name` — `MonitorDeviceName` 一致（従来動作）。**`MonitorKey` を持つ座標には適用しない**（キーがあるのに一致しない = そのモニタは繋がっていない、と判断する。ここで名前に落ちると本バグを再現してしまう）。ただしスナップショット全体で安定キーが 1 つも取れない環境では従来動作へ完全フォールバックする
+  4. `absolute` — どのモニタにも解決できず保存時の絶対座標をそのまま使う
+  モニタが特定できた場合は最後に **そのモニタの Bounds 内へクランプ**する（解像度が縮んだ構成で画面外へ飛ばさない）
+- **キー補完マイグレーション (v1.9.3)**: `CoordinateStore.Load` は `MonitorKey` / `MonitorFingerprint` が空の旧データに対し、**実行時点の DeviceName ↔ 物理モニタ対応**を正としてキーを補完し、既存の `migrated` フラグ経路で settings.json へ書き戻す。既にデバイス名の振り直しが起きている状態で初回起動すると誤ったキーが埋まり得るが、その場合は座標を保存し直せば解消する。既存の非空キーは上書きしない
+- **モニタ内ナビの循環インデックスもキー基準 (v1.9.3)**: `CoordinateStore._monitorIndices` のキーは `MonitorInfo.GroupKey`（安定キー、無ければデバイス名）。`GetNextInMonitor` / `GetPrevInMonitor` は `MonitorInfo` を受ける版が本体で、`string`（デバイス名）版は安定キー非対応環境・旧テスト互換用の薄いラッパ
+- **診断ログ (v1.9.3)**: 起動時（`DebugLog.WriteMonitorInfo` 末尾）と `DisplaySettingsChanged` のたびに `MonitorIdentity.LogTable` が「デバイス名 ↔ 安定キー ↔ フレンドリ名 ↔ Bounds」の対応表を debug.log へ出力する。ナビゲートログには `matchedBy=key|fingerprint|name|absolute` と `key=` / `fp=` が入るため、実機で再発しても「キー自体が変わったのか、照合が外れたのか」をログだけで切り分けられる
 - **第2座標セット（Set B）**: Win+Shift+左/右 デフォルトの**完全独立**な座標リスト（旧デフォルト Win+Alt は Xbox Game Bar プレフィックスと干渉するため Win+Shift に変更）。`CoordinateStore` を Set A/B で2インスタンス保持し、`SaveShortcutB`/`NavigateShortcutB` でトリガー。`MouseHookService`/`KeyboardHookService` はそれぞれ `SaveRequestedB`/`NavigateRequestedB` イベントを発火。**保存・移動のみ独立**で、削除モード/モニタ内ナビは Set A のみ。削除モードでは `OverlayService.ShowCoordinateMarkers` が `(CoordinateStore, Color)` のリストを受け取り、Set A=`MarkerColor`、Set B=`MarkerColorB` で**両方同時表示・両方削除可能**（デフォルトは同色だがユーザーが個別変更可）。空きエリアクリックでの追加は先頭ストア（Set A）に入る
 - **`AreModifiersHeld` は完全一致判定**: 設定された修飾キーが押されており、かつ設定にない修飾キーが**押されていないこと**を要求する（v1.2.3 修正。以前は superset 判定で Ctrl+Win 設定時に Ctrl+Win+Alt でも発火していた）。Alt 判定は Win+Alt 時に OS が VK_LMENU/VK_RMENU の async 状態をクリアするため、汎用 VK_MENU もフォールバックに含める。`[Flags]` enum の `HasFlag` 片側分岐でなく `isDown != required.HasFlag(X)` の対称判定で実装する
 - **軌跡エフェクト詳細設定**: `TrailThickness`(1–20dp) / `TrailDurationMs`(100–3000ms) / `TrailOpacity`(0.1–1.0) を設定画面のスライダーで調整可能。`OverlayService.ShowTrail` は単一 `Line` ではなく **12 セグメントに分割した `Line` 群** を描画し、`DoubleAnimation.BeginTime` を移動元側ほど 0、移動先側ほど `duration*0.5` までずらすことで**遠端（移動元）から段階的にフェードアウト**する演出を実現する。各セグメントの実フェード時間は `duration*0.5`、合計再生時間は `duration` に揃う
@@ -119,7 +132,7 @@ src/CursorJump.App/
 - **TriggerType [Flags] enum**: `Mouse=1, Keyboard=2, ModifierSequence=4`(v1.9.0+)。`EnabledTriggers` に複数フラグをセットすることでOR動作。旧settings.jsonは `EnabledTriggers` 不在 → デフォルト `Mouse` として扱われ後方互換。JSONはJsonStringEnumConverterで文字列保存（例: `"Mouse, Keyboard"`）
 - **Pro 追加機能 3 種 (v1.9.0+)**: `ResetCycleShortcut`(循環リセット=`CoordinateStore.ResetCursor` で Set A/B 両方の `_currentIndex`/`_monitorIndices` を先頭前へ。即ジャンプなし) / `ActiveWindowJumpShortcut`(フォアグラウンド窓中央=`WindowActivator.GetForegroundWindowCenter`→`JumpTo`) / `ClickHistoryBackShortcut`(左クリック履歴を戻る=`ClickHistory` リングバッファ、`ClickHistoryDepth`=巡回に含める最近クリック数 既定2/最大10。**`Back` は最近 depth 件を新しい順に循環**＝端まで行ったら先頭(最新)へラップ(`_pos` ポインタ)。**現在カーソルに近い記録(`SkipRadiusPx=40`、削除モードの `SnapDistancePhysical` と同値)はスキップして次へ**＝無意味なその場ジャンプを回避。窓内全件がカーソル付近のときのみ null。`Record` は直前記録と同一地点(`DedupRadiusPx=8`)の連打=ダブルクリックを重複登録しない。循環式なので depth=1 は実質無意味＝設定スライダー最小は2)。いずれも `MainWindow` ハンドラ冒頭で `IsPro` ゲート。`MouseHookService.LeftClickObserved` がどのショートカットにもマッチしない通常左クリックを**消費せず**観測して `ClickHistory.Record`（`ClickHistoryBackShortcut.EnabledTriggers != None` のときだけ発火）。新ショートカットは Save/Nav 等と同様 `MouseHookService` の全アクション列挙箇所（`AnyShortcutUsesWheel`/`AnyShortcutUsesMiddleExtended`/`FindShortcutByButton`/`FindMiddleSinglePressMatch`/`FireShortcutOnUiThread`）にも登録済み
 - **修飾キー連打トリガー (v1.9.0+、上記3種専用)**: `ActionShortcut.ModifierGesture`(enum: None/CtrlDoubleTap/ShiftDoubleTap/AltDoubleTap) + `TriggerType.ModifierSequence` フラグで指定。各修飾キー単独のダブルタップのみ（3連シーケンス案は「どのショートカットか分かりにくい」というフィードバックで廃止）。`KeyboardHookService` が全キー down/up を `ModifierGestureDetector.Feed` に投入し、**観測専用＝キーは消費せず** `CallNextHookEx` で素通し（通常の修飾キー操作を壊さない）。順次タップ（前のキーを離してから次を押す）判定なので `Ctrl+Shift+キー` 同時押し（チャード）や文字キー混在では成立しない。Alt ダブルタップは単独タップで一部アプリのメニューバーが一瞬反応する副作用あり（許容、UI 注記）。サスペンド/削除モード遷移時は `Detector.Reset()`
-- **SavedCoordinate**: `record SavedCoordinate(int X, int Y, string MonitorDeviceName = "")`。保存時に `Screen.FromPoint` でモニタ名を記録。`""` は旧settings.jsonとの後方互換のデフォルト値
+- **SavedCoordinate**: `record SavedCoordinate(int X, int Y, string MonitorDeviceName = "", int MonitorRelativeX = -1, int MonitorRelativeY = -1, string MonitorKey = "", string MonitorFingerprint = "")`。保存時に `MonitorIdentity.Snapshot()` から所属モニタを特定し、デバイス名・相対座標・安定キー・フィンガープリントを記録する（スナップショット取得に失敗したときのみ `Screen.FromPoint` へフォールバック）。末尾パラメータの既定値 `""` / `-1` は旧 settings.json との後方互換で、`CoordinateStore.Load` が補完する
 
 ### テーマシステム（Light/Dark）
 - **App.xaml の MergedDictionaries 先頭（index 0）がテーマ辞書**。`ThemeManager.Apply(UiTheme)` が `Themes/LightTheme.xaml` / `Themes/DarkTheme.xaml` を差し替える

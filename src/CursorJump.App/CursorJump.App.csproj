@@ -10,7 +10,7 @@
     <!-- DPI awareness は app.manifest で宣言する (ApplicationHighDpiMode は WinForms 専用で WPF には無効)。
          WFAC010 は「manifest でなく ApplicationHighDpiMode を使え」という WinForms 向け警告のため抑止する。 -->
     <NoWarn>$(NoWarn);WFAC010</NoWarn>
-    <Version>1.9.2</Version>
+    <Version>1.9.3</Version>
   </PropertyGroup>
   <ItemGroup>
     <None Include="app.manifest" />

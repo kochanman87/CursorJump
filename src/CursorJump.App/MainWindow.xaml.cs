@@ -182,20 +182,20 @@ public partial class MainWindow : Window
 
     private void OnNavigateRequested(object? sender, MouseHookEventArgs e)
     {
-        var connected = GetConnectedMonitorNames();
+        var monitors = MonitorIdentity.Snapshot();
         // ホイール上スクロール (MouseWheel 統合トリガー) なら逆方向循環
         var target = e.Direction == WheelDirection.Up
-            ? _coordinateStore.GetPrev(connected)
-            : _coordinateStore.GetNext(connected);
+            ? _coordinateStore.GetPrev(monitors)
+            : _coordinateStore.GetNext(monitors);
         if (target is null) return;
 
         int fromX = e.X;
         int fromY = e.Y;
-        var (jumpX, jumpY, source) = ResolveJumpTarget(target);
+        var (jumpX, jumpY, matchedBy) = JumpTargetResolver.Resolve(target, monitors);
 
         if (_settingsService.Current.VerboseLogging)
         {
-            DebugLog.Write($"NavigateA before: stored=({target.X},{target.Y}) monitor={target.MonitorDeviceName} rel=({target.MonitorRelativeX},{target.MonitorRelativeY}) jump=({jumpX},{jumpY}) source={source} fromCursor=({fromX},{fromY})");
+            DebugLog.Write($"NavigateA before: stored=({target.X},{target.Y}) monitor={target.MonitorDeviceName} key={DescribeKey(target.MonitorKey)} fp={target.MonitorFingerprint} rel=({target.MonitorRelativeX},{target.MonitorRelativeY}) jump=({jumpX},{jumpY}) matchedBy={matchedBy} fromCursor=({fromX},{fromY})");
         }
 
         CursorService.JumpTo(jumpX, jumpY, _settingsService.Current.JumpStrategy);
@@ -212,46 +212,32 @@ public partial class MainWindow : Window
         _overlayService.ShowTrail(fromX, fromY, jumpX, jumpY);
     }
 
-    private static IReadOnlyList<string> GetConnectedMonitorNames()
-    {
-        var screens = System.Windows.Forms.Screen.AllScreens;
-        var names = new string[screens.Length];
-        for (int i = 0; i < screens.Length; i++) names[i] = screens[i].DeviceName;
-        return names;
-    }
-
     /// <summary>
-    /// 保存座標から実際にカーソルを置く絶対物理座標を解決する。
-    /// MonitorRelativeX/Y が有効ならモニタの現 Bounds + 相対オフセットで再計算する
-    /// (PerMonitorV2 + マルチ DPI で SetCursorPos が誤動作する問題を回避)。
-    /// 旧データ・モニタ未接続のフォールバックは元の物理絶対座標を使う。
+    /// 診断ログ用にモニタ安定キーを短縮表示する（キーは長いため末尾の UID 部分が読めれば十分）。
     /// </summary>
-    private static (int X, int Y, string Source) ResolveJumpTarget(SavedCoordinate target)
+    private static string DescribeKey(string key)
     {
-        if (target.MonitorRelativeX >= 0 && target.MonitorRelativeY >= 0
-            && !string.IsNullOrEmpty(target.MonitorDeviceName))
-        {
-            var screen = System.Windows.Forms.Screen.AllScreens
-                .FirstOrDefault(s => s.DeviceName == target.MonitorDeviceName);
-            if (screen is not null)
-            {
-                int x = screen.Bounds.Left + target.MonitorRelativeX;
-                int y = screen.Bounds.Top + target.MonitorRelativeY;
-                return (x, y, "monitor-relative");
-            }
-        }
-        return (target.X, target.Y, "absolute-fallback");
+        if (string.IsNullOrEmpty(key)) return "<none>";
+        return key.Length <= 64 ? key : "..." + key[^64..];
     }
 
     private void OnNavigateCurrentMonitorRequested(object? sender, MouseHookEventArgs e)
     {
-        var screen = System.Windows.Forms.Screen.FromPoint(new System.Drawing.Point(e.X, e.Y));
+        var monitors = MonitorIdentity.Snapshot();
+        var current = MonitorIdentity.FromPoint(monitors, e.X, e.Y);
+        if (current is null) return;
+
         var target = e.Direction == WheelDirection.Up
-            ? _coordinateStore.GetPrevInMonitor(screen.DeviceName)
-            : _coordinateStore.GetNextInMonitor(screen.DeviceName);
+            ? _coordinateStore.GetPrevInMonitor(current.Value)
+            : _coordinateStore.GetNextInMonitor(current.Value);
         if (target is null) return;
 
-        var (jumpX, jumpY, _) = ResolveJumpTarget(target);
+        var (jumpX, jumpY, matchedBy) = JumpTargetResolver.Resolve(target, monitors);
+
+        if (_settingsService.Current.VerboseLogging)
+        {
+            DebugLog.Write($"NavigateCurrentMonitor: monitor={current.Value.GdiDeviceName} key={DescribeKey(current.Value.StableKey)} jump=({jumpX},{jumpY}) matchedBy={matchedBy}");
+        }
         CursorService.JumpTo(jumpX, jumpY, _settingsService.Current.JumpStrategy);
 
         if (_settingsService.Current.ActivateWindowUnderCursorOnJump)
@@ -304,19 +290,19 @@ public partial class MainWindow : Window
             DebugLog.Write("OnNavigateRequestedB: blocked (Set B is Pro-only)");
             return;
         }
-        var connected = GetConnectedMonitorNames();
+        var monitors = MonitorIdentity.Snapshot();
         var target = e.Direction == WheelDirection.Up
-            ? _coordinateStoreB.GetPrev(connected)
-            : _coordinateStoreB.GetNext(connected);
+            ? _coordinateStoreB.GetPrev(monitors)
+            : _coordinateStoreB.GetNext(monitors);
         if (target is null) return;
 
         int fromX = e.X;
         int fromY = e.Y;
-        var (jumpX, jumpY, source) = ResolveJumpTarget(target);
+        var (jumpX, jumpY, matchedBy) = JumpTargetResolver.Resolve(target, monitors);
 
         if (_settingsService.Current.VerboseLogging)
         {
-            DebugLog.Write($"NavigateB before: stored=({target.X},{target.Y}) monitor={target.MonitorDeviceName} rel=({target.MonitorRelativeX},{target.MonitorRelativeY}) jump=({jumpX},{jumpY}) source={source} fromCursor=({fromX},{fromY})");
+            DebugLog.Write($"NavigateB before: stored=({target.X},{target.Y}) monitor={target.MonitorDeviceName} key={DescribeKey(target.MonitorKey)} fp={target.MonitorFingerprint} rel=({target.MonitorRelativeX},{target.MonitorRelativeY}) jump=({jumpX},{jumpY}) matchedBy={matchedBy} fromCursor=({fromX},{fromY})");
         }
 
         CursorService.JumpTo(jumpX, jumpY, _settingsService.Current.JumpStrategy);
