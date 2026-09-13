@@ -89,6 +89,10 @@
     <sys:String x:Key="Str.Settings.Gesture.ShiftDoubleTap">Shift をダブルタップ</sys:String>
     <sys:String x:Key="Str.Settings.Gesture.AltDoubleTap">Alt をダブルタップ（一部アプリでメニューが一瞬反応）</sys:String>
     <sys:String x:Key="Str.Settings.ClickHistoryDepth">履歴の深さ</sys:String>
+    <sys:String x:Key="Str.Settings.ClickHistoryMarkers.Show">クリック履歴のマーカーを常に表示</sys:String>
+    <sys:String x:Key="Str.Settings.ClickHistoryMarkers.Color">マーカーの色</sys:String>
+    <sys:String x:Key="Str.Settings.ClickHistoryMarkers.Opacity">濃さ</sys:String>
+    <sys:String x:Key="Str.Settings.ClickHistoryMarkers.Hint">番号は新しいクリックから1、2、3…の順です。次に戻る位置を二重の枠で示します。マーカー越しに通常のクリック操作ができます。</sys:String>
     <sys:String x:Key="Str.Settings.ClickHistoryDepth.Hint">押すたびに最近のクリック位置を順に巡回します（端まで行くと先頭へ戻る循環。今カーソルがある位置は飛ばします）。値＝巡回に含める最近クリック数（2〜10）。</sys:String>
 
     <!-- エフェクトカード -->

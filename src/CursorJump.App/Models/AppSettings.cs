@@ -127,6 +127,12 @@ public sealed class AppSettings
     /// 既定 2＝最近 2 点を行き来。循環式なので 1 は実質意味がなく（その場でスキップされ動かない）、最小実用値は 2。</summary>
     public int ClickHistoryDepth { get; set; } = 2;
 
+    /// <summary>Pro のクリック履歴を番号付きマーカーで常時表示する。</summary>
+    public bool ClickHistoryMarkersEnabled { get; set; } = true;
+    public string ClickHistoryMarkerColor { get; set; } = "#5BA8F0";
+    /// <summary>履歴マーカー全体の濃さ（0.1..1.0）。</summary>
+    public double ClickHistoryMarkerOpacity { get; set; } = 0.35;
+
     // 初期色は Set A=青 / Set B=ピンク で 3 効果（保存円・軌跡・マーカー）を統一する。
     // デフォルト変更は新規インストール（settings.json 不在）時のみ反映。既存環境は保存値を維持する。
     public string SaveCircleColor { get; set; } = "#5BA8F0";

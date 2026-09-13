@@ -77,27 +77,51 @@ internal sealed class ClickHistory
     /// </summary>
     public (int X, int Y)? Back(int depth, int curX, int curY, int skipRadius)
     {
-        long r2 = (long)skipRadius * skipRadius;
         lock (_lock)
         {
             int window = Math.Min(Math.Clamp(depth, 1, MaxDepth), _count);
-            if (window == 0) return null;
-
-            // 窓内（最新から window 件）を循環走査。現在位置はスキップして次へ。
-            for (int tries = 0; tries < window; tries++)
-            {
-                _pos = (_pos % window) + 1; // 1..window で進め、window の次は 1 へラップ
-                int idx = ((_head - _pos) % MaxDepth + MaxDepth) % MaxDepth;
-                var p = _buffer[idx];
-                long dx = p.X - curX;
-                long dy = p.Y - curY;
-                if (dx * dx + dy * dy <= r2)
-                    continue; // 現在位置付近 → スキップして次の記録へ
-                return p;
-            }
-            return null; // 窓内すべてがカーソル付近（実質 1 点しか無い等）→ 動かない
+            int offset = FindNextOffset(window, curX, curY, skipRadius, out var nextPos);
+            _pos = nextPos;
+            return offset == 0 ? null : GetAtOffset(offset);
         }
     }
+
+    /// <summary>新しい順の番号と次の移動先を、巡回ポインタを変更せず一括取得する。</summary>
+    public ClickHistoryMarker[] GetMarkers(int depth, int curX, int curY, int skipRadius)
+    {
+        lock (_lock)
+        {
+            int window = Math.Min(Math.Clamp(depth, 1, MaxDepth), _count);
+            if (window == 0) return Array.Empty<ClickHistoryMarker>();
+            int next = FindNextOffset(window, curX, curY, skipRadius, out _);
+            var markers = new ClickHistoryMarker[window];
+            for (int offset = 1; offset <= window; offset++)
+            {
+                var p = GetAtOffset(offset);
+                markers[offset - 1] = new ClickHistoryMarker(offset, p.X, p.Y, offset == next);
+            }
+            return markers;
+        }
+    }
+
+    // 描画の予告と Back の判定を共通化する。呼び出し元でロックを保持すること。
+    private int FindNextOffset(int window, int curX, int curY, int skipRadius, out int nextPos)
+    {
+        nextPos = _pos;
+        long r2 = (long)skipRadius * skipRadius;
+        for (int tries = 0; tries < window; tries++)
+        {
+            nextPos = (nextPos % window) + 1;
+            var p = GetAtOffset(nextPos);
+            long dx = (long)p.X - curX;
+            long dy = (long)p.Y - curY;
+            if (dx * dx + dy * dy > r2) return nextPos;
+        }
+        return 0;
+    }
+
+    private (int X, int Y) GetAtOffset(int offset) =>
+        _buffer[(_head - offset + MaxDepth) % MaxDepth];
 
     /// <summary>履歴を全消去する。</summary>
     public void Clear()
@@ -110,3 +134,5 @@ internal sealed class ClickHistory
         }
     }
 }
+
+internal readonly record struct ClickHistoryMarker(int Number, int X, int Y, bool IsNext);

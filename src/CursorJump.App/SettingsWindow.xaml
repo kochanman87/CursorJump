@@ -801,6 +801,48 @@
                                                Style="{StaticResource HintText}" TextWrapping="Wrap"/>
                                 </StackPanel>
                             </Grid>
+                            <Border BorderBrush="{DynamicResource BorderSubtleBrush}" BorderThickness="0,1,0,0" Margin="0,12,0,0" Padding="0,10,0,0">
+                                <StackPanel>
+                                    <Grid Margin="0,0,0,8">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Text="{DynamicResource Str.Settings.ClickHistoryMarkers.Show}" Style="{StaticResource BodyText}" VerticalAlignment="Center"/>
+                                        <CheckBox x:Name="ChkClickHistoryMarkersEnabled" Grid.Column="1"
+                                                  Style="{StaticResource ToggleSwitchStyle}"
+                                                  AutomationProperties.Name="{DynamicResource Str.Settings.ClickHistoryMarkers.Show}"/>
+                                    </Grid>
+                                    <Grid IsEnabled="{Binding IsChecked, ElementName=ChkClickHistoryMarkersEnabled}">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="20"/>
+                                            <ColumnDefinition Width="*"/>
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                            <TextBlock Text="{DynamicResource Str.Settings.ClickHistoryMarkers.Color}" Style="{StaticResource BodyText}" VerticalAlignment="Center" Margin="0,0,12,0"/>
+                                            <Ellipse x:Name="RectClickHistoryMarkerColor" Style="{StaticResource ColorSwatchStyle}"
+                                                     MouseLeftButtonDown="OnColorRectangleClick"
+                                                     ToolTip="{DynamicResource Str.Settings.ClickHistoryMarkers.Color}"/>
+                                            <Border Style="{StaticResource HexCodeBadgeStyle}" Margin="10,0,0,0">
+                                                <TextBlock x:Name="TxtClickHistoryMarkerColorHex" FontFamily="Consolas" FontSize="11" Foreground="{DynamicResource TextSecondaryBrush}"/>
+                                            </Border>
+                                        </StackPanel>
+                                        <StackPanel Grid.Column="2">
+                                            <Grid>
+                                                <TextBlock Text="{DynamicResource Str.Settings.ClickHistoryMarkers.Opacity}" Style="{StaticResource BodyText}"/>
+                                                <TextBlock x:Name="TxtClickHistoryMarkerOpacity" HorizontalAlignment="Right" Style="{StaticResource BodyText}"/>
+                                            </Grid>
+                                            <Slider x:Name="SldClickHistoryMarkerOpacity" Minimum="0.1" Maximum="1" Value="0.35"
+                                                    SmallChange="0.05" LargeChange="0.1" TickFrequency="0.05" IsSnapToTickEnabled="True"
+                                                    Margin="0,4,0,0" ValueChanged="OnClickHistoryMarkerOpacityChanged"
+                                                    AutomationProperties.Name="{DynamicResource Str.Settings.ClickHistoryMarkers.Opacity}"/>
+                                        </StackPanel>
+                                    </Grid>
+                                    <TextBlock Text="{DynamicResource Str.Settings.ClickHistoryMarkers.Hint}"
+                                               Style="{StaticResource HintText}" TextWrapping="Wrap" Margin="0,8,0,0"/>
+                                </StackPanel>
+                            </Border>
                         </StackPanel>
                     </Border>
 

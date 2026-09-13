@@ -168,6 +168,7 @@ public partial class SettingsWindow : Window
     private string _trailColorB = "#FF7FA8";
     private string _markerColor = "#5BA8F0";
     private string _markerColorB = "#FF7FA8";
+    private string _clickHistoryMarkerColor = "#5BA8F0";
     private UiTheme _currentTheme = UiTheme.Light;
     private UiLanguage _currentLanguage = UiLanguage.Auto;
 
@@ -357,6 +358,14 @@ public partial class SettingsWindow : Window
         SldClickHistoryDepth.Value = Math.Clamp(s.ClickHistoryDepth, (int)SldClickHistoryDepth.Minimum, (int)SldClickHistoryDepth.Maximum);
         UpdateClickHistoryDepthLabel();
 
+        ChkClickHistoryMarkersEnabled.IsChecked = s.ClickHistoryMarkersEnabled;
+        _clickHistoryMarkerColor = s.ClickHistoryMarkerColor ?? "#5BA8F0";
+        SetSwatchColor(RectClickHistoryMarkerColor, _clickHistoryMarkerColor);
+        TxtClickHistoryMarkerColorHex.Text = _clickHistoryMarkerColor.ToUpperInvariant();
+        SldClickHistoryMarkerOpacity.Value = double.IsFinite(s.ClickHistoryMarkerOpacity)
+            ? Math.Clamp(s.ClickHistoryMarkerOpacity, 0.1, 1.0) : 0.35;
+        UpdateClickHistoryMarkerOpacityLabel();
+
         // 色
         _saveColor   = s.SaveCircleColor;
         _saveColorB  = s.SaveCircleColorB;
@@ -522,6 +531,15 @@ public partial class SettingsWindow : Window
     }
 
     private void OnClickHistoryDepthChanged(object sender, RoutedPropertyChangedEventArgs<double> e) => UpdateClickHistoryDepthLabel();
+
+    private void OnClickHistoryMarkerOpacityChanged(object sender, RoutedPropertyChangedEventArgs<double> e) =>
+        UpdateClickHistoryMarkerOpacityLabel();
+
+    private void UpdateClickHistoryMarkerOpacityLabel()
+    {
+        if (TxtClickHistoryMarkerOpacity is not null && SldClickHistoryMarkerOpacity is not null)
+            TxtClickHistoryMarkerOpacity.Text = $"{SldClickHistoryMarkerOpacity.Value:P0}";
+    }
 
     private void UpdateClickHistoryDepthLabel()
     {
@@ -902,6 +920,9 @@ public partial class SettingsWindow : Window
             ActiveWindowJumpShortcut = actWinShortcut,
             ClickHistoryBackShortcut = clkBackShortcut,
             ClickHistoryDepth = (int)Math.Round(SldClickHistoryDepth.Value),
+            ClickHistoryMarkersEnabled = ChkClickHistoryMarkersEnabled.IsChecked == true,
+            ClickHistoryMarkerColor = _clickHistoryMarkerColor,
+            ClickHistoryMarkerOpacity = SldClickHistoryMarkerOpacity.Value,
             SaveCircleColor  = _saveColor,
             SaveCircleColorB = _saveColorB,
             TrailColor       = _trailColor,
@@ -974,6 +995,7 @@ public partial class SettingsWindow : Window
         else if (shape == RectTrailColorB)  currentHex = _trailColorB;
         else if (shape == RectMarkerColor)  currentHex = _markerColor;
         else if (shape == RectMarkerColorB) currentHex = _markerColorB;
+        else if (shape == RectClickHistoryMarkerColor) currentHex = _clickHistoryMarkerColor;
         else return;
 
         using var dialog = new System.Windows.Forms.ColorDialog();
@@ -997,6 +1019,7 @@ public partial class SettingsWindow : Window
             else if (shape == RectTrailColorB)  { _trailColorB = hex; TxtTrailColorBHex.Text = hex; }
             else if (shape == RectMarkerColor)  { _markerColor  = hex; TxtMarkerColorHex.Text  = hex; }
             else if (shape == RectMarkerColorB) { _markerColorB = hex; TxtMarkerColorBHex.Text = hex; }
+            else if (shape == RectClickHistoryMarkerColor) { _clickHistoryMarkerColor = hex; TxtClickHistoryMarkerColorHex.Text = hex; }
 
             shape.Fill = new SolidColorBrush(Color.FromRgb(selected.R, selected.G, selected.B));
         }

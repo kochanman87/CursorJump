@@ -66,6 +66,7 @@ src/CursorJump.App/
 ├── WindowActivator.cs              # ジャンプ後にカーソル直下のトップレベルウィンドウを前面化（AttachThreadInput 経由）+ GetForegroundWindowCenter（v1.9.0 機能2）
 ├── CoordinateStore.cs              # 座標リスト管理（Add/GetNext循環/GetNext(connected)/GetNextInMonitor/RemoveAt/Load/Changed/ResetCursor）
 ├── ClickHistory.cs                 # 左クリック位置の内部履歴リングバッファ（v1.9.0 機能3、Pro、純粋ロジック・テスト対象）
+├── ClickHistoryOverlayService.cs   # Pro のクリック履歴の常時マーカー（番号・次の移動先、v1.10.0）
 ├── ModifierGestureDetector.cs      # 修飾キー連打ジェスチャ検出（v1.9.0、観測専用・テスト対象）
 ├── MonitorFilter.cs                # 接続中モニタ判定の純粋関数（バグ3 対策、テスト容易性）
 ├── MonitorIdentity.cs              # モニタの安定キー取得（EnumDisplayDevices）+ スナップショット/キャッシュ（v1.9.3）
@@ -134,7 +135,12 @@ src/CursorJump.App/
 - **修飾キー連打トリガー (v1.9.0+、上記3種専用)**: `ActionShortcut.ModifierGesture`(enum: None/CtrlDoubleTap/ShiftDoubleTap/AltDoubleTap) + `TriggerType.ModifierSequence` フラグで指定。各修飾キー単独のダブルタップのみ（3連シーケンス案は「どのショートカットか分かりにくい」というフィードバックで廃止）。`KeyboardHookService` が全キー down/up を `ModifierGestureDetector.Feed` に投入し、**観測専用＝キーは消費せず** `CallNextHookEx` で素通し（通常の修飾キー操作を壊さない）。順次タップ（前のキーを離してから次を押す）判定なので `Ctrl+Shift+キー` 同時押し（チャード）や文字キー混在では成立しない。Alt ダブルタップは単独タップで一部アプリのメニューバーが一瞬反応する副作用あり（許容、UI 注記）。サスペンド/削除モード遷移時は `Detector.Reset()`
 - **SavedCoordinate**: `record SavedCoordinate(int X, int Y, string MonitorDeviceName = "", int MonitorRelativeX = -1, int MonitorRelativeY = -1, string MonitorKey = "", string MonitorFingerprint = "")`。保存時に `MonitorIdentity.Snapshot()` から所属モニタを特定し、デバイス名・相対座標・安定キー・フィンガープリントを記録する（スナップショット取得に失敗したときのみ `Screen.FromPoint` へフォールバック）。末尾パラメータの既定値 `""` / `-1` は旧 settings.json との後方互換で、`CoordinateStore.Load` が補完する
 
+### クリック履歴の常時表示
+
+- **クリック履歴の常時マーカー（v1.10.0、Pro）**: `ClickHistoryMarkersEnabled`（既定 true）/ `ClickHistoryMarkerColor`（既定 `#5BA8F0`）/ `ClickHistoryMarkerOpacity`（0.1–1.0、既定0.35）を「クリック位置に戻る」カードで設定する。番号は履歴の新しい順に1から、次の移動先には二重の枠を付ける。`ClickHistory.GetMarkers` は巡回ポインタを変更せず、`Back` と共通の `FindNextOffset` で現在位置付近のスキップを判定する。`ClickHistoryOverlayService` は表示専用の `OverlayWindow` を再利用し、50ms間隔のUIタイマーでカーソル移動・設定・ライセンス変更を確認、状態が変わったときだけ再描画する。物理座標は `PointFromScreen` でウィンドウ相対DIPへ変換する。機能無効・Free・履歴なし・座標編集モード中は非表示。履歴自体は従来通りメモリ内のみで、Set A/Bとは独立。
+
 ### テーマシステム（Light/Dark）
+
 - **App.xaml の MergedDictionaries 先頭（index 0）がテーマ辞書**。`ThemeManager.Apply(UiTheme)` が `Themes/LightTheme.xaml` / `Themes/DarkTheme.xaml` を差し替える
 - **全UI要素は `DynamicResource` でテーマリソースを参照**（StaticResource だと実行時切替が効かない）。カラーキー例: `BgPrimaryBrush`, `BgCardBrush`, `TextPrimaryBrush`, `AccentBrush`, `BorderSubtleBrush`
 - **共通スタイルは `Styles/ModernTheme.xaml`**: `CardBorder`, `ToggleSwitchStyle`, `ModifierChipStyle`, `PillTabStyle`, `PrimaryButtonStyle`, `SecondaryButtonStyle`, `ColorSwatchStyle`, `FluentIcon` 等
@@ -291,4 +297,3 @@ GitHub Releases を配布チャネルとし、起動時に新版を検出して�
 ### 設計上の注意
 - **コード署名なし → SmartScreen 警告**: 初回ダウンロード時に Microsoft Defender SmartScreen が「不明な発行元」警告を出す。回避にはコード署名証明書（年額数万円〜）が必要。導入は別タスク
 - **AutoUpdate デフォルトは ON**: 旧 `settings.json` には `AutoUpdateEnabled` が無いため、`Deserialize` のデフォルトで true になる（C# プロパティ初期化値）。OFF にしたいユーザーは情報タブで切替
-

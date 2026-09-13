@@ -22,12 +22,14 @@ public partial class MainWindow : Window
     private readonly OverlayService _overlayService;
     // 通常左クリック位置の内部履歴（Pro: 戻る機能用、v1.9.0+）。
     private readonly ClickHistory _clickHistory = new();
+    private readonly ClickHistoryOverlayService _clickHistoryOverlay;
 
     public MainWindow(SettingsService settingsService, LicenseService licenseService)
     {
         _settingsService = settingsService;
         _licenseService = licenseService;
         _overlayService = new OverlayService(settingsService, licenseService);
+        _clickHistoryOverlay = new ClickHistoryOverlayService(settingsService, licenseService, _clickHistory);
 
         // 永続化された座標を復元 (戻り値 true = マイグレーション発生 = 書き戻し必要)
         bool migratedA = _coordinateStore.Load(_settingsService.Current.SavedCoordinatesA);
@@ -128,6 +130,7 @@ public partial class MainWindow : Window
         catch (Exception ex) { DebugLog.Write($"MainWindow: PreallocateTrailOverlay failed: {ex.Message}"); }
 
         StartMemoryDiagnosticsTimer();
+        _clickHistoryOverlay.Start();
     }
 
     // 800MB メモリ成長問題の診断用一時計装。1 分毎に WorkingSet / Private / GC.GetTotalMemory /
@@ -260,11 +263,13 @@ public partial class MainWindow : Window
             },
             onEnterMode: () =>
             {
+                _clickHistoryOverlay.SetSuppressed(true);
                 _mouseHookService?.EnterDeleteMode();
                 _keyboardHookService?.EnterDeleteMode();
             },
             onExitMode: () =>
             {
+                _clickHistoryOverlay.SetSuppressed(false);
                 _mouseHookService?.ExitDeleteMode();
                 _keyboardHookService?.ExitDeleteMode();
             });
@@ -376,6 +381,7 @@ public partial class MainWindow : Window
         if (!_licenseService.IsPro) return;
         if (_settingsService.Current.ClickHistoryBackShortcut.EnabledTriggers == TriggerType.None) return;
         _clickHistory.Record(e.X, e.Y);
+        _clickHistoryOverlay.Refresh();
     }
 
     /// <summary>左クリック履歴を 1 つ過去へ遡ってカーソルを戻す（Cursor の Ctrl+Z 風）。</summary>
@@ -398,6 +404,7 @@ public partial class MainWindow : Window
         if (_settingsService.Current.ActivateWindowUnderCursorOnJump)
             WindowActivator.Activate(jumpX, jumpY);
         _overlayService.ShowTrail(fromX, fromY, jumpX, jumpY);
+        _clickHistoryOverlay.Refresh();
     }
 
     private static Color ParseColor(string hex, Color fallback)
@@ -413,6 +420,7 @@ public partial class MainWindow : Window
 
     private void OnClosed(object? sender, EventArgs e)
     {
+        _clickHistoryOverlay.Dispose();
         try { _memDiagTimer?.Stop(); _memDiagTimer = null; } catch { }
 
         if (_mouseHookService is not null)
