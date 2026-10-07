@@ -4,6 +4,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Management;
 using System.Runtime.InteropServices;
+using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Forms;
@@ -19,6 +20,15 @@ internal static class DebugLog
     private static readonly string s_logPath = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
         "CursorJump", "debug.log");
+
+    // ローテーション先。消える(上書きされる)のはこの 1 ファイルだけ。
+    private static readonly string s_oldLogPath = s_logPath + ".old";
+
+    // debug.log の上限サイズ。超えたら debug.log.old へ退避して新しく書き始める (ディスク上は最大約 2 倍)。
+    // 1MB の理由: 実測で稼働 1 分あたり約 170B (うち MemDiag 定期ログ約 137B)。1 日 8 時間稼働で約 13 日分、
+    //   .old と合わせて約 2〜4 週間分が残り、不具合報告後の調査に足りる。メモ帳でも重くならずに開ける。
+    // 変更履歴: 2026-10-07 新設 (v1.10.1)。それまでは無制限で、約半年で 9MB まで増えていた。
+    internal const long MaxLogBytes = 1L * 1024 * 1024;
 
     private static readonly BlockingCollection<string> s_queue = new(boundedCapacity: 4096);
     private static readonly Thread s_worker;
@@ -71,9 +81,17 @@ internal static class DebugLog
     {
         try
         {
+            // ローテーションはこのスレッドだけが行う (書き込みと競合しない)
+            long size = LogRotation.GetFileSize(s_logPath);
             foreach (var line in s_queue.GetConsumingEnumerable())
             {
-                try { File.AppendAllText(s_logPath, line + Environment.NewLine); }
+                try
+                {
+                    size = LogRotation.RotateIfNeeded(s_logPath, s_oldLogPath, size, MaxLogBytes);
+                    var text = line + Environment.NewLine;
+                    File.AppendAllText(s_logPath, text);
+                    size += Encoding.UTF8.GetByteCount(text);
+                }
                 catch { }
             }
         }
@@ -165,6 +183,48 @@ internal static class DebugLog
         catch (Exception ex)
         {
             Write($"WriteMonitorPhysicalSize failed: {ex.GetType().Name}");
+        }
+    }
+}
+
+/// <summary>
+/// debug.log のサイズ上限ローテーション (v1.10.1)。パスを引数で受けるのは、本物のログに触れずにテストするため。
+/// 削除(上書き)されうるのは呼び出し側が渡す oldPath の 1 ファイルだけで、ワイルドカードは使わない。
+/// </summary>
+internal static class LogRotation
+{
+    internal static long GetFileSize(string path)
+    {
+        try
+        {
+            var info = new FileInfo(path);
+            return info.Exists ? info.Length : 0;
+        }
+        catch { return 0; }
+    }
+
+    /// <summary>
+    /// currentSize が maxBytes 以上なら logPath を oldPath へ名前変更し (既存の oldPath は上書き)、0 を返す。
+    /// それ以外は書き込みを続けるべき現在サイズを返す。失敗しても例外は投げない (ログが止まるよりは上限超過を許す)。
+    /// </summary>
+    internal static long RotateIfNeeded(string logPath, string oldPath, long currentSize, long maxBytes)
+    {
+        if (currentSize < maxBytes) return currentSize;
+        if (string.Equals(Path.GetFullPath(logPath), Path.GetFullPath(oldPath), StringComparison.OrdinalIgnoreCase))
+            return currentSize;
+
+        // 手元の集計は概算 (外部で消された・別プロセスが先にローテートした等) なので実サイズで確かめ直す
+        long actual = GetFileSize(logPath);
+        if (actual < maxBytes) return actual;
+
+        try
+        {
+            File.Move(logPath, oldPath, overwrite: true);
+            return 0;
+        }
+        catch
+        {
+            return actual;
         }
     }
 }

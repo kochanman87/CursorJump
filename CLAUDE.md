@@ -74,7 +74,7 @@ src/CursorJump.App/
 ├── ShortcutFormatter.cs            # ショートカット表記（通常/削除モード用の compact 名対応）
 ├── OverlayService.cs               # オーバーレイアニメーション（収縮円、軌跡、マーカー）
 ├── OverlayWindow.xaml / .cs        # 透明オーバーレイウィンドウ基盤
-├── DebugLog.cs                     # デバッグログ（%APPDATA%/CursorJump/debug.log。非同期キュー方式 + WMI で物理インチ取得）
+├── DebugLog.cs                     # デバッグログ（%APPDATA%/CursorJump/debug.log。非同期キュー方式 + WMI で物理インチ取得 + 1MB ローテーション `LogRotation`）
 ├── SettingsService.cs              # 設定のJSON読み書き（%APPDATA%/CursorJump/settings.json）
 ├── SettingsWindow.xaml / .cs       # 設定画面UI（設定 / 使い方 / 情報 / ライセンス タブ）
 ├── LicenseService.cs               # Free/Pro 判定（SHA256 ハッシュ比較）+ StatusChanged
@@ -119,6 +119,7 @@ src/CursorJump.App/
 - **`AreModifiersHeld` は完全一致判定**: 設定された修飾キーが押されており、かつ設定にない修飾キーが**押されていないこと**を要求する（v1.2.3 修正。以前は superset 判定で Ctrl+Win 設定時に Ctrl+Win+Alt でも発火していた）。Alt 判定は Win+Alt 時に OS が VK_LMENU/VK_RMENU の async 状態をクリアするため、汎用 VK_MENU もフォールバックに含める。`[Flags]` enum の `HasFlag` 片側分岐でなく `isDown != required.HasFlag(X)` の対称判定で実装する
 - **軌跡エフェクト詳細設定**: `TrailThickness`(1–20dp) / `TrailDurationMs`(100–3000ms) / `TrailOpacity`(0.1–1.0) を設定画面のスライダーで調整可能。`OverlayService.ShowTrail` は単一 `Line` ではなく **12 セグメントに分割した `Line` 群** を描画し、`DoubleAnimation.BeginTime` を移動元側ほど 0、移動先側ほど `duration*0.5` までずらすことで**遠端（移動元）から段階的にフェードアウト**する演出を実現する。各セグメントの実フェード時間は `duration*0.5`、合計再生時間は `duration` に揃う
 - **ログファイル**: `%APPDATA%/CursorJump/debug.log`（起動時モニター情報、フックイベント、DPI変更を記録）
+- **ログのサイズ上限 (v1.10.1+)**: 書き込みスレッドが `debug.log` のサイズを数え、`DebugLog.MaxLogBytes`（1MB、値の理由は定数のコメント）以上になったら `debug.log.old` へ名前変更して新規に書き始める（ディスク上は最大約 2MB）。判定は `LogRotation.RotateIfNeeded`（パス引数の純粋寄り関数、`tests/CursorJump.Tests/LogRotationTests.cs`）。**上書き・削除されうるのは `debug.log.old` の 1 ファイルだけ**（ワイルドカード不使用）。集計値は概算なので上限超え時に実サイズを測り直し、別プロセスや手動削除でずれても誤ってローテートしない。名前変更に失敗したらそのまま追記を続ける（ログを止めない）
 - **MouseButtonType enum**: Left=0, Right=1, Middle=2, XButton1=3, XButton2=4, MiddleLeftChord=5, MiddleRightChord=6, MiddleDoubleClick=7, MiddleTripleClick=8, WheelUp=9, WheelDown=10, MouseWheel=11（末尾追加で後方互換性維持）。WheelUp/WheelDown は v1.5.2 で追加したが v1.6.1 で UI からは除外（旧 settings.json 互換のため enum 値は残す）。新規割当は MouseWheel（上下方向中立の統合トリガー）を使う
 - **マウスホイールトリガー (v1.6.1+)**: `MouseHookService` の WM_MOUSEWHEEL 処理は delta 符号から `WheelDirection.Up/Down` を算出し `MouseHookEventArgs.Direction` に格納する。マッチング判定 `MatchWheelShortcut` は新 `MouseWheel`（方向中立、`AreModifiersHeld` のみ判定）と旧 `WheelUp/WheelDown`（方向別、`IsShortcutMatch` で従来通り）の両方を受け付ける。`MainWindow` の Navigate 系ハンドラは `e.Direction == Up` のとき `GetPrev` 系、それ以外は `GetNext` 系を呼ぶ。Save/SaveB/DisplayDelete は方向非依存（どちらでも発火）
 - **軌跡/収縮円オーバーレイのシングルトン再利用 (v1.6.1+)**: `OverlayService._trailOverlay` を `MainWindow.OnSourceInitialized` 末尾で 1 枚だけプリアロケートし `Show()`+`CoverVirtualScreen()`+`TrackDisplaySettingsChanges()` 済みで常駐させる。`ShowTrail` / `ShowShrinkCircle` / `ShowClearAllShrinkCircles` は共有オーバーレイの Canvas に要素を追加し、アニメ完了で個別要素のみ Remove する（ウィンドウは閉じない）。3画面マルチモニタ + WS_EX_LAYERED HWND の生成コストを 1 回で済ませることで、ジャンプ後のラグ・砂時計カーソルを解消する。`WS_EX_NOACTIVATE` 併用でアクティベート同期も抑止。削除モードのマーカーオーバーレイ (`_markerOverlay`) は半透明背景つき別系統で従来通り都度生成
