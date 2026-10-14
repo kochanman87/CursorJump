@@ -229,6 +229,9 @@ public partial class SettingsWindow : Window
         foreach (var slot in _keyboardSlots.Values) slot.RefreshLabel();
         // ライセンスステータステキストも DynamicResource ではなく Loc.Get で設定しているため再描画する
         UpdateLicenseUI();
+        // 情報タブのバージョン・前回確認も Loc.Get で組み立てているため再描画する
+        UpdateAboutVersionText();
+        UpdateLastCheckedLabel(_settingsService.Current.LastUpdateCheckUtc);
     }
 
     private void RefreshButtonComboBoxes()
@@ -430,16 +433,21 @@ public partial class SettingsWindow : Window
 
     private void LoadAboutSection(AppSettings s)
     {
-        var v = Assembly.GetExecutingAssembly().GetName().Version;
-        AboutVersionText.Text = string.Format(
-            CultureInfo.CurrentCulture,
-            Loc.Get("Str.About.Version"),
-            v is null ? "-" : $"{v.Major}.{v.Minor}.{v.Build}");
+        UpdateAboutVersionText();
 
         AutoUpdateToggle.IsChecked = s.AutoUpdateEnabled;
         UpdateLastCheckedLabel(s.LastUpdateCheckUtc);
         VerboseLoggingToggle.IsChecked = s.VerboseLogging;
         AutoStartToggle.IsChecked = s.AutoStartEnabled;
+    }
+
+    private void UpdateAboutVersionText()
+    {
+        var v = Assembly.GetExecutingAssembly().GetName().Version;
+        AboutVersionText.Text = string.Format(
+            CultureInfo.CurrentCulture,
+            Loc.Get("Str.About.Version"),
+            v is null ? "-" : $"{v.Major}.{v.Minor}.{v.Build}");
     }
 
     private void UpdateLastCheckedLabel(string isoUtc)

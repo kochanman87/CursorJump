@@ -24,6 +24,8 @@
     <sys:String x:Key="Str.About.VerboseLoggingHint">Records cursor coordinates before/after every jump. May slow the app — turn on only for investigation.</sys:String>
     <sys:String x:Key="Str.About.OpenLog">Open log</sys:String>
     <sys:String x:Key="Str.About.OpenLogFolder">Open log folder</sys:String>
+    <sys:String x:Key="Str.About.AutoStart">Launch at Windows startup</sys:String>
+    <sys:String x:Key="Str.About.AutoStartHint">Starts CursorJump automatically when you sign in to Windows. It stays in the system tray.</sys:String>
 
     <!-- Update dialog -->
     <sys:String x:Key="Str.Update.DialogTitle">Update available</sys:String>
