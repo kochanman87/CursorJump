@@ -100,6 +100,7 @@
     <sys:String x:Key="Str.Settings.ElementSnap.Enable">Use jump to elements</sys:String>
     <sys:String x:Key="Str.Settings.ElementSnap.Modifiers">Keys to hold while moving the mouse</sys:String>
     <sys:String x:Key="Str.Settings.ElementSnap.ExcludeBookmarkBar">Skip the bookmarks bar</sys:String>
+    <sys:String x:Key="Str.Settings.ElementSnap.IncludeTaskbar">Include the taskbar (app icons, input mode, etc.)</sys:String>
     <sys:String x:Key="Str.Settings.ElementSnap.Learning">Learn frequently clicked elements and prefer them</sys:String>
     <sys:String x:Key="Str.Settings.ElementSnap.ShowMarkers">Mark learned elements while holding the keys</sys:String>
     <sys:String x:Key="Str.Settings.ElementSnap.ClearLearning">Clear learning data</sys:String>

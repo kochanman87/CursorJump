@@ -100,6 +100,7 @@
     <sys:String x:Key="Str.Settings.ElementSnap.Enable">要素へジャンプを使う</sys:String>
     <sys:String x:Key="Str.Settings.ElementSnap.Modifiers">押しながらマウスを動かすキー</sys:String>
     <sys:String x:Key="Str.Settings.ElementSnap.ExcludeBookmarkBar">ブックマークバーをジャンプ先から外す</sys:String>
+    <sys:String x:Key="Str.Settings.ElementSnap.IncludeTaskbar">タスクバー（アプリのアイコン・入力モードなど）もジャンプ先に含める</sys:String>
     <sys:String x:Key="Str.Settings.ElementSnap.Learning">よくクリックする要素を学習して優先する</sys:String>
     <sys:String x:Key="Str.Settings.ElementSnap.ShowMarkers">キーを押したとき学習済みの要素に印を表示</sys:String>
     <sys:String x:Key="Str.Settings.ElementSnap.ClearLearning">学習データを消去</sys:String>

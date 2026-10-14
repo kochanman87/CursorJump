@@ -386,12 +386,31 @@ internal sealed class ElementSnapService : IDisposable
         return (result, !ok, sw.ElapsedMilliseconds);
     }
 
+    /// <summary>
+    /// タスクバーのウィンドウクラス（メイン / 他モニタ）。ツールウィンドウ扱いかつ高さ 100px 未満のため
+    /// 通常の除外条件に掛かるので、設定 ON のときだけ例外として対象にする（2026-10-14 実測で
+    /// アプリのアイコン・スタート・入力モード「あ」(IMEModeButton)・通知領域のボタンが取得できた）。
+    /// </summary>
+    private static readonly HashSet<string> TaskbarClasses = new(StringComparer.Ordinal)
+    {
+        "Shell_TrayWnd", "Shell_SecondaryTrayWnd",
+    };
+
     private HashSet<IntPtr> VisibleTopLevelWindows()
     {
+        bool includeTaskbar = _settingsService.Current.ElementSnapIncludeTaskbar;
+        var cls = new System.Text.StringBuilder(64);
         var set = new HashSet<IntPtr>();
         NativeMethods.EnumWindows((h, _) =>
         {
             if (!NativeMethods.IsWindowVisible(h) || NativeMethods.IsIconic(h)) return true;
+            cls.Clear();
+            NativeMethods.GetClassName(h, cls, cls.Capacity);
+            if (TaskbarClasses.Contains(cls.ToString()))
+            {
+                if (includeTaskbar) set.Add(h);
+                return true;
+            }
             if ((NativeMethods.GetWindowLong(h, NativeMethods.GWL_EXSTYLE) & NativeMethods.WS_EX_TOOLWINDOW) != 0) return true;
             NativeMethods.DwmGetWindowAttribute(h, NativeMethods.DWMWA_CLOAKED, out int cloaked, sizeof(int));
             if (cloaked != 0) return true;

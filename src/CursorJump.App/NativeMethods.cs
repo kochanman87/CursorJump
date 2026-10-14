@@ -311,6 +311,9 @@ internal static class NativeMethods
     [return: MarshalAs(UnmanagedType.Bool)]
     internal static extern bool IsIconic(IntPtr hWnd);
 
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)]
+    internal static extern int GetClassName(IntPtr hWnd, System.Text.StringBuilder lpClassName, int nMaxCount);
+
     /// <summary>仮想デスクトップの別画面などで「見えない」状態のウィンドウ判定に使う。</summary>
     internal const int DWMWA_CLOAKED = 14;
 

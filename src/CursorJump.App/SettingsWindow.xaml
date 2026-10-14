@@ -895,6 +895,15 @@
                                         <ColumnDefinition Width="*"/>
                                         <ColumnDefinition Width="Auto"/>
                                     </Grid.ColumnDefinitions>
+                                    <TextBlock Grid.Column="0" Style="{StaticResource BodyText}" Text="{DynamicResource Str.Settings.ElementSnap.IncludeTaskbar}"/>
+                                    <CheckBox x:Name="ChkSnapIncludeTaskbar" Grid.Column="1" Style="{StaticResource ToggleSwitchStyle}"
+                                              AutomationProperties.Name="{DynamicResource Str.Settings.ElementSnap.IncludeTaskbar}"/>
+                                </Grid>
+                                <Grid Margin="0,4">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
                                     <TextBlock Grid.Column="0" Style="{StaticResource BodyText}" Text="{DynamicResource Str.Settings.ElementSnap.Learning}"/>
                                     <CheckBox x:Name="ChkSnapLearning" Grid.Column="1" Style="{StaticResource ToggleSwitchStyle}"
                                               AutomationProperties.Name="{DynamicResource Str.Settings.ElementSnap.Learning}"/>

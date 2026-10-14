@@ -141,6 +141,8 @@ public sealed class AppSettings
     public ModifierKeyFlags ElementSnapModifiers { get; set; } = ModifierKeyFlags.Control | ModifierKeyFlags.Alt;
     /// <summary>ブラウザ（Chrome/Edge）のブックマークバーをジャンプ先から外す。</summary>
     public bool ElementSnapExcludeBookmarkBar { get; set; } = true;
+    /// <summary>Windows のタスクバー（アプリのアイコン・入力モード「あ」・通知領域など）もジャンプ先に含める。</summary>
+    public bool ElementSnapIncludeTaskbar { get; set; } = true;
     /// <summary>普段の左クリックからよく押す要素を学習し、ジャンプ先として優先する。</summary>
     public bool ElementSnapLearningEnabled { get; set; } = true;
     /// <summary>修飾キーを押したとき、学習済みの要素に目印を表示する。</summary>

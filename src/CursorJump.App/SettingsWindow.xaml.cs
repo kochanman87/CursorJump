@@ -375,6 +375,7 @@ public partial class SettingsWindow : Window
         ChkSnapShift.IsChecked = s.ElementSnapModifiers.HasFlag(ModifierKeyFlags.Shift);
         ChkSnapWin.IsChecked   = s.ElementSnapModifiers.HasFlag(ModifierKeyFlags.Windows);
         ChkSnapExcludeBookmarkBar.IsChecked = s.ElementSnapExcludeBookmarkBar;
+        ChkSnapIncludeTaskbar.IsChecked = s.ElementSnapIncludeTaskbar;
         ChkSnapLearning.IsChecked = s.ElementSnapLearningEnabled;
         ChkSnapShowMarkers.IsChecked = s.ElementSnapShowLearnedMarkers;
         UpdateSnapLearningCount();
@@ -981,6 +982,7 @@ public partial class SettingsWindow : Window
             ElementSnapEnabled = ChkElementSnapEnabled.IsChecked == true,
             ElementSnapModifiers = snapModifiers == ModifierKeyFlags.None ? _settingsService.Current.ElementSnapModifiers : snapModifiers,
             ElementSnapExcludeBookmarkBar = ChkSnapExcludeBookmarkBar.IsChecked == true,
+            ElementSnapIncludeTaskbar = ChkSnapIncludeTaskbar.IsChecked == true,
             ElementSnapLearningEnabled = ChkSnapLearning.IsChecked == true,
             ElementSnapShowLearnedMarkers = ChkSnapShowMarkers.IsChecked == true,
             SaveCircleColor  = _saveColor,
