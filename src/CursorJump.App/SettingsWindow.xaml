@@ -846,6 +846,81 @@
                         </StackPanel>
                     </Border>
 
+                    <!-- Pro Card 4: 要素へジャンプ（お試し、v1.11.0-beta+） -->
+                    <Border x:Name="CardElementSnap" Style="{StaticResource CardBorder}">
+                        <StackPanel>
+                            <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
+                                <Border Style="{StaticResource CardIconBox}">
+                                    <TextBlock Style="{StaticResource FluentIcon}" Text="&#xE962;"/>
+                                </Border>
+                                <TextBlock Style="{StaticResource CardHeaderText}" Text="{DynamicResource Str.Settings.Card.ElementSnap}" Margin="10,0,0,0"/>
+                                <Border BorderBrush="{DynamicResource AccentBrush}" BorderThickness="1"
+                                        CornerRadius="4" Padding="6,0" Margin="8,0,0,0" VerticalAlignment="Center">
+                                    <TextBlock Text="{DynamicResource Str.Settings.ElementSnap.TrialBadge}"
+                                               FontSize="10" FontWeight="Bold" Foreground="{DynamicResource AccentBrush}"/>
+                                </Border>
+                            </StackPanel>
+                            <TextBlock Text="{DynamicResource Str.Settings.Card.ElementSnap.Desc}" Style="{StaticResource HintText}" TextWrapping="Wrap" Margin="0,0,0,6"/>
+
+                            <Grid Margin="0,4">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="0" Style="{StaticResource BodyText}" Text="{DynamicResource Str.Settings.ElementSnap.Enable}"/>
+                                <CheckBox x:Name="ChkElementSnapEnabled" Grid.Column="1" Style="{StaticResource ToggleSwitchStyle}"
+                                          AutomationProperties.Name="{DynamicResource Str.Settings.ElementSnap.Enable}"/>
+                            </Grid>
+
+                            <StackPanel IsEnabled="{Binding IsChecked, ElementName=ChkElementSnapEnabled}" Margin="0,4,0,0">
+                                <TextBlock Style="{StaticResource BodyText}" Text="{DynamicResource Str.Settings.ElementSnap.Modifiers}" Margin="0,0,0,4"/>
+                                <WrapPanel Margin="0,0,0,8">
+                                    <CheckBox x:Name="ChkSnapShift" Style="{StaticResource ModifierChipStyle}" Content="Shift"/>
+                                    <CheckBox x:Name="ChkSnapCtrl"  Style="{StaticResource ModifierChipStyle}" Content="Ctrl"/>
+                                    <CheckBox x:Name="ChkSnapWin"   Style="{StaticResource ModifierChipStyle}" Content="Win"/>
+                                    <CheckBox x:Name="ChkSnapAlt"   Style="{StaticResource ModifierChipStyle}" Content="Alt"/>
+                                </WrapPanel>
+
+                                <Grid Margin="0,4">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Grid.Column="0" Style="{StaticResource BodyText}" Text="{DynamicResource Str.Settings.ElementSnap.ExcludeBookmarkBar}"/>
+                                    <CheckBox x:Name="ChkSnapExcludeBookmarkBar" Grid.Column="1" Style="{StaticResource ToggleSwitchStyle}"
+                                              AutomationProperties.Name="{DynamicResource Str.Settings.ElementSnap.ExcludeBookmarkBar}"/>
+                                </Grid>
+                                <Grid Margin="0,4">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Grid.Column="0" Style="{StaticResource BodyText}" Text="{DynamicResource Str.Settings.ElementSnap.Learning}"/>
+                                    <CheckBox x:Name="ChkSnapLearning" Grid.Column="1" Style="{StaticResource ToggleSwitchStyle}"
+                                              AutomationProperties.Name="{DynamicResource Str.Settings.ElementSnap.Learning}"/>
+                                </Grid>
+                                <Grid Margin="0,4">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Grid.Column="0" Style="{StaticResource BodyText}" Text="{DynamicResource Str.Settings.ElementSnap.ShowMarkers}"/>
+                                    <CheckBox x:Name="ChkSnapShowMarkers" Grid.Column="1" Style="{StaticResource ToggleSwitchStyle}"
+                                              AutomationProperties.Name="{DynamicResource Str.Settings.ElementSnap.ShowMarkers}"/>
+                                </Grid>
+                                <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
+                                    <Button x:Name="BtnSnapClearLearning" Click="OnClearSnapLearningClick"
+                                            Content="{DynamicResource Str.Settings.ElementSnap.ClearLearning}"
+                                            Style="{StaticResource SecondaryButtonStyle}"/>
+                                    <TextBlock x:Name="TxtSnapLearningCount" Style="{StaticResource HintText}"
+                                               VerticalAlignment="Center" Margin="10,0,0,0"/>
+                                </StackPanel>
+                            </StackPanel>
+                            <TextBlock Text="{DynamicResource Str.Settings.ElementSnap.Hint}"
+                                       Style="{StaticResource HintText}" TextWrapping="Wrap" Margin="0,8,0,0"/>
+                        </StackPanel>
+                    </Border>
+
                     <!-- ==== ジャンプ後ウィンドウアクティブ化カード ==== -->
                     <Border Style="{StaticResource CardBorder}">
                         <StackPanel>

@@ -40,6 +40,9 @@ internal static class SnapElementRules
         "chrome", "msedge", "brave", "vivaldi", "opera",
     };
 
+    /// <summary>Chromium 系ブラウザのアドレスバーの部品クラス名（ドメイン取得に使う、2026-10-14 実測）。</summary>
+    public const string OmniboxClassName = "OmniboxViewViews";
+
     public static bool IsBrowser(string processName) => BrowserProcesses.Contains(processName ?? "");
 
     public static bool IsBookmarkBar(string className) => BookmarkBarClasses.Contains(className ?? "");

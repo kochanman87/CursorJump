@@ -23,11 +23,14 @@ public partial class MainWindow : Window
     // 通常左クリック位置の内部履歴（Pro: 戻る機能用、v1.9.0+）。
     private readonly ClickHistory _clickHistory = new();
     private readonly ClickHistoryOverlayService _clickHistoryOverlay;
+    // 要素へジャンプ（お試し、v1.11.0-beta+、Pro）
+    private readonly ElementSnapService _elementSnap;
 
-    public MainWindow(SettingsService settingsService, LicenseService licenseService)
+    internal MainWindow(SettingsService settingsService, LicenseService licenseService, ElementSnapService elementSnap)
     {
         _settingsService = settingsService;
         _licenseService = licenseService;
+        _elementSnap = elementSnap;
         _overlayService = new OverlayService(settingsService, licenseService);
         _clickHistoryOverlay = new ClickHistoryOverlayService(settingsService, licenseService, _clickHistory);
 
@@ -87,6 +90,9 @@ public partial class MainWindow : Window
             _mouseHookService.ActiveWindowJumpRequested += OnActiveWindowJumpRequested;
             _mouseHookService.ClickHistoryBackRequested += OnClickHistoryBackRequested;
             _mouseHookService.LeftClickObserved += OnLeftClickObserved;
+            _mouseHookService.ElementSnapLicenseCheck = () => _licenseService.IsPro;
+            _mouseHookService.ElementSnapActivated += OnElementSnapActivated;
+            _mouseHookService.ElementSnapRequested += OnElementSnapRequested;
             _mouseHookService.Install();
 
             _overlayService.SetMouseHookService(_mouseHookService);
@@ -375,13 +381,103 @@ public partial class MainWindow : Window
         _overlayService.ShowTrail(fromX, fromY, jumpX, jumpY);
     }
 
-    /// <summary>通常左クリックを観測して履歴に記録する（消費はしない）。</summary>
+    /// <summary>通常左クリックを観測して履歴に記録する（消費はしない）。要素へジャンプの学習にも使う。</summary>
     private void OnLeftClickObserved(object? sender, MouseHookEventArgs e)
     {
         if (!_licenseService.IsPro) return;
-        if (_settingsService.Current.ClickHistoryBackShortcut.EnabledTriggers == TriggerType.None) return;
-        _clickHistory.Record(e.X, e.Y);
-        _clickHistoryOverlay.Refresh();
+        if (_settingsService.Current.ClickHistoryBackShortcut.EnabledTriggers != TriggerType.None)
+        {
+            _clickHistory.Record(e.X, e.Y);
+            _clickHistoryOverlay.Refresh();
+        }
+        _elementSnap.ObserveClick(e.X, e.Y);
+    }
+
+    // ── 要素へジャンプ（お試し、v1.11.0-beta+、Pro） ──
+
+    /// <summary>修飾キーが押されて移動の横取りが始まった。</summary>
+    private void OnElementSnapActivated(object? sender, MouseHookEventArgs e)
+    {
+        if (!_licenseService.IsPro) return;
+        var mods = _settingsService.Current.ElementSnapModifiers;
+        // Alt / Win を単独で離したときのメニューバー・スタートメニュー反応を防ぐため、
+        // 無害な未割当キーを 1 回挟む（押下中に他のキーが押された扱いになる）
+        if ((mods & (ModifierKeyFlags.Alt | ModifierKeyFlags.Windows)) != 0)
+            SendMaskKey();
+        ShowLearnedSnapMarkers();
+    }
+
+    /// <summary>移動方向にあるクリック可能要素へジャンプする。</summary>
+    private void OnElementSnapRequested(object? sender, ElementSnapEventArgs e)
+    {
+        if (!_licenseService.IsPro || !_settingsService.Current.ElementSnapEnabled) return;
+
+        var from = new System.Drawing.Point(e.FromX, e.FromY);
+        var snapshot = _elementSnap.Snapshot;
+        var now = DateTime.UtcNow;
+        var store = _elementSnap.Store;
+        var ranked = SnapTargetSelector.RankInDirection(from, e.Dx, e.Dy, snapshot, c => store.Weight(c.LearnKey, now));
+
+        // 上位から順に、他のウィンドウに隠れていない要素を探す（その点で最前面のトップレベルが要素の持ち主か）
+        const int maxChecks = 40;
+        int checkedCount = 0;
+        foreach (var c in ranked)
+        {
+            if (++checkedCount > maxChecks) break;
+            var t = SnapTargetSelector.TargetPoint(c);
+            var top = NativeMethods.GetAncestor(
+                NativeMethods.WindowFromPoint(new NativeMethods.POINT { X = t.X, Y = t.Y }), NativeMethods.GA_ROOT);
+            if (top != c.Window) continue;
+
+            CursorService.JumpTo(t.X, t.Y, _settingsService.Current.JumpStrategy);
+            _mouseHookService?.SetElementSnapAnchor(t.X, t.Y);
+            _overlayService.ShowTrail(e.FromX, e.FromY, t.X, t.Y);
+            ShowLearnedSnapMarkers();
+
+            if (_settingsService.Current.VerboseLogging)
+            {
+                double deg = Math.Atan2(e.Dy, e.Dx) * 180 / Math.PI;
+                DebugLog.Write($"ElementSnap jump: dir={deg:F0} from=({e.FromX},{e.FromY}) to=({t.X},{t.Y}) kind={c.Kind} weight={c.BaseWeight * store.Weight(c.LearnKey, now):F2} rank={checkedCount}/{ranked.Count} pool={snapshot.Count}");
+            }
+            return;
+        }
+
+        if (_settingsService.Current.VerboseLogging)
+            DebugLog.Write($"ElementSnap: no target dir={Math.Atan2(e.Dy, e.Dx) * 180 / Math.PI:F0} ranked={ranked.Count} pool={snapshot.Count}");
+    }
+
+    /// <summary>学習済みで、いま見えている要素に目印を出す（設定 ON 時）。</summary>
+    private void ShowLearnedSnapMarkers()
+    {
+        if (!_settingsService.Current.ElementSnapShowLearnedMarkers) return;
+        const int maxMarkers = 80;
+        const double learnedThreshold = 0.9; // 重みがこれ未満 = 1 回以上押した要素
+        var now = DateTime.UtcNow;
+        var store = _elementSnap.Store;
+        var points = new List<(int X, int Y, double Weight)>();
+        foreach (var c in _elementSnap.Snapshot)
+        {
+            double w = store.Weight(c.LearnKey, now);
+            if (w >= learnedThreshold) continue;
+            var t = SnapTargetSelector.TargetPoint(c);
+            var top = NativeMethods.GetAncestor(
+                NativeMethods.WindowFromPoint(new NativeMethods.POINT { X = t.X, Y = t.Y }), NativeMethods.GA_ROOT);
+            if (top != c.Window) continue;
+            points.Add((t.X, t.Y, w));
+            if (points.Count >= maxMarkers) break;
+        }
+        _overlayService.ShowSnapMarkers(points);
+    }
+
+    private static void SendMaskKey()
+    {
+        var inputs = new NativeMethods.INPUT[2];
+        inputs[0].type = NativeMethods.INPUT_KEYBOARD;
+        inputs[0].u.ki.wVk = NativeMethods.VK_UNASSIGNED_MASK;
+        inputs[1].type = NativeMethods.INPUT_KEYBOARD;
+        inputs[1].u.ki.wVk = NativeMethods.VK_UNASSIGNED_MASK;
+        inputs[1].u.ki.dwFlags = NativeMethods.KEYEVENTF_KEYUP;
+        NativeMethods.SendInput(2, inputs, System.Runtime.InteropServices.Marshal.SizeOf<NativeMethods.INPUT>());
     }
 
     /// <summary>左クリック履歴を 1 つ過去へ遡ってカーソルを戻す（Cursor の Ctrl+Z 風）。</summary>
@@ -435,6 +531,8 @@ public partial class MainWindow : Window
             _mouseHookService.ActiveWindowJumpRequested -= OnActiveWindowJumpRequested;
             _mouseHookService.ClickHistoryBackRequested -= OnClickHistoryBackRequested;
             _mouseHookService.LeftClickObserved -= OnLeftClickObserved;
+            _mouseHookService.ElementSnapActivated -= OnElementSnapActivated;
+            _mouseHookService.ElementSnapRequested -= OnElementSnapRequested;
             _mouseHookService.Dispose();
             _mouseHookService = null;
         }

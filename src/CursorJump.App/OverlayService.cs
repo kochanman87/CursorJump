@@ -222,6 +222,48 @@ internal sealed class OverlayService : IDisposable
     }
 
     /// <summary>
+    /// 要素へジャンプ（お試し）: 学習済みの要素に目印（よく押すほど大きい点）を出し、1.5 秒でフェードさせる。
+    /// 軌跡と同じ共有オーバーレイに描く（<see cref="ShowTrail"/> は既存要素を一掃するため、呼出側でジャンプ後に出し直す）。
+    /// 色は Set B の軌跡色（既定ピンク）で、Set A 色の軌跡と区別する。
+    /// </summary>
+    public void ShowSnapMarkers(IReadOnlyList<(int X, int Y, double Weight)> points)
+    {
+        if (points.Count == 0) return;
+        const double durationMs = 1500;
+        var overlay = EnsureTrailOverlay();
+        var brush = new SolidColorBrush(ParseColor(_settingsService.Current.TrailColorB, Colors.HotPink));
+
+        foreach (var (x, y, weight) in points)
+        {
+            var pos = overlay.PhysicalToWpf(x, y);
+            // 重み 0.9（ほぼ未学習）→ 7dp、0.25（よく押す）→ 16dp
+            double size = 6 + (1 - Math.Clamp(weight, 0, 1)) * 14;
+            var dot = new Ellipse { Width = size, Height = size, Fill = brush, Opacity = 0.9 };
+            Canvas.SetLeft(dot, pos.X - overlay.Left - size / 2);
+            Canvas.SetTop(dot, pos.Y - overlay.Top - size / 2);
+            overlay.OverlayCanvasElement.Children.Add(dot);
+
+            var fade = new DoubleAnimation(0.9, 0.0, TimeSpan.FromMilliseconds(durationMs))
+            {
+                EasingFunction = new QuadraticEase { EasingMode = EasingMode.EaseIn }
+            };
+            fade.Completed += (_, _) =>
+            {
+                try
+                {
+                    if (_trailOverlay is not null)
+                    {
+                        _trailOverlay.OverlayCanvasElement.Children.Remove(dot);
+                        OnTrailChildRemoved();
+                    }
+                }
+                catch (Exception ex) { DebugLog.Write($"ShowSnapMarkers.Completed exception: {ex.Message}"); }
+            };
+            dot.BeginAnimation(UIElement.OpacityProperty, fade);
+        }
+    }
+
+    /// <summary>
     /// 座標ナビゲーション時の軌跡アニメーション表示。
     /// 軌跡を N セグメントに分割し、移動元側（遠端）から段階的にフェードアウトする。
     /// </summary>

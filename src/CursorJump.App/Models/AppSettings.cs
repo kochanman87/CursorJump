@@ -133,6 +133,19 @@ public sealed class AppSettings
     /// <summary>履歴マーカー全体の濃さ（0.1..1.0）。</summary>
     public double ClickHistoryMarkerOpacity { get; set; } = 0.35;
 
+    // ── 要素へジャンプ（お試し機能、v1.11.0-beta+、Pro） ──
+    /// <summary>修飾キーを押しながらマウスを動かすと、その方向のクリック可能要素（ボタン・リンク等）へジャンプする。
+    /// お試し機能のため既定 OFF。</summary>
+    public bool ElementSnapEnabled { get; set; } = false;
+    /// <summary>要素へジャンプを有効にする修飾キー（完全一致）。既定 Ctrl+Alt（Ctrl 単独は Ctrl+クリック操作と衝突したため）。</summary>
+    public ModifierKeyFlags ElementSnapModifiers { get; set; } = ModifierKeyFlags.Control | ModifierKeyFlags.Alt;
+    /// <summary>ブラウザ（Chrome/Edge）のブックマークバーをジャンプ先から外す。</summary>
+    public bool ElementSnapExcludeBookmarkBar { get; set; } = true;
+    /// <summary>普段の左クリックからよく押す要素を学習し、ジャンプ先として優先する。</summary>
+    public bool ElementSnapLearningEnabled { get; set; } = true;
+    /// <summary>修飾キーを押したとき、学習済みの要素に目印を表示する。</summary>
+    public bool ElementSnapShowLearnedMarkers { get; set; } = true;
+
     // 初期色は Set A=青 / Set B=ピンク で 3 効果（保存円・軌跡・マーカー）を統一する。
     // デフォルト変更は新規インストール（settings.json 不在）時のみ反映。既存環境は保存値を維持する。
     public string SaveCircleColor { get; set; } = "#5BA8F0";

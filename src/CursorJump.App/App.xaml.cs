@@ -16,6 +16,7 @@ public partial class App : Application
     private SettingsService? _settingsService;
     private UpdateService? _updateService;
     private LicenseService? _licenseService;
+    private ElementSnapService? _elementSnapService;
     private Mutex? _singleInstanceMutex;
     private bool _ownsSingleInstanceMutex;
 
@@ -67,7 +68,9 @@ public partial class App : Application
 
             _licenseService = new LicenseService(_settingsService);
 
-            _mainWindow = new MainWindow(_settingsService, _licenseService);
+            _elementSnapService = new ElementSnapService(_settingsService, _licenseService);
+
+            _mainWindow = new MainWindow(_settingsService, _licenseService, _elementSnapService);
             MainWindow = _mainWindow;
 
             // HWND を強制生成することで SourceInitialized（= MouseHookService の初期化）を同期的に発火させる
@@ -76,7 +79,7 @@ public partial class App : Application
 
             _updateService = new UpdateService(_settingsService);
 
-            _trayIconService = new TrayIconService(_settingsService, _updateService, _licenseService);
+            _trayIconService = new TrayIconService(_settingsService, _updateService, _licenseService, _elementSnapService);
             _trayIconService.Initialize();
         }
         catch (Exception ex)
@@ -135,6 +138,9 @@ public partial class App : Application
     {
         Exit -= OnApplicationExit;
         DisposeTrayIcon();
+        // 要素へジャンプの学習データを保存して裏スレッドを止める
+        try { _elementSnapService?.Dispose(); } catch (Exception ex) { DebugLog.Write($"ElementSnapService dispose failed: {ex.Message}"); }
+        _elementSnapService = null;
         ReleaseSingleInstanceMutex();
         // 非同期キューに残っているログを書き出してから終了する (取りこぼし防止)
         DebugLog.Flush(TimeSpan.FromMilliseconds(500));

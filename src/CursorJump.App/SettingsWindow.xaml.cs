@@ -19,6 +19,7 @@ public partial class SettingsWindow : Window
     private readonly SettingsService _settingsService;
     private readonly UpdateService? _updateService;
     private readonly LicenseService? _licenseService;
+    private readonly ElementSnapService? _elementSnapService;
 
     /// <summary>
     /// ComboBox の表示用 wrapper。enum 値を保持しつつ、ToString() で現在言語のリソース名を返すため、
@@ -178,11 +179,13 @@ public partial class SettingsWindow : Window
 
     public SettingsWindow(SettingsService settingsService, UpdateService? updateService) : this(settingsService, updateService, null) { }
 
-    public SettingsWindow(SettingsService settingsService, UpdateService? updateService, LicenseService? licenseService)
+    internal SettingsWindow(SettingsService settingsService, UpdateService? updateService, LicenseService? licenseService,
+        ElementSnapService? elementSnapService = null)
     {
         _settingsService = settingsService;
         _updateService = updateService;
         _licenseService = licenseService;
+        _elementSnapService = elementSnapService;
         InitializeComponent();
         var v = Assembly.GetExecutingAssembly().GetName().Version;
         if (v is not null)
@@ -229,6 +232,8 @@ public partial class SettingsWindow : Window
         foreach (var slot in _keyboardSlots.Values) slot.RefreshLabel();
         // ライセンスステータステキストも DynamicResource ではなく Loc.Get で設定しているため再描画する
         UpdateLicenseUI();
+        // 要素へジャンプの学習件数も Loc.Get で組み立てているため再描画する
+        UpdateSnapLearningCount();
         // 情報タブのバージョン・前回確認も Loc.Get で組み立てているため再描画する
         UpdateAboutVersionText();
         UpdateLastCheckedLabel(_settingsService.Current.LastUpdateCheckUtc);
@@ -362,6 +367,17 @@ public partial class SettingsWindow : Window
         UpdateClickHistoryDepthLabel();
 
         ChkClickHistoryMarkersEnabled.IsChecked = s.ClickHistoryMarkersEnabled;
+
+        // 要素へジャンプ（お試し）
+        ChkElementSnapEnabled.IsChecked = s.ElementSnapEnabled;
+        ChkSnapCtrl.IsChecked  = s.ElementSnapModifiers.HasFlag(ModifierKeyFlags.Control);
+        ChkSnapAlt.IsChecked   = s.ElementSnapModifiers.HasFlag(ModifierKeyFlags.Alt);
+        ChkSnapShift.IsChecked = s.ElementSnapModifiers.HasFlag(ModifierKeyFlags.Shift);
+        ChkSnapWin.IsChecked   = s.ElementSnapModifiers.HasFlag(ModifierKeyFlags.Windows);
+        ChkSnapExcludeBookmarkBar.IsChecked = s.ElementSnapExcludeBookmarkBar;
+        ChkSnapLearning.IsChecked = s.ElementSnapLearningEnabled;
+        ChkSnapShowMarkers.IsChecked = s.ElementSnapShowLearnedMarkers;
+        UpdateSnapLearningCount();
         _clickHistoryMarkerColor = s.ClickHistoryMarkerColor ?? "#5BA8F0";
         SetSwatchColor(RectClickHistoryMarkerColor, _clickHistoryMarkerColor);
         TxtClickHistoryMarkerColorHex.Text = _clickHistoryMarkerColor.ToUpperInvariant();
@@ -667,7 +683,7 @@ public partial class SettingsWindow : Window
         // Pro 未適用時は Pro 限定カード（Set B・追加機能 3 種）を操作不可にし、薄いグレーで表示する。
         // IsEnabled=false で配下のトグル/コンボ/スライダーを一括で動かせなくし、
         // Opacity を下げて「ロックされている」ことを視覚的に明示する。
-        foreach (var card in new[] { CardSaveB, CardNavB, CardReset, CardActWin, CardClkBack })
+        foreach (var card in new[] { CardSaveB, CardNavB, CardReset, CardActWin, CardClkBack, CardElementSnap })
         {
             if (card is null) continue;
             card.IsEnabled = isPro;
@@ -798,6 +814,23 @@ public partial class SettingsWindow : Window
         LocalizationManager.Apply(UiLanguage.English);
     }
 
+    private void UpdateSnapLearningCount()
+    {
+        int count = _elementSnapService?.Store.Count ?? 0;
+        TxtSnapLearningCount.Text = string.Format(CultureInfo.CurrentCulture, Loc.Get("Str.Settings.ElementSnap.LearningCountFormat"), count);
+    }
+
+    /// <summary>要素へジャンプの学習データを消去する（確認あり。設定の保存/キャンセルとは独立して即時反映）。</summary>
+    private void OnClearSnapLearningClick(object sender, RoutedEventArgs e)
+    {
+        if (_elementSnapService is null) return;
+        var answer = MessageBox.Show(Loc.Get("Str.Settings.ElementSnap.ClearLearningConfirm"),
+            Loc.Get("Str.AppName"), MessageBoxButton.YesNo, MessageBoxImage.Question, MessageBoxResult.No);
+        if (answer != MessageBoxResult.Yes) return;
+        _elementSnapService.ClearLearning();
+        UpdateSnapLearningCount();
+    }
+
     private void OnSaveClick(object sender, RoutedEventArgs e)
     {
         var saveShortcut = ReadShortcutUI(
@@ -882,6 +915,19 @@ public partial class SettingsWindow : Window
             return;
         }
 
+        var snapModifiers = ModifierKeyFlags.None;
+        if (ChkSnapCtrl.IsChecked == true)  snapModifiers |= ModifierKeyFlags.Control;
+        if (ChkSnapAlt.IsChecked == true)   snapModifiers |= ModifierKeyFlags.Alt;
+        if (ChkSnapShift.IsChecked == true) snapModifiers |= ModifierKeyFlags.Shift;
+        if (ChkSnapWin.IsChecked == true)   snapModifiers |= ModifierKeyFlags.Windows;
+        // 修飾キー無しだと普段のマウス移動がすべて横取りされるため必須にする
+        if (ChkElementSnapEnabled.IsChecked == true && snapModifiers == ModifierKeyFlags.None)
+        {
+            MessageBox.Show(Loc.Get("Str.Settings.ElementSnap.Validation.NoModifier"),
+                Loc.Get("Str.AppName"), MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
+
         var actions = new (string NameKey, ActionShortcut Shortcut)[]
         {
             ("Str.Settings.Action.Save", saveShortcut),
@@ -931,6 +977,12 @@ public partial class SettingsWindow : Window
             ClickHistoryMarkersEnabled = ChkClickHistoryMarkersEnabled.IsChecked == true,
             ClickHistoryMarkerColor = _clickHistoryMarkerColor,
             ClickHistoryMarkerOpacity = SldClickHistoryMarkerOpacity.Value,
+            // 要素へジャンプ（お試し）
+            ElementSnapEnabled = ChkElementSnapEnabled.IsChecked == true,
+            ElementSnapModifiers = snapModifiers == ModifierKeyFlags.None ? _settingsService.Current.ElementSnapModifiers : snapModifiers,
+            ElementSnapExcludeBookmarkBar = ChkSnapExcludeBookmarkBar.IsChecked == true,
+            ElementSnapLearningEnabled = ChkSnapLearning.IsChecked == true,
+            ElementSnapShowLearnedMarkers = ChkSnapShowMarkers.IsChecked == true,
             SaveCircleColor  = _saveColor,
             SaveCircleColorB = _saveColorB,
             TrailColor       = _trailColor,

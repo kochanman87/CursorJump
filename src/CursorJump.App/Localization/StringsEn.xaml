@@ -93,6 +93,20 @@
     <sys:String x:Key="Str.Settings.ClickHistoryMarkers.Color">Marker color</sys:String>
     <sys:String x:Key="Str.Settings.ClickHistoryMarkers.Opacity">Opacity</sys:String>
     <sys:String x:Key="Str.Settings.ClickHistoryMarkers.Hint">Numbers start at 1 for the newest click. A double outline marks the next return position. You can click through the markers as usual.</sys:String>
+    <!-- Jump to elements (trial, v1.11.0-beta+) -->
+    <sys:String x:Key="Str.Settings.Card.ElementSnap">Jump to elements</sys:String>
+    <sys:String x:Key="Str.Settings.ElementSnap.TrialBadge">TRIAL</sys:String>
+    <sys:String x:Key="Str.Settings.Card.ElementSnap.Desc">Hold the modifier keys and move the mouse to jump the cursor to the next button or link in that direction. Works in many apps such as Chrome, Edge and Office. This is a trial feature.</sys:String>
+    <sys:String x:Key="Str.Settings.ElementSnap.Enable">Use jump to elements</sys:String>
+    <sys:String x:Key="Str.Settings.ElementSnap.Modifiers">Keys to hold while moving the mouse</sys:String>
+    <sys:String x:Key="Str.Settings.ElementSnap.ExcludeBookmarkBar">Skip the bookmarks bar</sys:String>
+    <sys:String x:Key="Str.Settings.ElementSnap.Learning">Learn frequently clicked elements and prefer them</sys:String>
+    <sys:String x:Key="Str.Settings.ElementSnap.ShowMarkers">Mark learned elements while holding the keys</sys:String>
+    <sys:String x:Key="Str.Settings.ElementSnap.ClearLearning">Clear learning data</sys:String>
+    <sys:String x:Key="Str.Settings.ElementSnap.LearningCountFormat">Learned: {0}</sys:String>
+    <sys:String x:Key="Str.Settings.ElementSnap.ClearLearningConfirm">Clear all learning data? This cannot be undone.</sys:String>
+    <sys:String x:Key="Str.Settings.ElementSnap.Validation.NoModifier">Choose at least one key for Jump to elements.</sys:String>
+    <sys:String x:Key="Str.Settings.ElementSnap.Hint">Works by reading button names in each app and the domain of the site open in your browser. Learning data is stored only on this PC (%APPDATA%\CursorJump\snap-learning.json). Some apps, such as apps running as administrator and games, are not supported.</sys:String>
     <sys:String x:Key="Str.Settings.ClickHistoryDepth.Hint">Each press cycles through your recent click positions (wraps around at the end; the position under the cursor is skipped). Value = how many recent clicks to cycle (2–10).</sys:String>
 
     <!-- Effects card -->

@@ -20,11 +20,15 @@ public sealed class TrayIconService : IDisposable
     private ToolStripMenuItem? _exitItem;
     private bool _disposed;
 
-    public TrayIconService(SettingsService settingsService, UpdateService updateService, LicenseService licenseService)
+    private readonly ElementSnapService? _elementSnapService;
+
+    internal TrayIconService(SettingsService settingsService, UpdateService updateService, LicenseService licenseService,
+        ElementSnapService? elementSnapService = null)
     {
         _settingsService = settingsService;
         _updateService = updateService;
         _licenseService = licenseService;
+        _elementSnapService = elementSnapService;
         _notifyIcon = new NotifyIcon();
     }
 
@@ -104,7 +108,7 @@ public sealed class TrayIconService : IDisposable
 
         System.Windows.Application.Current?.Dispatcher.Invoke(() =>
         {
-            var window = new SettingsWindow(_settingsService, _updateService, _licenseService);
+            var window = new SettingsWindow(_settingsService, _updateService, _licenseService, _elementSnapService);
             window.ShowDialog();
         });
     }

@@ -31,6 +31,23 @@ internal sealed class MouseHookEventArgs : EventArgs
     }
 }
 
+/// <summary>要素へジャンプの要求。移動を止めていた間の移動量（物理px）と起点。</summary>
+internal sealed class ElementSnapEventArgs : EventArgs
+{
+    public int FromX { get; }
+    public int FromY { get; }
+    public double Dx { get; }
+    public double Dy { get; }
+
+    public ElementSnapEventArgs(int fromX, int fromY, double dx, double dy)
+    {
+        FromX = fromX;
+        FromY = fromY;
+        Dx = dx;
+        Dy = dy;
+    }
+}
+
 internal sealed class MouseHookService : IDisposable
 {
     private IntPtr _hookHandle;
@@ -98,6 +115,14 @@ internal sealed class MouseHookService : IDisposable
 
     private readonly SettingsService _settingsService;
 
+    // 要素へジャンプ（お試し、v1.11.0-beta+）: 修飾キー押下中はカーソル移動を止め、移動量を貯める。
+    // フックコールバックと ElementSnapAnchor 更新はどちらも UI スレッドで走るためロック不要。
+    private bool _snapActive;
+    private int _snapAnchorX;
+    private int _snapAnchorY;
+    private double _snapAccX;
+    private double _snapAccY;
+
     public event EventHandler<MouseHookEventArgs>? SaveRequested;
     public event EventHandler<MouseHookEventArgs>? NavigateRequested;
     public event EventHandler<MouseHookEventArgs>? NavigateCurrentMonitorRequested;
@@ -117,6 +142,13 @@ internal sealed class MouseHookService : IDisposable
     /// <summary>通常の左クリック（どのショートカットにもマッチせず素通しされたもの）を観測。
     /// クリック履歴記録用。消費はしない。</summary>
     public event EventHandler<MouseHookEventArgs>? LeftClickObserved;
+    /// <summary>要素へジャンプの修飾キーが押されて移動の横取りを始めた（目印表示・Alt メニュー抑止用）。</summary>
+    public event EventHandler<MouseHookEventArgs>? ElementSnapActivated;
+    /// <summary>要素へジャンプの要求（移動量がしきい値を超えた）。</summary>
+    public event EventHandler<ElementSnapEventArgs>? ElementSnapRequested;
+
+    /// <summary>要素へジャンプのライセンス判定（Pro のとき true）。未設定なら無効。</summary>
+    public Func<bool>? ElementSnapLicenseCheck { get; set; }
 
     // 削除モード用イベント
     public event EventHandler<MouseHookEventArgs>? DeleteModeClicked;
@@ -409,6 +441,10 @@ internal sealed class MouseHookService : IDisposable
             // DOWNイベントの処理（hookStructを先にデコードしてXButton判定でも再利用）
             var hookStruct = Marshal.PtrToStructure<NativeMethods.MSLLHOOKSTRUCT>(lParam);
 
+            // ── 要素へジャンプ（お試し）: 修飾キー押下中の移動を横取りする ──
+            if (msg == NativeMethods.WM_MOUSEMOVE && TryHandleElementSnapMove(hookStruct.pt.X, hookStruct.pt.Y))
+                return (IntPtr)1;
+
             // MUP: 拡張トリガー用に MUP 時刻を記録し、Chord 判定を解除
             // （MUP が消費されずに到達した場合の二重保険）
             if (msg == NativeMethods.WM_MBUTTONUP)
@@ -531,7 +567,8 @@ internal sealed class MouseHookService : IDisposable
             // 機能が有効なときだけ座標を非同期通知する（消費はしない＝return しない）。
             // DebugLog はホットパスのためここでは呼ばない。
             if (msg == NativeMethods.WM_LBUTTONDOWN
-                && _settingsService.Current.ClickHistoryBackShortcut.EnabledTriggers != TriggerType.None)
+                && (_settingsService.Current.ClickHistoryBackShortcut.EnabledTriggers != TriggerType.None
+                    || IsElementSnapLearningOn(_settingsService.Current)))
             {
                 RaiseAsync(LeftClickObserved, new MouseHookEventArgs(hookStruct.pt.X, hookStruct.pt.Y));
             }
@@ -699,6 +736,65 @@ internal sealed class MouseHookService : IDisposable
     private static bool IsKeyDown(int vk)
     {
         return (NativeMethods.GetAsyncKeyState(vk) & 0x8000) != 0;
+    }
+
+    // ===== 要素へジャンプ（お試し、v1.11.0-beta+） =====
+
+    private bool IsElementSnapOn(AppSettings s)
+        => s.ElementSnapEnabled
+           && s.ElementSnapModifiers != ModifierKeyFlags.None
+           && ElementSnapLicenseCheck?.Invoke() == true;
+
+    private bool IsElementSnapLearningOn(AppSettings s)
+        => s.ElementSnapLearningEnabled && IsElementSnapOn(s);
+
+    /// <summary>
+    /// 要素へジャンプの修飾キーが押されている間（完全一致・マウスボタン非押下）、移動を消費して移動量を貯める。
+    /// 貯まった移動量が <see cref="SnapTuning.MoveThresholdPx"/> を超えたらジャンプ要求を出す。
+    /// 消費した（= カーソルを動かさない）とき true。重い処理はせず、判定と加算のみ行う。
+    /// </summary>
+    private bool TryHandleElementSnapMove(int x, int y)
+    {
+        var s = _settingsService.Current;
+        bool match = IsElementSnapOn(s)
+                     && AreModifiersHeld(s.ElementSnapModifiers)
+                     && !IsKeyDown(NativeMethods.VK_LBUTTON)
+                     && !IsKeyDown(NativeMethods.VK_RBUTTON)
+                     && !IsKeyDown(NativeMethods.VK_MBUTTON);
+        if (!match)
+        {
+            _snapActive = false;
+            return false;
+        }
+
+        if (!_snapActive)
+        {
+            NativeMethods.GetCursorPos(out var cur);
+            _snapAnchorX = cur.X;
+            _snapAnchorY = cur.Y;
+            _snapAccX = _snapAccY = 0;
+            _snapActive = true;
+            RaiseAsync(ElementSnapActivated, new MouseHookEventArgs(cur.X, cur.Y));
+        }
+
+        // カーソルは動かしていないので、フックが受け取る座標 - 起点 = 今回の移動量
+        _snapAccX += x - _snapAnchorX;
+        _snapAccY += y - _snapAnchorY;
+        if (Math.Sqrt(_snapAccX * _snapAccX + _snapAccY * _snapAccY) >= SnapTuning.MoveThresholdPx)
+        {
+            var args = new ElementSnapEventArgs(_snapAnchorX, _snapAnchorY, _snapAccX, _snapAccY);
+            _snapAccX = _snapAccY = 0;
+            RaiseAsync(ElementSnapRequested, args);
+        }
+        return true;
+    }
+
+    /// <summary>ジャンプ後のカーソル位置を新しい起点にする（UI スレッドから呼ぶ）。</summary>
+    public void SetElementSnapAnchor(int x, int y)
+    {
+        _snapAnchorX = x;
+        _snapAnchorY = y;
+        _snapAccX = _snapAccY = 0;
     }
 
     // ===== 中ボタン拡張トリガー（Chord / 多重クリック）の判定 =====
@@ -952,6 +1048,14 @@ internal sealed class MouseHookService : IDisposable
             handler(this, args);
             return;
         }
+        dispatcher.BeginInvoke(new Action(() => handler(this, args)));
+    }
+
+    private void RaiseAsync(EventHandler<ElementSnapEventArgs>? handler, ElementSnapEventArgs args)
+    {
+        if (handler is null) return;
+        var dispatcher = Application.Current?.Dispatcher;
+        if (dispatcher is null) { handler(this, args); return; }
         dispatcher.BeginInvoke(new Action(() => handler(this, args)));
     }
 

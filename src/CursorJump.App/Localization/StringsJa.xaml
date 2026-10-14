@@ -93,6 +93,20 @@
     <sys:String x:Key="Str.Settings.ClickHistoryMarkers.Color">マーカーの色</sys:String>
     <sys:String x:Key="Str.Settings.ClickHistoryMarkers.Opacity">濃さ</sys:String>
     <sys:String x:Key="Str.Settings.ClickHistoryMarkers.Hint">番号は新しいクリックから1、2、3…の順です。次に戻る位置を二重の枠で示します。マーカー越しに通常のクリック操作ができます。</sys:String>
+    <!-- 要素へジャンプ（お試し、v1.11.0-beta+） -->
+    <sys:String x:Key="Str.Settings.Card.ElementSnap">要素へジャンプ</sys:String>
+    <sys:String x:Key="Str.Settings.ElementSnap.TrialBadge">お試し</sys:String>
+    <sys:String x:Key="Str.Settings.Card.ElementSnap.Desc">修飾キーを押しながらマウスを動かすと、その方向にあるボタンやリンクへカーソルがジャンプします。Chrome・Edge・Office など多くのアプリで使えます。お試し中の機能です。</sys:String>
+    <sys:String x:Key="Str.Settings.ElementSnap.Enable">要素へジャンプを使う</sys:String>
+    <sys:String x:Key="Str.Settings.ElementSnap.Modifiers">押しながらマウスを動かすキー</sys:String>
+    <sys:String x:Key="Str.Settings.ElementSnap.ExcludeBookmarkBar">ブックマークバーをジャンプ先から外す</sys:String>
+    <sys:String x:Key="Str.Settings.ElementSnap.Learning">よくクリックする要素を学習して優先する</sys:String>
+    <sys:String x:Key="Str.Settings.ElementSnap.ShowMarkers">キーを押したとき学習済みの要素に印を表示</sys:String>
+    <sys:String x:Key="Str.Settings.ElementSnap.ClearLearning">学習データを消去</sys:String>
+    <sys:String x:Key="Str.Settings.ElementSnap.LearningCountFormat">学習済み: {0} 件</sys:String>
+    <sys:String x:Key="Str.Settings.ElementSnap.ClearLearningConfirm">学習データをすべて消去します。よろしいですか？（元に戻せません）</sys:String>
+    <sys:String x:Key="Str.Settings.ElementSnap.Validation.NoModifier">要素へジャンプのキーを 1 つ以上選んでください。</sys:String>
+    <sys:String x:Key="Str.Settings.ElementSnap.Hint">各アプリのボタン名や、ブラウザで開いているサイトのドメインを読み取って動作します。学習データはこの PC の中にだけ保存されます（%APPDATA%\CursorJump\snap-learning.json）。管理者権限で動くアプリやゲームなど、一部のアプリでは使えません。</sys:String>
     <sys:String x:Key="Str.Settings.ClickHistoryDepth.Hint">押すたびに最近のクリック位置を順に巡回します（端まで行くと先頭へ戻る循環。今カーソルがある位置は飛ばします）。値＝巡回に含める最近クリック数（2〜10）。</sys:String>
 
     <!-- エフェクトカード -->
