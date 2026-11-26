@@ -80,7 +80,7 @@
     <sys:String x:Key="Str.Settings.ProFeatures.Description">Extra actions that only work in the Pro edition. Each can be triggered by mouse, keyboard, or a modifier-key tap gesture.</sys:String>
     <sys:String x:Key="Str.Settings.Card.ResetCycle">Reset cycle</sys:String>
     <sys:String x:Key="Str.Settings.Card.ResetCycle.Desc">Rewinds the coordinate cycle so the next navigation starts from the first coordinate (does not move the cursor right away). Applies to both Set A and Set B.</sys:String>
-    <sys:String x:Key="Str.Settings.Card.ActiveWindowJump">Jump to active window center</sys:String>
+    <sys:String x:Key="Str.Settings.Card.ActiveWindowJump">Jump to front window</sys:String>
     <sys:String x:Key="Str.Settings.Card.ActiveWindowJump.Desc">Jumps the cursor to the center of the current foreground window in one shot. Handy for apps that open far from the cursor.</sys:String>
     <sys:String x:Key="Str.Settings.Card.ClickHistoryBack">Back to click position</sys:String>
     <sys:String x:Key="Str.Settings.Card.ClickHistoryBack.Desc">Automatically records your normal left-click positions and sends the cursor back to the most recent one (similar to an editor's "go back").</sys:String>
@@ -138,7 +138,7 @@
     <sys:String x:Key="Str.Settings.Action.SaveB">Save coordinate (Set B)</sys:String>
     <sys:String x:Key="Str.Settings.Action.NavigateB">Navigate coordinates (Set B)</sys:String>
     <sys:String x:Key="Str.Settings.Action.ResetCycle">Reset cycle</sys:String>
-    <sys:String x:Key="Str.Settings.Action.ActiveWindowJump">Jump to active window center</sys:String>
+    <sys:String x:Key="Str.Settings.Action.ActiveWindowJump">Jump to front window</sys:String>
     <sys:String x:Key="Str.Settings.Action.ClickHistoryBack">Back to click position</sys:String>
 
     <!-- Mouse button names -->
@@ -227,5 +227,55 @@
     <!-- Set B PRO badge -->
     <sys:String x:Key="Str.Settings.SetB.ProBadge">PRO</sys:String>
     <sys:String x:Key="Str.Settings.SetB.ProLocked">This feature only works in the Pro edition. You can edit the settings, but the trigger won't fire on the Free edition.</sys:String>
+
+    <!-- v1.12.0 設定画面の作り直し（左ナビ・1 行 1 操作・その場で保存・ヘルプのアニメーション） -->
+    <sys:String x:Key="Str.Nav.Ops">Actions</sys:String>
+    <sys:String x:Key="Str.Nav.Look">Appearance</sys:String>
+    <sys:String x:Key="Str.Nav.General">General</sys:String>
+    <sys:String x:Key="Str.Nav.Help">Help</sys:String>
+    <sys:String x:Key="Str.Nav.EditionProSub">All features unlocked</sys:String>
+    <sys:String x:Key="Str.Nav.EditionFreeSub">Up to 3 saved spots</sys:String>
+    <sys:String x:Key="Str.Ops.Save">Save position</sys:String>
+    <sys:String x:Key="Str.Ops.Navigate">Jump to saved positions</sys:String>
+    <sys:String x:Key="Str.Ops.Display">Show / delete saved positions</sys:String>
+    <sys:String x:Key="Str.Ops.NavigateMonitor">Jump within this monitor only</sys:String>
+    <sys:String x:Key="Str.Ops.ResetCycle">Restart the jump order</sys:String>
+    <sys:String x:Key="Str.Ops.ActiveWindow">Jump to front window</sys:String>
+    <sys:String x:Key="Str.Ops.ClickHistoryBack">Back to where I clicked</sys:String>
+    <sys:String x:Key="Str.Ops.ClickHistoryMarkers">Markers</sys:String>
+    <sys:String x:Key="Str.Settings.Off">Off</sys:String>
+    <sys:String x:Key="Str.Settings.KeyClear">Remove key</sys:String>
+    <sys:String x:Key="Str.Settings.NotSavedFormat">Not saved: {0}</sys:String>
+    <sys:String x:Key="Str.Look.ListColorA">First list color</sys:String>
+    <sys:String x:Key="Str.Look.ListColorB">Second list color</sys:String>
+    <sys:String x:Key="Str.Look.ListColorHint">Used for the save circle, the jump line and the markers</sys:String>
+    <sys:String x:Key="Str.Look.SaveCircle">Show a circle when saving</sys:String>
+    <sys:String x:Key="Str.Look.Trail">Show a line when jumping</sys:String>
+    <sys:String x:Key="Str.Look.TrailDuration">Line fade time</sys:String>
+    <sys:String x:Key="Str.Look.SecondsFormat">{0:0.0} s</sys:String>
+    <sys:String x:Key="Str.Look.Details">Details (line width and opacity, per-effect colors)</sys:String>
+    <sys:String x:Key="Str.Look.TrailThickness">Line width</sys:String>
+    <sys:String x:Key="Str.Look.TrailOpacity">Line opacity</sys:String>
+    <sys:String x:Key="Str.Look.SaveCircleColor">Save circle color (first / second)</sys:String>
+    <sys:String x:Key="Str.Look.TrailColor">Jump line color (first / second)</sys:String>
+    <sys:String x:Key="Str.Look.MarkerColor">Marker color (first / second)</sys:String>
+    <sys:String x:Key="Str.Look.Markers">Show markers in show / delete mode</sys:String>
+    <sys:String x:Key="Str.Look.DeleteHelp">Show the help panel in show / delete mode</sys:String>
+    <sys:String x:Key="Str.General.ActivateWindow">Bring the window under the cursor to the front</sys:String>
+    <sys:String x:Key="Str.General.Theme">Theme</sys:String>
+    <sys:String x:Key="Str.General.Language">Language</sys:String>
+    <sys:String x:Key="Str.General.CheckNow">Check now</sys:String>
+    <sys:String x:Key="Str.General.License">License</sys:String>
+    <sys:String x:Key="Str.General.Open">Open ↗</sys:String>
+    <sys:String x:Key="Str.General.Trouble">Troubleshooting</sys:String>
+    <sys:String x:Key="Str.Help.CaptionSaveFormat">{0} saves the spot</sys:String>
+    <sys:String x:Key="Str.Help.CaptionNavFormat">{0} jumps through them in order</sys:String>
+    <sys:String x:Key="Str.Help.Tile.WheelTitle">Wheel up / down</sys:String>
+    <sys:String x:Key="Str.Help.Tile.WheelBody">Previous / next</sys:String>
+    <sys:String x:Key="Str.Help.Tile.DisplayBody">Show / delete</sys:String>
+    <sys:String x:Key="Str.Help.Tile.SetBTitle">Second</sys:String>
+    <sys:String x:Key="Str.Help.Tile.SetBBody">Second list</sys:String>
+    <sys:String x:Key="Str.Help.Tile.MonitorTitle">This monitor only</sys:String>
+    <sys:String x:Key="Str.Help.Tile.MonitorBody">Turn on to use</sys:String>
 
 </ResourceDictionary>

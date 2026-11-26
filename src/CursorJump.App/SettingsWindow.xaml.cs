@@ -1,166 +1,38 @@
 using System;
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.Diagnostics;
 using System.Globalization;
+using System.Linq;
 using System.Reflection;
 using System.Windows;
 using System.Windows.Controls;
-using System.Windows.Controls.Primitives;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Navigation;
 using System.Windows.Shapes;
+using System.Windows.Threading;
+using CursorJump.App.Controls;
 using CursorJump.App.Models;
 
 namespace CursorJump.App;
 
+/// <summary>
+/// 設定画面（v1.12.0 で作り直し）。CircleSwitch と同じ「左ナビ 4 項目 ＋ 右カード」。
+/// 保存ボタンは無く、変えた項目はその場で保存する（<see cref="ScheduleSave"/>）。
+/// 組み合わせが不正（重複・修飾キーなし等）なときは保存せず、下の知らせ欄に理由を出す。閉じるのは × か Esc。
+/// </summary>
 public partial class SettingsWindow : Window
 {
     private readonly SettingsService _settingsService;
     private readonly UpdateService? _updateService;
     private readonly LicenseService? _licenseService;
 
-    /// <summary>
-    /// ComboBox の表示用 wrapper。enum 値を保持しつつ、ToString() で現在言語のリソース名を返すため、
-    /// 言語切替時に再評価される（CollectionView の Refresh 経由）。
-    /// </summary>
-    public sealed class ButtonOption
-    {
-        public MouseButtonType Value { get; }
-        public string ResourceKey { get; }
-        public ButtonOption(MouseButtonType value, string key)
-        {
-            Value = value;
-            ResourceKey = key;
-        }
-        public override string ToString() => Loc.Get(ResourceKey);
-    }
+    /// <summary>操作の行と、AppSettings 上の対応先。検証時の名前（重複の知らせ）もここで持つ。</summary>
+    private sealed record RowBinding(ActionRow Row, string NameKey,
+        Func<AppSettings, ActionShortcut> Get, Action<AppSettings, ActionShortcut> Set);
 
-    /// <summary>
-    /// 修飾キー連打ジェスチャ ComboBox の表示用 wrapper（v1.9.0+）。ButtonOption と同様、
-    /// ToString() で現在言語のリソース名を返すため言語切替時に再評価される。
-    /// </summary>
-    public sealed class GestureOption
-    {
-        public ModifierGesture Value { get; }
-        public string ResourceKey { get; }
-        public GestureOption(ModifierGesture value, string key)
-        {
-            Value = value;
-            ResourceKey = key;
-        }
-        public override string ToString() => Loc.Get(ResourceKey);
-    }
-
-    // 連打ジェスチャの選択肢（None は「未使用」= トグル OFF で表現するため含めない）。
-    private static readonly GestureOption[] GestureOptions =
-    {
-        new(ModifierGesture.CtrlDoubleTap,  "Str.Settings.Gesture.CtrlDoubleTap"),
-        new(ModifierGesture.ShiftDoubleTap, "Str.Settings.Gesture.ShiftDoubleTap"),
-        new(ModifierGesture.AltDoubleTap,   "Str.Settings.Gesture.AltDoubleTap"),
-    };
-
-    // 既定の ButtonOption セット。v1.7.0 で MiddleDoubleClick/MiddleTripleClick を UI から除外。
-    // v1.6.1 で WheelUp/WheelDown を UI から除外し、MouseWheel に統合。
-    // 旧 settings.json に除外済み値が残っているケースだけ BuildButtonOptions で動的に追加表示する。
-    private static readonly ButtonOption[] DefaultButtonOptions =
-    {
-        new(MouseButtonType.Left,              "Str.Button.Left"),
-        new(MouseButtonType.Right,             "Str.Button.Right"),
-        new(MouseButtonType.Middle,            "Str.Button.Middle"),
-        new(MouseButtonType.XButton1,          "Str.Button.XButton1"),
-        new(MouseButtonType.XButton2,          "Str.Button.XButton2"),
-        new(MouseButtonType.MiddleLeftChord,   "Str.Button.MiddleLeftChord"),
-        new(MouseButtonType.MiddleRightChord,  "Str.Button.MiddleRightChord"),
-        new(MouseButtonType.MouseWheel,        "Str.Button.MouseWheel"),
-    };
-
-    /// <summary>
-    /// 各 ComboBox 用のオプション配列を構築する。
-    /// 現在値が UI から除外された旧値 (WheelUp/WheelDown/MiddleDoubleClick/MiddleTripleClick) のときだけ、
-    /// その選択肢を動的に末尾に追加して表示を維持する
-    /// (移行は行わず保存形式は維持。新規割当は除外済み値を選べない)。
-    /// </summary>
-    private static ButtonOption[] BuildButtonOptions(MouseButtonType currentValue)
-    {
-        string? legacyKey = currentValue switch
-        {
-            MouseButtonType.WheelUp            => "Str.Button.WheelUp",
-            MouseButtonType.WheelDown          => "Str.Button.WheelDown",
-            MouseButtonType.MiddleDoubleClick  => "Str.Button.MiddleDoubleClick",
-            MouseButtonType.MiddleTripleClick  => "Str.Button.MiddleTripleClick",
-            _ => null
-        };
-        if (legacyKey is null) return DefaultButtonOptions;
-
-        var extended = new ButtonOption[DefaultButtonOptions.Length + 1];
-        Array.Copy(DefaultButtonOptions, extended, DefaultButtonOptions.Length);
-        extended[^1] = new ButtonOption(currentValue, legacyKey);
-        return extended;
-    }
-
-    // ===== キーボードトリガー（任意キー+修飾キー）の状態管理 =====
-    // 各 ActionShortcut の VirtualKeyCode はキーキャプチャ UI で更新される。
-    // 修飾キー (ChkXxxCtrl/Alt/Shift/Win) は既存のマウス側と共通なので、
-    // KeyboardSlotUI はラベル再描画と VK 保持のみ担当する。
-    private readonly Dictionary<string, KeyboardSlotUI> _keyboardSlots = new();
-    private string? _recordingTarget;  // 記録中のターゲット ("Save"/"Nav"/etc)
-
-    private sealed class KeyboardSlotUI
-    {
-        public string Tag { get; }
-        public TextBlock Label { get; }
-        public Button RecordButton { get; }
-        public CheckBox ChkCtrl { get; }
-        public CheckBox ChkAlt { get; }
-        public CheckBox ChkShift { get; }
-        public CheckBox ChkWin { get; }
-        public CheckBox ChkKeyboardEnabled { get; }
-        public int VirtualKeyCode;
-        public string OriginalRecordButtonText = "";
-
-        public KeyboardSlotUI(string tag, TextBlock label, Button recordBtn,
-            CheckBox c, CheckBox a, CheckBox s, CheckBox w, CheckBox chkKeyboardEnabled)
-        {
-            Tag = tag; Label = label; RecordButton = recordBtn;
-            ChkCtrl = c; ChkAlt = a; ChkShift = s; ChkWin = w;
-            ChkKeyboardEnabled = chkKeyboardEnabled;
-        }
-
-        public ModifierKeyFlags GetModifiers()
-        {
-            var m = ModifierKeyFlags.None;
-            if (ChkCtrl.IsChecked == true)  m |= ModifierKeyFlags.Control;
-            if (ChkAlt.IsChecked == true)   m |= ModifierKeyFlags.Alt;
-            if (ChkShift.IsChecked == true) m |= ModifierKeyFlags.Shift;
-            if (ChkWin.IsChecked == true)   m |= ModifierKeyFlags.Windows;
-            return m;
-        }
-
-        public void SetModifiers(ModifierKeyFlags m)
-        {
-            ChkCtrl.IsChecked  = m.HasFlag(ModifierKeyFlags.Control);
-            ChkAlt.IsChecked   = m.HasFlag(ModifierKeyFlags.Alt);
-            ChkShift.IsChecked = m.HasFlag(ModifierKeyFlags.Shift);
-            ChkWin.IsChecked   = m.HasFlag(ModifierKeyFlags.Windows);
-        }
-
-        public void RefreshLabel()
-        {
-            if (VirtualKeyCode == 0)
-            {
-                Label.Text = Loc.Get("Str.Settings.KeyUnassigned");
-                return;
-            }
-            var sc = new ActionShortcut
-            {
-                EnabledTriggers = TriggerType.Keyboard,
-                VirtualKeyCode = VirtualKeyCode,
-                Modifiers = GetModifiers()
-            };
-            Label.Text = ShortcutFormatter.FormatKeyboard(sc);
-        }
-    }
+    private RowBinding[] _rows = Array.Empty<RowBinding>();
 
     private string _saveColor = "#5BA8F0";
     private string _saveColorB = "#FF7FA8";
@@ -169,10 +41,10 @@ public partial class SettingsWindow : Window
     private string _markerColor = "#5BA8F0";
     private string _markerColorB = "#FF7FA8";
     private string _clickHistoryMarkerColor = "#5BA8F0";
-    private UiTheme _currentTheme = UiTheme.Light;
-    private UiLanguage _currentLanguage = UiLanguage.Auto;
 
     private bool _initialized;
+    private bool _saveScheduled;
+    private bool _lastAutoStart;
 
     public SettingsWindow(SettingsService settingsService) : this(settingsService, null, null) { }
 
@@ -184,25 +56,59 @@ public partial class SettingsWindow : Window
         _updateService = updateService;
         _licenseService = licenseService;
         InitializeComponent();
-        var v = Assembly.GetExecutingAssembly().GetName().Version;
-        if (v is not null)
+
+        // 「クリックした所へ戻る」の追加設定を行の編集欄の下へ移す（XAML では UserControl の中に名前付き要素を置けないため）
+        ((Panel)ClickHistoryExtra.Parent).Children.Remove(ClickHistoryExtra);
+        RowClkBack.Extra = ClickHistoryExtra;
+
+        _rows = new[]
         {
-            Title = string.Format(Loc.Get("Str.Settings.TitleFormat"), v.Major, v.Minor, v.Build);
+            new RowBinding(RowSave,   "Str.Settings.Action.Save",            s => s.SaveShortcut,                   (s, v) => s.SaveShortcut = v),
+            new RowBinding(RowNav,    "Str.Settings.Action.NavigateAll",     s => s.NavigateShortcut,               (s, v) => s.NavigateShortcut = v),
+            new RowBinding(RowDisp,   "Str.Settings.Action.Display",         s => s.DisplayDeleteShortcut,          (s, v) => s.DisplayDeleteShortcut = v),
+            new RowBinding(RowMonNav, "Str.Settings.Action.NavigateMonitor", s => s.NavigateCurrentMonitorShortcut, (s, v) => s.NavigateCurrentMonitorShortcut = v),
+            new RowBinding(RowSaveB,  "Str.Settings.Action.SaveB",           s => s.SaveShortcutB,                  (s, v) => s.SaveShortcutB = v),
+            new RowBinding(RowNavB,   "Str.Settings.Action.NavigateB",       s => s.NavigateShortcutB,              (s, v) => s.NavigateShortcutB = v),
+            new RowBinding(RowReset,  "Str.Settings.Action.ResetCycle",      s => s.ResetCycleShortcut,             (s, v) => s.ResetCycleShortcut = v),
+            new RowBinding(RowActWin, "Str.Settings.Action.ActiveWindowJump", s => s.ActiveWindowJumpShortcut,      (s, v) => s.ActiveWindowJumpShortcut = v),
+            new RowBinding(RowClkBack,"Str.Settings.Action.ClickHistoryBack", s => s.ClickHistoryBackShortcut,      (s, v) => s.ClickHistoryBackShortcut = v),
+        };
+        foreach (var b in _rows)
+        {
+            b.Row.Changed += (_, _) => ScheduleSave();
+            b.Row.ExpandRequested += (sender, _) =>
+            {
+                foreach (var other in _rows)
+                    if (!ReferenceEquals(other.Row, sender)) other.Row.IsExpanded = false;
+            };
         }
-        PopulateComboBoxes();
-        InitKeyboardSlots();
+
+        UpdateVersionTexts();
         LoadCurrentSettings();
         UpdateLicenseUI();
+        UpdateHelpShortcuts(_settingsService.Current);
+
         LocalizationManager.LanguageChanged += OnLanguageChanged;
-        Closed += (_, _) => LocalizationManager.LanguageChanged -= OnLanguageChanged;
+        if (_licenseService is not null) _licenseService.StatusChanged += OnLicenseStatusChanged;
         Loaded += OnSettingsWindowLoaded;
+        Closing += OnWindowClosing;
+        Closed += (_, _) =>
+        {
+            LocalizationManager.LanguageChanged -= OnLanguageChanged;
+            if (_licenseService is not null) _licenseService.StatusChanged -= OnLicenseStatusChanged;
+            HelpAnim.Stop();
+        };
+        // Esc で閉じる。キー記録中の Esc は ActionRow が先に処理済み（Handled）なので閉じない
+        KeyDown += (_, e) =>
+        {
+            if (e.Key != Key.Escape || e.Handled) return;
+            e.Handled = true;
+            Close();
+        };
         _initialized = true;
     }
 
-    /// <summary>
-    /// 起動時に作業領域を超えないようにウィンドウサイズをクランプする。
-    /// 13" / 14" ノート PC (1920x1080 / 150% DPI) では既定 820dp の高さが画面に収まらないため。
-    /// </summary>
+    /// <summary>作業領域を超えないようにクランプして中央へ置き直す（13〜14" ノート PC の 150% 対策）。</summary>
     private void OnSettingsWindowLoaded(object sender, RoutedEventArgs e)
     {
         var workArea = SystemParameters.WorkArea;
@@ -210,420 +116,421 @@ public partial class SettingsWindow : Window
         double maxW = workArea.Width * 0.95;
         if (Height > maxH) Height = maxH;
         if (Width > maxW) Width = maxW;
-        // 中央寄せ直し（CenterScreen でも初期 Height で配置済みなのでクランプ後にずれる）
         Left = workArea.Left + (workArea.Width - Width) / 2;
         Top  = workArea.Top  + (workArea.Height - Height) / 2;
     }
 
+    /// <summary>まだ保存していない変更が予約されていれば、閉じる前に保存する。</summary>
+    private void OnWindowClosing(object? sender, CancelEventArgs e)
+    {
+        if (_saveScheduled) SaveNow();
+    }
+
     private void OnLanguageChanged()
     {
-        // Title はバインド経由でなく直接設定しているため再生成する
-        var v = Assembly.GetExecutingAssembly().GetName().Version;
-        if (v is not null)
-        {
-            Title = string.Format(Loc.Get("Str.Settings.TitleFormat"), v.Major, v.Minor, v.Build);
-        }
-        // ButtonOption.ToString() は Loc.Get を呼ぶが、ComboBox は変更通知を受け取らないので強制リフレッシュ
-        RefreshButtonComboBoxes();
-        // キーボードラベル（"（未割当）" など）も Loc.Get 経由なので再描画
-        foreach (var slot in _keyboardSlots.Values) slot.RefreshLabel();
-        // ライセンスステータステキストも DynamicResource ではなく Loc.Get で設定しているため再描画する
+        UpdateVersionTexts();
+        foreach (var b in _rows) b.Row.RefreshLanguage();
         UpdateLicenseUI();
-        // 情報タブのバージョン・前回確認も Loc.Get で組み立てているため再描画する
-        UpdateAboutVersionText();
         UpdateLastCheckedLabel(_settingsService.Current.LastUpdateCheckUtc);
+        UpdateTrailValueLabels();
+        UpdateHelpShortcuts(_settingsService.Current);
+        if (MessageBar.Visibility == Visibility.Visible) SaveNow(); // 知らせ欄の文言も今の言語で出し直す
     }
 
-    private void RefreshButtonComboBoxes()
+    private void OnLicenseStatusChanged() => Dispatcher.BeginInvoke(UpdateLicenseUI);
+
+    private void UpdateVersionTexts()
     {
-        foreach (var combo in new[] { CmbSaveBtn, CmbNavBtn, CmbMonNavBtn, CmbDispBtn, CmbSaveBBtn, CmbNavBBtn,
-                                       CmbResetBtn, CmbActWinBtn, CmbClkBackBtn })
-        {
-            var selected = combo.SelectedItem as ButtonOption;
-            var current = selected?.Value ?? MouseButtonType.Left;
-            combo.ItemsSource = null;
-            combo.ItemsSource = BuildButtonOptions(current);
-            if (selected is not null)
-                combo.SelectedItem = FindButtonOptionIn((ButtonOption[])combo.ItemsSource, current);
-        }
-
-        // 連打ジェスチャ ComboBox も ToString() が Loc.Get 依存なので強制リフレッシュ。
-        foreach (var combo in new[] { CmbResetGesture, CmbActWinGesture, CmbClkBackGesture })
-        {
-            var selected = combo.SelectedItem as GestureOption;
-            combo.ItemsSource = null;
-            combo.ItemsSource = GestureOptions;
-            if (selected is not null)
-                combo.SelectedItem = FindGestureOption(selected.Value);
-        }
+        var v = Assembly.GetExecutingAssembly().GetName().Version;
+        string version = v is null ? "-" : $"{v.Major}.{v.Minor}.{v.Build}";
+        if (v is not null)
+            Title = string.Format(Loc.Get("Str.Settings.TitleFormat"), v.Major, v.Minor, v.Build);
+        NavVersionText.Text = "v" + version;
+        AboutVersionText.Text = string.Format(CultureInfo.CurrentCulture, Loc.Get("Str.About.Version"), version);
     }
 
-    private void PopulateComboBoxes()
-    {
-        CmbSaveBtn.ItemsSource = DefaultButtonOptions;
-        CmbNavBtn.ItemsSource = DefaultButtonOptions;
-        CmbMonNavBtn.ItemsSource = DefaultButtonOptions;
-        CmbDispBtn.ItemsSource = DefaultButtonOptions;
-        CmbSaveBBtn.ItemsSource = DefaultButtonOptions;
-        CmbNavBBtn.ItemsSource = DefaultButtonOptions;
-        CmbResetBtn.ItemsSource = DefaultButtonOptions;
-        CmbActWinBtn.ItemsSource = DefaultButtonOptions;
-        CmbClkBackBtn.ItemsSource = DefaultButtonOptions;
-
-        CmbResetGesture.ItemsSource = GestureOptions;
-        CmbActWinGesture.ItemsSource = GestureOptions;
-        CmbClkBackGesture.ItemsSource = GestureOptions;
-    }
-
-    private static GestureOption FindGestureOption(ModifierGesture g)
-    {
-        foreach (var opt in GestureOptions)
-            if (opt.Value == g) return opt;
-        return GestureOptions[0];
-    }
-
-    private void InitKeyboardSlots()
-    {
-        _keyboardSlots["Save"]   = new("Save",   LblSaveKey,   BtnSaveKeyRecord,   ChkSaveCtrl,   ChkSaveAlt,   ChkSaveShift,   ChkSaveWin,   ChkSaveKeyboardEnabled);
-        _keyboardSlots["Nav"]    = new("Nav",    LblNavKey,    BtnNavKeyRecord,    ChkNavCtrl,    ChkNavAlt,    ChkNavShift,    ChkNavWin,    ChkNavKeyboardEnabled);
-        _keyboardSlots["MonNav"] = new("MonNav", LblMonNavKey, BtnMonNavKeyRecord, ChkMonNavCtrl, ChkMonNavAlt, ChkMonNavShift, ChkMonNavWin, ChkMonNavKeyboardEnabled);
-        _keyboardSlots["Disp"]   = new("Disp",   LblDispKey,   BtnDispKeyRecord,   ChkDispCtrl,   ChkDispAlt,   ChkDispShift,   ChkDispWin,   ChkDispKeyboardEnabled);
-        _keyboardSlots["SaveB"]  = new("SaveB",  LblSaveBKey,  BtnSaveBKeyRecord,  ChkSaveBCtrl,  ChkSaveBAlt,  ChkSaveBShift,  ChkSaveBWin,  ChkSaveBKeyboardEnabled);
-        _keyboardSlots["NavB"]   = new("NavB",   LblNavBKey,   BtnNavBKeyRecord,   ChkNavBCtrl,   ChkNavBAlt,   ChkNavBShift,   ChkNavBWin,   ChkNavBKeyboardEnabled);
-        _keyboardSlots["Reset"]   = new("Reset",   LblResetKey,   BtnResetKeyRecord,   ChkResetCtrl,   ChkResetAlt,   ChkResetShift,   ChkResetWin,   ChkResetKeyboardEnabled);
-        _keyboardSlots["ActWin"]  = new("ActWin",  LblActWinKey,  BtnActWinKeyRecord,  ChkActWinCtrl,  ChkActWinAlt,  ChkActWinShift,  ChkActWinWin,  ChkActWinKeyboardEnabled);
-        _keyboardSlots["ClkBack"] = new("ClkBack", LblClkBackKey, BtnClkBackKeyRecord, ChkClkBackCtrl, ChkClkBackAlt, ChkClkBackShift, ChkClkBackWin, ChkClkBackKeyboardEnabled);
-
-        // 修飾キー変更時にキーボードラベルを再描画（修飾キー checkbox はマウス/キーボード共通）
-        foreach (var slot in _keyboardSlots.Values)
-        {
-            slot.ChkCtrl.Click  += (_, _) => slot.RefreshLabel();
-            slot.ChkAlt.Click   += (_, _) => slot.RefreshLabel();
-            slot.ChkShift.Click += (_, _) => slot.RefreshLabel();
-            slot.ChkWin.Click   += (_, _) => slot.RefreshLabel();
-        }
-    }
+    // ==== 読み込み ====
 
     private void LoadCurrentSettings()
     {
         var s = _settingsService.Current;
+        foreach (var b in _rows) b.Row.Load(b.Get(s));
 
-        LoadShortcutUI(s.SaveShortcut, "Save",
-            ChkSaveMouseEnabled, PnlSaveMouse,
-            ChkSaveCtrl, ChkSaveAlt, ChkSaveShift, ChkSaveWin, CmbSaveBtn,
-            ChkSaveKeyboardEnabled, PnlSaveKeyboard);
-
-        LoadShortcutUI(s.NavigateShortcut, "Nav",
-            ChkNavMouseEnabled, PnlNavMouse,
-            ChkNavCtrl, ChkNavAlt, ChkNavShift, ChkNavWin, CmbNavBtn,
-            ChkNavKeyboardEnabled, PnlNavKeyboard);
-
-        LoadShortcutUI(s.NavigateCurrentMonitorShortcut, "MonNav",
-            ChkMonNavMouseEnabled, PnlMonNavMouse,
-            ChkMonNavCtrl, ChkMonNavAlt, ChkMonNavShift, ChkMonNavWin, CmbMonNavBtn,
-            ChkMonNavKeyboardEnabled, PnlMonNavKeyboard);
-
-        LoadShortcutUI(s.DisplayDeleteShortcut, "Disp",
-            ChkDispMouseEnabled, PnlDispMouse,
-            ChkDispCtrl, ChkDispAlt, ChkDispShift, ChkDispWin, CmbDispBtn,
-            ChkDispKeyboardEnabled, PnlDispKeyboard);
-
-        LoadShortcutUI(s.SaveShortcutB, "SaveB",
-            ChkSaveBMouseEnabled, PnlSaveBMouse,
-            ChkSaveBCtrl, ChkSaveBAlt, ChkSaveBShift, ChkSaveBWin, CmbSaveBBtn,
-            ChkSaveBKeyboardEnabled, PnlSaveBKeyboard);
-
-        LoadShortcutUI(s.NavigateShortcutB, "NavB",
-            ChkNavBMouseEnabled, PnlNavBMouse,
-            ChkNavBCtrl, ChkNavBAlt, ChkNavBShift, ChkNavBWin, CmbNavBBtn,
-            ChkNavBKeyboardEnabled, PnlNavBKeyboard);
-
-        // ── Pro 追加機能（v1.9.0+）。マウス/キーボードは共通ヘルパー、連打ジェスチャは個別に反映 ──
-        LoadShortcutUI(s.ResetCycleShortcut, "Reset",
-            ChkResetMouseEnabled, PnlResetMouse,
-            ChkResetCtrl, ChkResetAlt, ChkResetShift, ChkResetWin, CmbResetBtn,
-            ChkResetKeyboardEnabled, PnlResetKeyboard);
-        LoadGestureUI(s.ResetCycleShortcut, ChkResetGestureEnabled, PnlResetGesture, CmbResetGesture);
-
-        LoadShortcutUI(s.ActiveWindowJumpShortcut, "ActWin",
-            ChkActWinMouseEnabled, PnlActWinMouse,
-            ChkActWinCtrl, ChkActWinAlt, ChkActWinShift, ChkActWinWin, CmbActWinBtn,
-            ChkActWinKeyboardEnabled, PnlActWinKeyboard);
-        LoadGestureUI(s.ActiveWindowJumpShortcut, ChkActWinGestureEnabled, PnlActWinGesture, CmbActWinGesture);
-
-        LoadShortcutUI(s.ClickHistoryBackShortcut, "ClkBack",
-            ChkClkBackMouseEnabled, PnlClkBackMouse,
-            ChkClkBackCtrl, ChkClkBackAlt, ChkClkBackShift, ChkClkBackWin, CmbClkBackBtn,
-            ChkClkBackKeyboardEnabled, PnlClkBackKeyboard);
-        LoadGestureUI(s.ClickHistoryBackShortcut, ChkClkBackGestureEnabled, PnlClkBackGesture, CmbClkBackGesture);
-
-        // クリック履歴の深さ
         SldClickHistoryDepth.Value = Math.Clamp(s.ClickHistoryDepth, (int)SldClickHistoryDepth.Minimum, (int)SldClickHistoryDepth.Maximum);
-        UpdateClickHistoryDepthLabel();
-
         ChkClickHistoryMarkersEnabled.IsChecked = s.ClickHistoryMarkersEnabled;
         _clickHistoryMarkerColor = s.ClickHistoryMarkerColor ?? "#5BA8F0";
-        SetSwatchColor(RectClickHistoryMarkerColor, _clickHistoryMarkerColor);
-        TxtClickHistoryMarkerColorHex.Text = _clickHistoryMarkerColor.ToUpperInvariant();
         SldClickHistoryMarkerOpacity.Value = double.IsFinite(s.ClickHistoryMarkerOpacity)
             ? Math.Clamp(s.ClickHistoryMarkerOpacity, 0.1, 1.0) : 0.35;
-        UpdateClickHistoryMarkerOpacityLabel();
+        UpdateClickHistoryLabels();
 
-        // 色
         _saveColor   = s.SaveCircleColor;
         _saveColorB  = s.SaveCircleColorB;
         _trailColor  = s.TrailColor;
         _trailColorB = s.TrailColorB;
         _markerColor  = s.MarkerColor;
         _markerColorB = s.MarkerColorB;
+        RefreshSwatches();
+
+        ChkActivateWindowOnJump.IsChecked = s.ActivateWindowUnderCursorOnJump;
+        ChkSaveEffectEnabled.IsChecked = s.SaveEffectEnabled;
+        ChkTrailEffectEnabled.IsChecked = s.TrailEffectEnabled;
+        ChkMarkerEffectEnabled.IsChecked = s.MarkerEffectEnabled;
+        ChkShowDeleteModeHelp.IsChecked = s.ShowDeleteModeHelp;
+
+        SldTrailThickness.Value = Math.Clamp(s.TrailThickness, SldTrailThickness.Minimum, SldTrailThickness.Maximum);
+        SldTrailDuration.Value = Math.Clamp(s.TrailDurationMs, (int)SldTrailDuration.Minimum, (int)SldTrailDuration.Maximum);
+        SldTrailOpacity.Value = Math.Clamp(s.TrailOpacity, SldTrailOpacity.Minimum, SldTrailOpacity.Maximum);
+        UpdateTrailValueLabels();
+
+        if (s.UiTheme == UiTheme.Dark) ThemeDark.IsChecked = true; else ThemeLight.IsChecked = true;
+        // 言語（Auto は実際に解決された言語のラジオを選ぶ。保存値は利用者がラジオを押すまで Auto のまま）
+        if (LocalizationManager.Resolve(s.UiLanguage) == UiLanguage.English) LangEn.IsChecked = true; else LangJa.IsChecked = true;
+
+        AutoUpdateToggle.IsChecked = s.AutoUpdateEnabled;
+        UpdateLastCheckedLabel(s.LastUpdateCheckUtc);
+        VerboseLoggingToggle.IsChecked = s.VerboseLogging;
+        AutoStartToggle.IsChecked = s.AutoStartEnabled;
+        _lastAutoStart = s.AutoStartEnabled;
+    }
+
+    private void UpdateLastCheckedLabel(string isoUtc)
+    {
+        string shown = "-";
+        if (!string.IsNullOrEmpty(isoUtc))
+        {
+            shown = DateTime.TryParse(isoUtc, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind, out var dt)
+                ? dt.ToLocalTime().ToString("yyyy-MM-dd HH:mm", CultureInfo.CurrentCulture)
+                : isoUtc;
+        }
+        AboutLastCheckedText.Text = string.Format(CultureInfo.CurrentCulture, Loc.Get("Str.About.LastChecked"), shown);
+    }
+
+    // ==== その場で保存 ====
+
+    private void OnAnyChanged(object sender, RoutedEventArgs e) => ScheduleSave();
+
+    /// <summary>
+    /// 保存を手が空いてからに回す（スライダーのドラッグ等で何度来ても 1 回にまとめる）。
+    /// 閉じる時に予約が残っていれば OnWindowClosing が保存する。
+    /// </summary>
+    private void ScheduleSave()
+    {
+        if (!_initialized || _saveScheduled) return;
+        _saveScheduled = true;
+        Dispatcher.BeginInvoke(DispatcherPriority.Background, new Action(SaveNow));
+    }
+
+    /// <summary>
+    /// 画面の値を最新の設定（Current の写し）に重ねて保存する。保存座標・ライセンスキー・更新確認の記録など、
+    /// 画面に無い値は Current のまま残る。検証に通らなければ保存せず、知らせ欄に理由を出す。
+    /// </summary>
+    private void SaveNow()
+    {
+        _saveScheduled = false;
+        var settings = _settingsService.Current.Clone();
+        foreach (var b in _rows) b.Set(settings, b.Row.Read());
+
+        settings.ClickHistoryDepth = (int)Math.Round(SldClickHistoryDepth.Value);
+        settings.ClickHistoryMarkersEnabled = ChkClickHistoryMarkersEnabled.IsChecked == true;
+        settings.ClickHistoryMarkerColor = _clickHistoryMarkerColor;
+        settings.ClickHistoryMarkerOpacity = SldClickHistoryMarkerOpacity.Value;
+        settings.SaveCircleColor  = _saveColor;
+        settings.SaveCircleColorB = _saveColorB;
+        settings.TrailColor       = _trailColor;
+        settings.TrailColorB      = _trailColorB;
+        settings.MarkerColor      = _markerColor;
+        settings.MarkerColorB     = _markerColorB;
+        settings.SaveEffectEnabled = ChkSaveEffectEnabled.IsChecked == true;
+        settings.TrailEffectEnabled = ChkTrailEffectEnabled.IsChecked == true;
+        settings.MarkerEffectEnabled = ChkMarkerEffectEnabled.IsChecked == true;
+        settings.ShowDeleteModeHelp = ChkShowDeleteModeHelp.IsChecked == true;
+        settings.TrailThickness = SldTrailThickness.Value;
+        settings.TrailDurationMs = (int)Math.Round(SldTrailDuration.Value);
+        settings.TrailOpacity = SldTrailOpacity.Value;
+        settings.ActivateWindowUnderCursorOnJump = ChkActivateWindowOnJump.IsChecked == true;
+        settings.AutoUpdateEnabled = AutoUpdateToggle.IsChecked == true;
+        settings.VerboseLogging = VerboseLoggingToggle.IsChecked == true;
+        settings.AutoStartEnabled = AutoStartToggle.IsChecked == true;
+        settings.UiTheme = ThemeDark.IsChecked == true ? UiTheme.Dark : UiTheme.Light;
+        // 言語は利用者がラジオを押した時だけ確定値にする（OnLanguageChecked が Current を直接は触らず、ここで反映）
+        settings.UiLanguage = _pendingLanguage ?? settings.UiLanguage;
+
+        string? problem = Validate(settings);
+        if (problem is not null)
+        {
+            ShowMessage(string.Format(Loc.Get("Str.Settings.NotSavedFormat"), problem));
+            return;
+        }
+
+        if (!_settingsService.Save(settings))
+        {
+            ShowMessage(Loc.Get("Str.MessageBox.SettingsSaveFailed"));
+            return;
+        }
+        _pendingLanguage = null;
+        ShowMessage(null);
+
+        // 自動起動のレジストリ反映は値が変わった時だけ（失敗しても操作は止めない）
+        if (settings.AutoStartEnabled != _lastAutoStart)
+        {
+            StartupService.ApplyAutoStart(settings.AutoStartEnabled);
+            _lastAutoStart = settings.AutoStartEnabled;
+        }
+        UpdateHelpShortcuts(settings);
+    }
+
+    /// <summary>旧「保存」ボタンと同じ検証。問題があればその説明、無ければ null。</summary>
+    private string? Validate(AppSettings s)
+    {
+        if (s.SaveShortcut.EnabledTriggers == TriggerType.None ||
+            s.NavigateShortcut.EnabledTriggers == TriggerType.None ||
+            s.DisplayDeleteShortcut.EnabledTriggers == TriggerType.None)
+            return Loc.Get("Str.Settings.Validation.NoTrigger");
+
+        static bool NeedsModifier(ActionShortcut sc) =>
+            sc.EnabledTriggers.HasFlag(TriggerType.Mouse)
+            && sc.Modifiers == ModifierKeyFlags.None
+            && sc.MouseButton is not (
+                MouseButtonType.XButton1 or
+                MouseButtonType.XButton2 or
+                MouseButtonType.MiddleLeftChord or
+                MouseButtonType.MiddleRightChord or
+                MouseButtonType.MiddleDoubleClick or
+                MouseButtonType.MiddleTripleClick);
+        if (_rows.Any(b => NeedsModifier(b.Get(s))))
+            return Loc.Get("Str.Settings.Validation.NoModifier");
+
+        // 任意キー（F13-F24 以外）は修飾キーを 1 つ以上必須（無いと通常の文字入力で発火してしまう）
+        static bool KeyboardNeedsModifier(ActionShortcut sc) =>
+            sc.EnabledTriggers.HasFlag(TriggerType.Keyboard)
+            && sc.VirtualKeyCode != 0
+            && !(sc.VirtualKeyCode >= NativeMethods.VK_F13 && sc.VirtualKeyCode <= NativeMethods.VK_F24)
+            && sc.Modifiers == ModifierKeyFlags.None;
+        if (_rows.Any(b => KeyboardNeedsModifier(b.Get(s))))
+            return Loc.Get("Str.Settings.Validation.KeyboardNoModifier");
+
+        for (int i = 0; i < _rows.Length; i++)
+        {
+            for (int j = i + 1; j < _rows.Length; j++)
+            {
+                var (mouseDup, keyboardDup, gestureDup) = DetectShortcutConflict(_rows[i].Get(s), _rows[j].Get(s));
+                if (!mouseDup && !keyboardDup && !gestureDup) continue;
+                var kinds = new List<string>();
+                if (mouseDup) kinds.Add(Loc.Get("Str.Settings.Validation.ConflictKind.Mouse"));
+                if (keyboardDup) kinds.Add(Loc.Get("Str.Settings.Validation.ConflictKind.Keyboard"));
+                if (gestureDup) kinds.Add(Loc.Get("Str.Settings.Validation.ConflictKind.Gesture"));
+                return string.Format(Loc.Get("Str.Settings.Validation.ConflictFormat"),
+                    Loc.Get(_rows[i].NameKey), Loc.Get(_rows[j].NameKey), string.Join(" / ", kinds));
+            }
+        }
+        return null;
+    }
+
+    private static (bool mouse, bool keyboard, bool gesture) DetectShortcutConflict(ActionShortcut a, ActionShortcut b)
+    {
+        bool mouseDup =
+            a.EnabledTriggers.HasFlag(TriggerType.Mouse) && b.EnabledTriggers.HasFlag(TriggerType.Mouse)
+            && a.Modifiers == b.Modifiers && a.MouseButton == b.MouseButton;
+        bool keyboardDup =
+            a.EnabledTriggers.HasFlag(TriggerType.Keyboard) && b.EnabledTriggers.HasFlag(TriggerType.Keyboard)
+            && a.VirtualKeyCode == b.VirtualKeyCode;
+        bool gestureDup =
+            a.EnabledTriggers.HasFlag(TriggerType.ModifierSequence) && b.EnabledTriggers.HasFlag(TriggerType.ModifierSequence)
+            && a.ModifierGesture != ModifierGesture.None && a.ModifierGesture == b.ModifierGesture;
+        return (mouseDup, keyboardDup, gestureDup);
+    }
+
+    private void ShowMessage(string? text)
+    {
+        MessageText.Text = text ?? "";
+        MessageBar.Visibility = string.IsNullOrEmpty(text) ? Visibility.Collapsed : Visibility.Visible;
+    }
+
+    // ==== ページ切替 ====
+
+    private void OnNavChecked(object sender, RoutedEventArgs e)
+    {
+        if (PageOps is null || PageLook is null || PageGeneral is null || PageHelp is null) return;
+        PageOps.Visibility = NavOps.IsChecked == true ? Visibility.Visible : Visibility.Collapsed;
+        PageLook.Visibility = NavLook.IsChecked == true ? Visibility.Visible : Visibility.Collapsed;
+        PageGeneral.Visibility = NavGeneral.IsChecked == true ? Visibility.Visible : Visibility.Collapsed;
+        PageHelp.Visibility = NavHelp.IsChecked == true ? Visibility.Visible : Visibility.Collapsed;
+        if (NavHelp.IsChecked == true) HelpAnim.Start(); else HelpAnim.Stop();
+    }
+
+    // ==== ヘルプ ====
+
+    /// <summary>ヘルプの絵とタイルの文字を、いま保存されている割り当てに合わせる。</summary>
+    private void UpdateHelpShortcuts(AppSettings s)
+    {
+        HelpAnim.SetShortcuts(ShortcutParts(s.SaveShortcut), ShortcutParts(s.NavigateShortcut));
+        HelpTileDispTitle.Text = s.DisplayDeleteShortcut.EnabledTriggers.HasFlag(TriggerType.Mouse)
+            ? ActionRow.ButtonName(s.DisplayDeleteShortcut.MouseButton)
+            : string.Join(" + ", ShortcutParts(s.DisplayDeleteShortcut));
+        var b = s.SaveShortcutB;
+        HelpTileSetBTitle.Text = b.EnabledTriggers.HasFlag(TriggerType.Mouse) && b.Modifiers != ModifierKeyFlags.None
+            ? ShortcutFormatter.FormatModifiers(b.Modifiers).Replace("+", " + ")
+            : Loc.Get("Str.Help.Tile.SetBTitle");
+    }
+
+    /// <summary>キーの絵に出す部品（例: Ctrl / Win / 左クリック）。マウスが無効ならキーボード側。</summary>
+    private static IReadOnlyList<string> ShortcutParts(ActionShortcut sc)
+    {
+        var parts = new List<string>();
+        if (sc.EnabledTriggers.HasFlag(TriggerType.Mouse))
+        {
+            string mods = ShortcutFormatter.FormatModifiers(sc.Modifiers);
+            if (mods.Length > 0) parts.AddRange(mods.Split('+'));
+            parts.Add(ActionRow.ButtonName(sc.MouseButton));
+        }
+        else if (sc.EnabledTriggers.HasFlag(TriggerType.Keyboard) && sc.VirtualKeyCode != 0)
+        {
+            parts.AddRange(ShortcutFormatter.FormatKeyboard(sc).Split('+'));
+        }
+        else
+        {
+            parts.Add(Loc.Get("Str.Settings.Off"));
+        }
+        return parts;
+    }
+
+    // ==== 見た目 ====
+
+    private void OnTrailSliderChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+    {
+        UpdateTrailValueLabels();
+        ScheduleSave();
+    }
+
+    private void UpdateTrailValueLabels()
+    {
+        // XAML ロード中は後続の TextBlock がまだ無いことがあるので個別に null チェック
+        if (TxtTrailThickness is not null && SldTrailThickness is not null)
+            TxtTrailThickness.Text = $"{SldTrailThickness.Value:0} dp";
+        if (TxtTrailDuration is not null && SldTrailDuration is not null)
+            TxtTrailDuration.Text = string.Format(CultureInfo.CurrentCulture, Loc.Get("Str.Look.SecondsFormat"), SldTrailDuration.Value / 1000.0);
+        if (TxtTrailOpacity is not null && SldTrailOpacity is not null)
+            TxtTrailOpacity.Text = $"{SldTrailOpacity.Value:P0}";
+    }
+
+    private void OnLookDetailsToggled(object sender, RoutedEventArgs e)
+    {
+        bool open = TglLookDetails.IsChecked == true;
+        PnlLookDetails.Visibility = open ? Visibility.Visible : Visibility.Collapsed;
+        TxtLookDetailsChevron.Text = open ? "" : ""; // ChevronDown / ChevronRight
+    }
+
+    private void RefreshSwatches()
+    {
+        // リストの色は「保存の円」の色を代表として見せる（3 つとも同じ色が既定。個別に変えたい人は詳細で）
+        SetSwatchColor(RectListColorA, _saveColor);
+        SetSwatchColor(RectListColorB, _saveColorB);
         SetSwatchColor(RectSaveColor,   _saveColor);
         SetSwatchColor(RectSaveColorB,  _saveColorB);
         SetSwatchColor(RectTrailColor,  _trailColor);
         SetSwatchColor(RectTrailColorB, _trailColorB);
         SetSwatchColor(RectMarkerColor,  _markerColor);
         SetSwatchColor(RectMarkerColorB, _markerColorB);
-        TxtSaveColorHex.Text   = _saveColor.ToUpperInvariant();
-        TxtSaveColorBHex.Text  = _saveColorB.ToUpperInvariant();
-        TxtTrailColorHex.Text  = _trailColor.ToUpperInvariant();
-        TxtTrailColorBHex.Text = _trailColorB.ToUpperInvariant();
-        TxtMarkerColorHex.Text  = _markerColor.ToUpperInvariant();
-        TxtMarkerColorBHex.Text = _markerColorB.ToUpperInvariant();
+        SetSwatchColor(RectClickHistoryMarkerColor, _clickHistoryMarkerColor);
+    }
 
-        // ジャンプ後にカーソル直下ウィンドウをアクティブ化
-        ChkActivateWindowOnJump.IsChecked = s.ActivateWindowUnderCursorOnJump;
+    private void OnColorRectangleClick(object sender, MouseButtonEventArgs e)
+    {
+        if (sender is not Shape shape) return;
 
-        // エフェクト ON/OFF
-        ChkSaveEffectEnabled.IsChecked = s.SaveEffectEnabled;
-        ChkTrailEffectEnabled.IsChecked = s.TrailEffectEnabled;
-        ChkMarkerEffectEnabled.IsChecked = s.MarkerEffectEnabled;
-        ChkShowDeleteModeHelp.IsChecked = s.ShowDeleteModeHelp;
+        string currentHex;
+        if      (shape == RectListColorA || shape == RectSaveColor) currentHex = _saveColor;
+        else if (shape == RectListColorB || shape == RectSaveColorB) currentHex = _saveColorB;
+        else if (shape == RectTrailColor)   currentHex = _trailColor;
+        else if (shape == RectTrailColorB)  currentHex = _trailColorB;
+        else if (shape == RectMarkerColor)  currentHex = _markerColor;
+        else if (shape == RectMarkerColorB) currentHex = _markerColorB;
+        else if (shape == RectClickHistoryMarkerColor) currentHex = _clickHistoryMarkerColor;
+        else return;
 
-        // 軌跡エフェクト詳細スライダー（クランプして反映）
-        SldTrailThickness.Value = Math.Clamp(s.TrailThickness, SldTrailThickness.Minimum, SldTrailThickness.Maximum);
-        SldTrailDuration.Value = Math.Clamp(s.TrailDurationMs, (int)SldTrailDuration.Minimum, (int)SldTrailDuration.Maximum);
-        SldTrailOpacity.Value = Math.Clamp(s.TrailOpacity, SldTrailOpacity.Minimum, SldTrailOpacity.Maximum);
-        UpdateTrailValueLabels();
-
-        // テーマ
-        _currentTheme = s.UiTheme;
-        if (_currentTheme == UiTheme.Dark)
+        using var dialog = new System.Windows.Forms.ColorDialog { FullOpen = true };
+        try
         {
-            ThemeDark.IsChecked = true;
+            var wpfColor = (Color)ColorConverter.ConvertFromString(currentHex);
+            dialog.Color = System.Drawing.Color.FromArgb(wpfColor.R, wpfColor.G, wpfColor.B);
         }
-        else
+        catch { }
+
+        if (dialog.ShowDialog() != System.Windows.Forms.DialogResult.OK) return;
+        var c = dialog.Color;
+        string hex = $"#{c.R:X2}{c.G:X2}{c.B:X2}";
+
+        // リストの色は、そのリストの「保存の円・移動の線・表示の印」をまとめて同じ色にする
+        if      (shape == RectListColorA) { _saveColor = _trailColor = _markerColor = hex; }
+        else if (shape == RectListColorB) { _saveColorB = _trailColorB = _markerColorB = hex; }
+        else if (shape == RectSaveColor)    _saveColor = hex;
+        else if (shape == RectSaveColorB)   _saveColorB = hex;
+        else if (shape == RectTrailColor)   _trailColor = hex;
+        else if (shape == RectTrailColorB)  _trailColorB = hex;
+        else if (shape == RectMarkerColor)  _markerColor = hex;
+        else if (shape == RectMarkerColorB) _markerColorB = hex;
+        else if (shape == RectClickHistoryMarkerColor) _clickHistoryMarkerColor = hex;
+
+        RefreshSwatches();
+        ScheduleSave();
+    }
+
+    private static void SetSwatchColor(Shape shape, string hex)
+    {
+        try
         {
-            ThemeLight.IsChecked = true;
+            if (ColorConverter.ConvertFromString(hex) is Color c)
+            {
+                shape.Fill = new SolidColorBrush(c);
+                shape.ToolTip = hex.ToUpperInvariant();
+                return;
+            }
         }
-
-        // 言語（Auto は実解決値で表示）
-        _currentLanguage = s.UiLanguage;
-        var resolved = LocalizationManager.Resolve(_currentLanguage);
-        if (resolved == UiLanguage.English)
-        {
-            LangEn.IsChecked = true;
-        }
-        else
-        {
-            LangJa.IsChecked = true;
-        }
-
-        // 情報タブ
-        LoadAboutSection(s);
+        catch { }
+        shape.Fill = Brushes.Transparent;
     }
 
-    private void LoadAboutSection(AppSettings s)
-    {
-        UpdateAboutVersionText();
+    // ==== クリック履歴（「クリックした所へ戻る」の追加設定） ====
 
-        AutoUpdateToggle.IsChecked = s.AutoUpdateEnabled;
-        UpdateLastCheckedLabel(s.LastUpdateCheckUtc);
-        VerboseLoggingToggle.IsChecked = s.VerboseLogging;
-        AutoStartToggle.IsChecked = s.AutoStartEnabled;
+    private void OnClickHistoryDepthChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+    {
+        UpdateClickHistoryLabels();
+        ScheduleSave();
     }
 
-    private void UpdateAboutVersionText()
+    private void OnClickHistoryMarkerOpacityChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
     {
-        var v = Assembly.GetExecutingAssembly().GetName().Version;
-        AboutVersionText.Text = string.Format(
-            CultureInfo.CurrentCulture,
-            Loc.Get("Str.About.Version"),
-            v is null ? "-" : $"{v.Major}.{v.Minor}.{v.Build}");
+        UpdateClickHistoryLabels();
+        ScheduleSave();
     }
 
-    private void UpdateLastCheckedLabel(string isoUtc)
+    private void UpdateClickHistoryLabels()
     {
-        if (string.IsNullOrEmpty(isoUtc))
-        {
-            AboutLastCheckedText.Text = string.Format(CultureInfo.CurrentCulture, Loc.Get("Str.About.LastChecked"), "-");
-            return;
-        }
-        if (DateTime.TryParse(isoUtc, CultureInfo.InvariantCulture,
-                DateTimeStyles.RoundtripKind, out var dt))
-        {
-            AboutLastCheckedText.Text = string.Format(
-                CultureInfo.CurrentCulture,
-                Loc.Get("Str.About.LastChecked"),
-                dt.ToLocalTime().ToString("yyyy-MM-dd HH:mm", CultureInfo.CurrentCulture));
-        }
-        else
-        {
-            AboutLastCheckedText.Text = string.Format(CultureInfo.CurrentCulture, Loc.Get("Str.About.LastChecked"), isoUtc);
-        }
-    }
-
-    private void UpdateTrailValueLabels()
-    {
-        // XAML ロード中、Slider の Maximum/Minimum 設定が ValueChanged を発火するが
-        // この時点では後続の TextBlock がまだ生成されていない可能性があるため、個別に null チェックする。
-        if (TxtTrailThickness is not null && SldTrailThickness is not null)
-            TxtTrailThickness.Text = $"{SldTrailThickness.Value:0} dp";
-        if (TxtTrailDuration is not null && SldTrailDuration is not null)
-            TxtTrailDuration.Text = $"{SldTrailDuration.Value:0} ms";
-        if (TxtTrailOpacity is not null && SldTrailOpacity is not null)
-            TxtTrailOpacity.Text = $"{SldTrailOpacity.Value:0.00}";
-    }
-
-    private void OnTrailThicknessChanged(object sender, RoutedPropertyChangedEventArgs<double> e) => UpdateTrailValueLabels();
-    private void OnTrailDurationChanged(object sender, RoutedPropertyChangedEventArgs<double> e) => UpdateTrailValueLabels();
-    private void OnTrailOpacityChanged(object sender, RoutedPropertyChangedEventArgs<double> e) => UpdateTrailValueLabels();
-
-    private void OnTrailExpandChecked(object sender, RoutedEventArgs e)
-    {
-        PnlTrailDetails.Visibility = Visibility.Visible;
-        TxtTrailExpandIcon.Text = ""; // ChevronUp
-    }
-
-    private void OnTrailExpandUnchecked(object sender, RoutedEventArgs e)
-    {
-        PnlTrailDetails.Visibility = Visibility.Collapsed;
-        TxtTrailExpandIcon.Text = ""; // ChevronDown
-    }
-
-    private void LoadShortcutUI(ActionShortcut shortcut, string tag,
-        CheckBox chkMouseEnabled, System.Windows.Controls.Panel pnlMouse,
-        CheckBox chkCtrl, CheckBox chkAlt, CheckBox chkShift, CheckBox chkWin, ComboBox cmbBtn,
-        CheckBox chkKeyboardEnabled, System.Windows.Controls.Panel pnlKeyboard)
-    {
-        bool mouseOn    = shortcut.EnabledTriggers.HasFlag(TriggerType.Mouse);
-        bool keyboardOn = shortcut.EnabledTriggers.HasFlag(TriggerType.Keyboard);
-
-        chkMouseEnabled.IsChecked = mouseOn;
-        pnlMouse.Visibility = mouseOn ? Visibility.Visible : Visibility.Collapsed;
-        chkCtrl.IsChecked = shortcut.Modifiers.HasFlag(ModifierKeyFlags.Control);
-        chkAlt.IsChecked = shortcut.Modifiers.HasFlag(ModifierKeyFlags.Alt);
-        chkShift.IsChecked = shortcut.Modifiers.HasFlag(ModifierKeyFlags.Shift);
-        chkWin.IsChecked = shortcut.Modifiers.HasFlag(ModifierKeyFlags.Windows);
-        // 旧 settings.json 互換: 現在値が WheelUp/WheelDown のときだけ動的に選択肢を拡張する
-        var options = BuildButtonOptions(shortcut.MouseButton);
-        cmbBtn.ItemsSource = options;
-        cmbBtn.SelectedItem = FindButtonOptionIn(options, shortcut.MouseButton);
-
-        chkKeyboardEnabled.IsChecked = keyboardOn;
-        pnlKeyboard.Visibility = keyboardOn ? Visibility.Visible : Visibility.Collapsed;
-
-        // キーボードラベル用 slot は InitKeyboardSlots で初期化済み
-        var slot = _keyboardSlots[tag];
-        slot.VirtualKeyCode = shortcut.VirtualKeyCode;
-        slot.RefreshLabel();
-    }
-
-    /// <summary>修飾キー連打トリガー（Pro 3 種）の UI を反映する。</summary>
-    private static void LoadGestureUI(ActionShortcut shortcut,
-        CheckBox chkGestureEnabled, System.Windows.Controls.Panel pnlGesture, ComboBox cmbGesture)
-    {
-        bool gestureOn = shortcut.EnabledTriggers.HasFlag(TriggerType.ModifierSequence);
-        chkGestureEnabled.IsChecked = gestureOn;
-        pnlGesture.Visibility = gestureOn ? Visibility.Visible : Visibility.Collapsed;
-        var g = shortcut.ModifierGesture == ModifierGesture.None ? ModifierGesture.CtrlDoubleTap : shortcut.ModifierGesture;
-        cmbGesture.SelectedItem = FindGestureOption(g);
-    }
-
-    private void OnClickHistoryDepthChanged(object sender, RoutedPropertyChangedEventArgs<double> e) => UpdateClickHistoryDepthLabel();
-
-    private void OnClickHistoryMarkerOpacityChanged(object sender, RoutedPropertyChangedEventArgs<double> e) =>
-        UpdateClickHistoryMarkerOpacityLabel();
-
-    private void UpdateClickHistoryMarkerOpacityLabel()
-    {
+        if (TxtClickHistoryDepth is not null && SldClickHistoryDepth is not null)
+            TxtClickHistoryDepth.Text = $"{SldClickHistoryDepth.Value:0}";
         if (TxtClickHistoryMarkerOpacity is not null && SldClickHistoryMarkerOpacity is not null)
             TxtClickHistoryMarkerOpacity.Text = $"{SldClickHistoryMarkerOpacity.Value:P0}";
     }
 
-    private void UpdateClickHistoryDepthLabel()
+    // ==== 全般 ====
+
+    private void OnThemeChecked(object sender, RoutedEventArgs e)
     {
-        if (TxtClickHistoryDepth is not null && SldClickHistoryDepth is not null)
-            TxtClickHistoryDepth.Text = $"{SldClickHistoryDepth.Value:0}";
+        if (!_initialized) return;
+        ThemeManager.Apply(ThemeDark.IsChecked == true ? UiTheme.Dark : UiTheme.Light);
+        ScheduleSave();
     }
 
-    private void OnTriggerEnabledChanged(object sender, RoutedEventArgs e)
+    /// <summary>利用者が押した言語（保存前）。null なら保存値（Auto を含む）を変えない。</summary>
+    private UiLanguage? _pendingLanguage;
+
+    private void OnLanguageChecked(object sender, RoutedEventArgs e)
     {
-        if (PnlSaveMouse is null) return;
-
-        UpdateTriggerPanel(ChkSaveMouseEnabled, PnlSaveMouse);
-        UpdateTriggerPanel(ChkSaveKeyboardEnabled, PnlSaveKeyboard);
-        UpdateTriggerPanel(ChkNavMouseEnabled, PnlNavMouse);
-        UpdateTriggerPanel(ChkNavKeyboardEnabled, PnlNavKeyboard);
-        UpdateTriggerPanel(ChkMonNavMouseEnabled, PnlMonNavMouse);
-        UpdateTriggerPanel(ChkMonNavKeyboardEnabled, PnlMonNavKeyboard);
-        UpdateTriggerPanel(ChkDispMouseEnabled, PnlDispMouse);
-        UpdateTriggerPanel(ChkDispKeyboardEnabled, PnlDispKeyboard);
-        UpdateTriggerPanel(ChkSaveBMouseEnabled, PnlSaveBMouse);
-        UpdateTriggerPanel(ChkSaveBKeyboardEnabled, PnlSaveBKeyboard);
-        UpdateTriggerPanel(ChkNavBMouseEnabled, PnlNavBMouse);
-        UpdateTriggerPanel(ChkNavBKeyboardEnabled, PnlNavBKeyboard);
-
-        // Pro 追加機能（マウス / キーボード / 連打）
-        UpdateTriggerPanel(ChkResetMouseEnabled, PnlResetMouse);
-        UpdateTriggerPanel(ChkResetKeyboardEnabled, PnlResetKeyboard);
-        UpdateTriggerPanel(ChkResetGestureEnabled, PnlResetGesture);
-        UpdateTriggerPanel(ChkActWinMouseEnabled, PnlActWinMouse);
-        UpdateTriggerPanel(ChkActWinKeyboardEnabled, PnlActWinKeyboard);
-        UpdateTriggerPanel(ChkActWinGestureEnabled, PnlActWinGesture);
-        UpdateTriggerPanel(ChkClkBackMouseEnabled, PnlClkBackMouse);
-        UpdateTriggerPanel(ChkClkBackKeyboardEnabled, PnlClkBackKeyboard);
-        UpdateTriggerPanel(ChkClkBackGestureEnabled, PnlClkBackGesture);
-    }
-
-    private static void UpdateTriggerPanel(CheckBox chk, System.Windows.Controls.Panel pnl)
-    {
-        pnl.Visibility = chk.IsChecked == true ? Visibility.Visible : Visibility.Collapsed;
-    }
-
-    // ==== ページ切替 ====
-    private void OnTabSettingsChecked(object sender, RoutedEventArgs e)
-    {
-        if (PageSettings is null) return;
-        PageSettings.Visibility = Visibility.Visible;
-        PageUsage.Visibility = Visibility.Collapsed;
-        if (PageAbout is not null) PageAbout.Visibility = Visibility.Collapsed;
-        if (PageLicense is not null) PageLicense.Visibility = Visibility.Collapsed;
-    }
-
-    private void OnTabUsageChecked(object sender, RoutedEventArgs e)
-    {
-        if (PageSettings is null) return;
-        PageSettings.Visibility = Visibility.Collapsed;
-        PageUsage.Visibility = Visibility.Visible;
-        if (PageAbout is not null) PageAbout.Visibility = Visibility.Collapsed;
-        if (PageLicense is not null) PageLicense.Visibility = Visibility.Collapsed;
-    }
-
-    private void OnTabAboutChecked(object sender, RoutedEventArgs e)
-    {
-        if (PageSettings is null || PageAbout is null) return;
-        PageSettings.Visibility = Visibility.Collapsed;
-        PageUsage.Visibility = Visibility.Collapsed;
-        PageAbout.Visibility = Visibility.Visible;
-        if (PageLicense is not null) PageLicense.Visibility = Visibility.Collapsed;
-    }
-
-    private void OnTabLicenseChecked(object sender, RoutedEventArgs e)
-    {
-        if (PageSettings is null || PageLicense is null) return;
-        PageSettings.Visibility = Visibility.Collapsed;
-        PageUsage.Visibility = Visibility.Collapsed;
-        if (PageAbout is not null) PageAbout.Visibility = Visibility.Collapsed;
-        PageLicense.Visibility = Visibility.Visible;
+        if (!_initialized) return;
+        var language = LangEn.IsChecked == true ? UiLanguage.English : UiLanguage.Japanese;
+        _pendingLanguage = language;
+        LocalizationManager.Apply(language);
+        ScheduleSave();
     }
 
     private void UpdateLicenseUI()
@@ -631,64 +538,35 @@ public partial class SettingsWindow : Window
         bool isPro = _licenseService?.IsPro ?? false;
         var status = _licenseService?.Status ?? LicenseStatus.NotEntered;
 
-        // ステータステキスト
-        if (LicenseStatusText is not null)
+        LicenseStatusText.Text = status switch
         {
-            LicenseStatusText.Text = status switch
-            {
-                LicenseStatus.Valid => Loc.Get("Str.License.StatusPro"),
-                LicenseStatus.Invalid => Loc.Get("Str.License.StatusInvalid"),
-                _ => Loc.Get("Str.License.StatusFree"),
-            };
-        }
-        if (LicenseFreeLimitsText is not null)
-        {
-            LicenseFreeLimitsText.Text = string.Format(
-                CultureInfo.CurrentCulture,
-                Loc.Get("Str.License.FreeLimits"),
-                LicenseService.FreeMaxCoordinates);
-            LicenseFreeLimitsText.Visibility = isPro ? Visibility.Collapsed : Visibility.Visible;
-        }
-        if (LicenseKeyInput is not null)
-        {
+            LicenseStatus.Valid => Loc.Get("Str.License.StatusPro"),
+            LicenseStatus.Invalid => Loc.Get("Str.License.StatusInvalid"),
+            _ => Loc.Get("Str.License.StatusFree"),
+        };
+        LicenseFreeLimitsText.Text = string.Format(CultureInfo.CurrentCulture, Loc.Get("Str.License.FreeLimits"), LicenseService.FreeMaxCoordinates);
+        LicenseFreeLimitsText.Visibility = isPro ? Visibility.Collapsed : Visibility.Visible;
+        if (string.IsNullOrEmpty(LicenseKeyInput.Text))
             LicenseKeyInput.Text = _settingsService.Current.LicenseKey ?? "";
-        }
 
-        // Set B PRO バッジ
-        if (SetBProBadge is not null)
-            SetBProBadge.Visibility = isPro ? Visibility.Collapsed : Visibility.Visible;
-        if (SetBProLockedNotice is not null)
-            SetBProLockedNotice.Visibility = isPro ? Visibility.Collapsed : Visibility.Visible;
+        NavEditionText.Text = Loc.Get(isPro ? "Str.Edition.Pro" : "Str.Edition.Free");
+        NavEditionSub.Text = Loc.Get(isPro ? "Str.Nav.EditionProSub" : "Str.Nav.EditionFreeSub");
 
-        // Pro 追加機能 PRO バッジ
-        if (ProFeaturesProBadge is not null)
-            ProFeaturesProBadge.Visibility = isPro ? Visibility.Collapsed : Visibility.Visible;
-
-        // Pro 未適用時は Pro 限定カード（Set B・追加機能 3 種）を操作不可にし、薄いグレーで表示する。
-        // IsEnabled=false で配下のトグル/コンボ/スライダーを一括で動かせなくし、
-        // Opacity を下げて「ロックされている」ことを視覚的に明示する。
-        foreach (var card in new[] { CardSaveB, CardNavB, CardReset, CardActWin, CardClkBack })
-        {
-            if (card is null) continue;
-            card.IsEnabled = isPro;
-            card.Opacity = isPro ? 1.0 : 0.45;
-        }
+        // Pro 限定の行（2 つ目のリスト・追加の操作）は Free では PRO の印を出して押せなくする（v1.9.1 の仕様を引き継ぐ）
+        foreach (var row in new[] { RowSaveB, RowNavB, RowReset, RowActWin, RowClkBack })
+            row.IsLocked = !isPro;
     }
 
     private void OnLicenseApplyClick(object sender, RoutedEventArgs e)
     {
         if (_licenseService is null) return;
-        string input = LicenseKeyInput?.Text ?? "";
-        var result = _licenseService.Apply(input);
-        if (LicenseApplyResultText is not null)
+        var result = _licenseService.Apply(LicenseKeyInput.Text ?? "");
+        LicenseApplyResultText.Text = result switch
         {
-            LicenseApplyResultText.Text = result switch
-            {
-                LicenseStatus.Valid => Loc.Get("Str.License.StatusValidApplied"),
-                LicenseStatus.Invalid => Loc.Get("Str.License.StatusInvalid"),
-                _ => Loc.Get("Str.License.StatusFree"),
-            };
-        }
+            LicenseStatus.Valid => Loc.Get("Str.License.StatusValidApplied"),
+            LicenseStatus.Invalid => Loc.Get("Str.License.StatusInvalid"),
+            _ => Loc.Get("Str.License.StatusFree"),
+        };
         UpdateLicenseUI();
     }
 
@@ -703,8 +581,7 @@ public partial class SettingsWindow : Window
 
             if (status == UpdateCheckStatus.UpdateAvailable && info != null)
             {
-                var dlg = new UpdateDialog(_updateService, info);
-                dlg.ShowDialog();
+                new UpdateDialog(_updateService, info).ShowDialog();
                 return;
             }
 
@@ -728,10 +605,7 @@ public partial class SettingsWindow : Window
         try
         {
             var path = DebugLog.LogFilePath;
-            if (!System.IO.File.Exists(path))
-            {
-                System.IO.File.WriteAllText(path, "");
-            }
+            if (!System.IO.File.Exists(path)) System.IO.File.WriteAllText(path, "");
             Process.Start(new ProcessStartInfo("notepad.exe", $"\"{path}\"") { UseShellExecute = true });
         }
         catch (Exception ex)
@@ -745,8 +619,7 @@ public partial class SettingsWindow : Window
         try
         {
             var folder = System.IO.Path.GetDirectoryName(DebugLog.LogFilePath) ?? "";
-            if (!System.IO.Directory.Exists(folder))
-                System.IO.Directory.CreateDirectory(folder);
+            if (!System.IO.Directory.Exists(folder)) System.IO.Directory.CreateDirectory(folder);
             Process.Start(new ProcessStartInfo("explorer.exe", folder) { UseShellExecute = true });
         }
         catch (Exception ex)
@@ -767,459 +640,4 @@ public partial class SettingsWindow : Window
             DebugLog.Write($"OnHyperlinkRequestNavigate failed: {ex.GetType().Name}: {ex.Message}");
         }
     }
-
-    // ==== テーマ切替 ====
-    private void OnThemeLightChecked(object sender, RoutedEventArgs e)
-    {
-        if (!_initialized) return;
-        _currentTheme = UiTheme.Light;
-        ThemeManager.Apply(UiTheme.Light);
-    }
-
-    private void OnThemeDarkChecked(object sender, RoutedEventArgs e)
-    {
-        if (!_initialized) return;
-        _currentTheme = UiTheme.Dark;
-        ThemeManager.Apply(UiTheme.Dark);
-    }
-
-    // ==== 言語切替 ====
-    private void OnLangJaChecked(object sender, RoutedEventArgs e)
-    {
-        if (!_initialized) return;
-        _currentLanguage = UiLanguage.Japanese;
-        LocalizationManager.Apply(UiLanguage.Japanese);
-    }
-
-    private void OnLangEnChecked(object sender, RoutedEventArgs e)
-    {
-        if (!_initialized) return;
-        _currentLanguage = UiLanguage.English;
-        LocalizationManager.Apply(UiLanguage.English);
-    }
-
-    private void OnSaveClick(object sender, RoutedEventArgs e)
-    {
-        var saveShortcut = ReadShortcutUI(
-            ChkSaveMouseEnabled, ChkSaveCtrl, ChkSaveAlt, ChkSaveShift, ChkSaveWin, CmbSaveBtn,
-            ChkSaveKeyboardEnabled, _keyboardSlots["Save"].VirtualKeyCode);
-        var navShortcut = ReadShortcutUI(
-            ChkNavMouseEnabled, ChkNavCtrl, ChkNavAlt, ChkNavShift, ChkNavWin, CmbNavBtn,
-            ChkNavKeyboardEnabled, _keyboardSlots["Nav"].VirtualKeyCode);
-        var monNavShortcut = ReadShortcutUI(
-            ChkMonNavMouseEnabled, ChkMonNavCtrl, ChkMonNavAlt, ChkMonNavShift, ChkMonNavWin, CmbMonNavBtn,
-            ChkMonNavKeyboardEnabled, _keyboardSlots["MonNav"].VirtualKeyCode);
-        var dispShortcut = ReadShortcutUI(
-            ChkDispMouseEnabled, ChkDispCtrl, ChkDispAlt, ChkDispShift, ChkDispWin, CmbDispBtn,
-            ChkDispKeyboardEnabled, _keyboardSlots["Disp"].VirtualKeyCode);
-        var saveBShortcut = ReadShortcutUI(
-            ChkSaveBMouseEnabled, ChkSaveBCtrl, ChkSaveBAlt, ChkSaveBShift, ChkSaveBWin, CmbSaveBBtn,
-            ChkSaveBKeyboardEnabled, _keyboardSlots["SaveB"].VirtualKeyCode);
-        var navBShortcut = ReadShortcutUI(
-            ChkNavBMouseEnabled, ChkNavBCtrl, ChkNavBAlt, ChkNavBShift, ChkNavBWin, CmbNavBBtn,
-            ChkNavBKeyboardEnabled, _keyboardSlots["NavB"].VirtualKeyCode);
-
-        var resetShortcut = ReadProShortcutUI(
-            ChkResetMouseEnabled, ChkResetCtrl, ChkResetAlt, ChkResetShift, ChkResetWin, CmbResetBtn,
-            ChkResetKeyboardEnabled, _keyboardSlots["Reset"].VirtualKeyCode,
-            ChkResetGestureEnabled, CmbResetGesture);
-        var actWinShortcut = ReadProShortcutUI(
-            ChkActWinMouseEnabled, ChkActWinCtrl, ChkActWinAlt, ChkActWinShift, ChkActWinWin, CmbActWinBtn,
-            ChkActWinKeyboardEnabled, _keyboardSlots["ActWin"].VirtualKeyCode,
-            ChkActWinGestureEnabled, CmbActWinGesture);
-        var clkBackShortcut = ReadProShortcutUI(
-            ChkClkBackMouseEnabled, ChkClkBackCtrl, ChkClkBackAlt, ChkClkBackShift, ChkClkBackWin, CmbClkBackBtn,
-            ChkClkBackKeyboardEnabled, _keyboardSlots["ClkBack"].VirtualKeyCode,
-            ChkClkBackGestureEnabled, CmbClkBackGesture);
-
-        if (saveShortcut.EnabledTriggers == TriggerType.None ||
-            navShortcut.EnabledTriggers == TriggerType.None ||
-            dispShortcut.EnabledTriggers == TriggerType.None)
-        {
-            MessageBox.Show(Loc.Get("Str.Settings.Validation.NoTrigger"),
-                Loc.Get("Str.AppName"), MessageBoxButton.OK, MessageBoxImage.Warning);
-            return;
-        }
-
-        // Set B は両方無効（=未使用）も許可。片方だけ有効はOK（保存のみ・移動のみの運用も可能）
-
-        static bool NeedsModifier(ActionShortcut s) =>
-            s.EnabledTriggers.HasFlag(TriggerType.Mouse)
-            && s.Modifiers == ModifierKeyFlags.None
-            && s.MouseButton is not (
-                MouseButtonType.XButton1 or
-                MouseButtonType.XButton2 or
-                MouseButtonType.MiddleLeftChord or
-                MouseButtonType.MiddleRightChord or
-                MouseButtonType.MiddleDoubleClick or
-                MouseButtonType.MiddleTripleClick);
-
-        if (NeedsModifier(saveShortcut) || NeedsModifier(navShortcut) ||
-            NeedsModifier(monNavShortcut) || NeedsModifier(dispShortcut) ||
-            NeedsModifier(saveBShortcut) || NeedsModifier(navBShortcut) ||
-            NeedsModifier(resetShortcut) || NeedsModifier(actWinShortcut) || NeedsModifier(clkBackShortcut))
-        {
-            MessageBox.Show(Loc.Get("Str.Settings.Validation.NoModifier"),
-                Loc.Get("Str.AppName"), MessageBoxButton.OK, MessageBoxImage.Warning);
-            return;
-        }
-
-        // 任意キー（F13-F24 以外）を割り当てた場合は修飾キーを 1 つ以上必須にする。
-        // 修飾キー無しだと通常の文字入力が常にトリガー発火してしまうため。
-        static bool KeyboardNeedsModifier(ActionShortcut s) =>
-            s.EnabledTriggers.HasFlag(TriggerType.Keyboard)
-            && s.VirtualKeyCode != 0
-            && !(s.VirtualKeyCode >= NativeMethods.VK_F13 && s.VirtualKeyCode <= NativeMethods.VK_F24)
-            && s.Modifiers == ModifierKeyFlags.None;
-
-        if (KeyboardNeedsModifier(saveShortcut) || KeyboardNeedsModifier(navShortcut) ||
-            KeyboardNeedsModifier(monNavShortcut) || KeyboardNeedsModifier(dispShortcut) ||
-            KeyboardNeedsModifier(saveBShortcut) || KeyboardNeedsModifier(navBShortcut) ||
-            KeyboardNeedsModifier(resetShortcut) || KeyboardNeedsModifier(actWinShortcut) || KeyboardNeedsModifier(clkBackShortcut))
-        {
-            MessageBox.Show(Loc.Get("Str.Settings.Validation.KeyboardNoModifier"),
-                Loc.Get("Str.AppName"), MessageBoxButton.OK, MessageBoxImage.Warning);
-            return;
-        }
-
-        var actions = new (string NameKey, ActionShortcut Shortcut)[]
-        {
-            ("Str.Settings.Action.Save", saveShortcut),
-            ("Str.Settings.Action.NavigateAll", navShortcut),
-            ("Str.Settings.Action.NavigateMonitor", monNavShortcut),
-            ("Str.Settings.Action.Display", dispShortcut),
-            ("Str.Settings.Action.SaveB", saveBShortcut),
-            ("Str.Settings.Action.NavigateB", navBShortcut),
-            ("Str.Settings.Action.ResetCycle", resetShortcut),
-            ("Str.Settings.Action.ActiveWindowJump", actWinShortcut),
-            ("Str.Settings.Action.ClickHistoryBack", clkBackShortcut),
-        };
-        for (int i = 0; i < actions.Length; i++)
-        {
-            for (int j = i + 1; j < actions.Length; j++)
-            {
-                var (mouseDup, keyboardDup, gestureDup) = DetectShortcutConflict(actions[i].Shortcut, actions[j].Shortcut);
-                if (!mouseDup && !keyboardDup && !gestureDup) continue;
-                var kindParts = new List<string>();
-                if (mouseDup) kindParts.Add(Loc.Get("Str.Settings.Validation.ConflictKind.Mouse"));
-                if (keyboardDup) kindParts.Add(Loc.Get("Str.Settings.Validation.ConflictKind.Keyboard"));
-                if (gestureDup) kindParts.Add(Loc.Get("Str.Settings.Validation.ConflictKind.Gesture"));
-                string kind = string.Join(" / ", kindParts);
-                MessageBox.Show(
-                    string.Format(
-                        Loc.Get("Str.Settings.Validation.ConflictFormat"),
-                        Loc.Get(actions[i].NameKey),
-                        Loc.Get(actions[j].NameKey),
-                        kind),
-                    Loc.Get("Str.AppName"), MessageBoxButton.OK, MessageBoxImage.Warning);
-                return;
-            }
-        }
-
-        var settings = new AppSettings
-        {
-            SaveShortcut = saveShortcut,
-            NavigateShortcut = navShortcut,
-            NavigateCurrentMonitorShortcut = monNavShortcut,
-            DisplayDeleteShortcut = dispShortcut,
-            SaveShortcutB = saveBShortcut,
-            NavigateShortcutB = navBShortcut,
-            ResetCycleShortcut = resetShortcut,
-            ActiveWindowJumpShortcut = actWinShortcut,
-            ClickHistoryBackShortcut = clkBackShortcut,
-            ClickHistoryDepth = (int)Math.Round(SldClickHistoryDepth.Value),
-            ClickHistoryMarkersEnabled = ChkClickHistoryMarkersEnabled.IsChecked == true,
-            ClickHistoryMarkerColor = _clickHistoryMarkerColor,
-            ClickHistoryMarkerOpacity = SldClickHistoryMarkerOpacity.Value,
-            SaveCircleColor  = _saveColor,
-            SaveCircleColorB = _saveColorB,
-            TrailColor       = _trailColor,
-            TrailColorB      = _trailColorB,
-            MarkerColor      = _markerColor,
-            MarkerColorB     = _markerColorB,
-            SaveEffectEnabled = ChkSaveEffectEnabled.IsChecked == true,
-            TrailEffectEnabled = ChkTrailEffectEnabled.IsChecked == true,
-            MarkerEffectEnabled = ChkMarkerEffectEnabled.IsChecked == true,
-            ShowDeleteModeHelp = ChkShowDeleteModeHelp.IsChecked == true,
-            TrailThickness = SldTrailThickness.Value,
-            TrailDurationMs = (int)Math.Round(SldTrailDuration.Value),
-            TrailOpacity = SldTrailOpacity.Value,
-            // ジャンプ後にカーソル直下ウィンドウをアクティブ化
-            ActivateWindowUnderCursorOnJump = ChkActivateWindowOnJump.IsChecked == true,
-            // 永続化された座標は SettingsService.Current 側を維持（OnSaveClick で上書きされないように）
-            SavedCoordinatesA = _settingsService.Current.SavedCoordinatesA,
-            SavedCoordinatesB = _settingsService.Current.SavedCoordinatesB,
-            UiTheme = _currentTheme,
-            UiLanguage = _currentLanguage,
-            // 自動更新（情報タブのトグル）。LastUpdateCheckUtc / SkippedVersion は
-            // UpdateService が書き込む内部状態なので Current から維持する。
-            AutoUpdateEnabled = AutoUpdateToggle.IsChecked == true,
-            LastUpdateCheckUtc = _settingsService.Current.LastUpdateCheckUtc,
-            SkippedVersion = _settingsService.Current.SkippedVersion,
-            // ライセンスキーは LicenseService.Apply 経由で書き込まれる。設定保存時は現在値を維持して上書きしない。
-            LicenseKey = _settingsService.Current.LicenseKey,
-            // 診断ログ
-            VerboseLogging = VerboseLoggingToggle.IsChecked == true,
-            // 自動起動（情報タブのトグル）
-            AutoStartEnabled = AutoStartToggle.IsChecked == true,
-            // バグ1 回避経路の切替は UI 露出していないので Current から維持
-            // UseSendInputForJump は v1.5.0 時代の非推奨フィールド (後方互換のため保持)
-            UseSendInputForJump = _settingsService.Current.UseSendInputForJump,
-            JumpStrategy = _settingsService.Current.JumpStrategy,
-        };
-
-        if (!_settingsService.Save(settings))
-        {
-            MessageBox.Show(
-                Loc.Get("Str.MessageBox.SettingsSaveFailed"),
-                Loc.Get("Str.AppName"),
-                MessageBoxButton.OK,
-                MessageBoxImage.Error);
-            return;
-        }
-        // 自動起動のレジストリ反映（失敗してもユーザ操作はブロックしない）
-        StartupService.ApplyAutoStart(settings.AutoStartEnabled);
-        DialogResult = true;
-        Close();
-    }
-
-    private void OnCancelClick(object sender, RoutedEventArgs e)
-    {
-        // キャンセル時はテーマ・言語を元に戻す
-        ThemeManager.Apply(_settingsService.Current.UiTheme);
-        LocalizationManager.Apply(_settingsService.Current.UiLanguage);
-        DialogResult = false;
-        Close();
-    }
-
-    private void OnColorRectangleClick(object sender, MouseButtonEventArgs e)
-    {
-        if (sender is not Shape shape) return;
-
-        string currentHex;
-        if      (shape == RectSaveColor)    currentHex = _saveColor;
-        else if (shape == RectSaveColorB)   currentHex = _saveColorB;
-        else if (shape == RectTrailColor)   currentHex = _trailColor;
-        else if (shape == RectTrailColorB)  currentHex = _trailColorB;
-        else if (shape == RectMarkerColor)  currentHex = _markerColor;
-        else if (shape == RectMarkerColorB) currentHex = _markerColorB;
-        else if (shape == RectClickHistoryMarkerColor) currentHex = _clickHistoryMarkerColor;
-        else return;
-
-        using var dialog = new System.Windows.Forms.ColorDialog();
-        dialog.FullOpen = true;
-
-        try
-        {
-            var wpfColor = (Color)ColorConverter.ConvertFromString(currentHex);
-            dialog.Color = System.Drawing.Color.FromArgb(wpfColor.R, wpfColor.G, wpfColor.B);
-        }
-        catch { }
-
-        if (dialog.ShowDialog() == System.Windows.Forms.DialogResult.OK)
-        {
-            var selected = dialog.Color;
-            string hex = $"#{selected.R:X2}{selected.G:X2}{selected.B:X2}";
-
-            if      (shape == RectSaveColor)    { _saveColor   = hex; TxtSaveColorHex.Text   = hex; }
-            else if (shape == RectSaveColorB)   { _saveColorB  = hex; TxtSaveColorBHex.Text  = hex; }
-            else if (shape == RectTrailColor)   { _trailColor  = hex; TxtTrailColorHex.Text  = hex; }
-            else if (shape == RectTrailColorB)  { _trailColorB = hex; TxtTrailColorBHex.Text = hex; }
-            else if (shape == RectMarkerColor)  { _markerColor  = hex; TxtMarkerColorHex.Text  = hex; }
-            else if (shape == RectMarkerColorB) { _markerColorB = hex; TxtMarkerColorBHex.Text = hex; }
-            else if (shape == RectClickHistoryMarkerColor) { _clickHistoryMarkerColor = hex; TxtClickHistoryMarkerColorHex.Text = hex; }
-
-            shape.Fill = new SolidColorBrush(Color.FromRgb(selected.R, selected.G, selected.B));
-        }
-    }
-
-    private static void SetSwatchColor(Shape shape, string hex)
-    {
-        try
-        {
-            var converted = ColorConverter.ConvertFromString(hex);
-            if (converted is Color c)
-            {
-                shape.Fill = new SolidColorBrush(c);
-                return;
-            }
-        }
-        catch { }
-        shape.Fill = Brushes.Transparent;
-    }
-
-    private static ActionShortcut ReadShortcutUI(
-        CheckBox chkMouseEnabled,
-        CheckBox chkCtrl, CheckBox chkAlt, CheckBox chkShift, CheckBox chkWin, ComboBox cmbBtn,
-        CheckBox chkKeyboardEnabled, int virtualKeyCode)
-    {
-        var triggers = TriggerType.None;
-        if (chkMouseEnabled.IsChecked == true) triggers |= TriggerType.Mouse;
-        if (chkKeyboardEnabled.IsChecked == true) triggers |= TriggerType.Keyboard;
-
-        var mod = ModifierKeyFlags.None;
-        if (chkCtrl.IsChecked == true) mod |= ModifierKeyFlags.Control;
-        if (chkAlt.IsChecked == true) mod |= ModifierKeyFlags.Alt;
-        if (chkShift.IsChecked == true) mod |= ModifierKeyFlags.Shift;
-        if (chkWin.IsChecked == true) mod |= ModifierKeyFlags.Windows;
-
-        return new ActionShortcut
-        {
-            EnabledTriggers = triggers,
-            Modifiers = mod,
-            MouseButton = (cmbBtn.SelectedItem as ButtonOption)?.Value ?? MouseButtonType.Left,
-            VirtualKeyCode = virtualKeyCode
-        };
-    }
-
-    /// <summary>Pro 追加機能（v1.9.0+）。マウス/キーボードに加えて連打ジェスチャトリガーも読み取る。</summary>
-    private static ActionShortcut ReadProShortcutUI(
-        CheckBox chkMouseEnabled,
-        CheckBox chkCtrl, CheckBox chkAlt, CheckBox chkShift, CheckBox chkWin, ComboBox cmbBtn,
-        CheckBox chkKeyboardEnabled, int virtualKeyCode,
-        CheckBox chkGestureEnabled, ComboBox cmbGesture)
-    {
-        var sc = ReadShortcutUI(chkMouseEnabled, chkCtrl, chkAlt, chkShift, chkWin, cmbBtn,
-            chkKeyboardEnabled, virtualKeyCode);
-        var gesture = (cmbGesture.SelectedItem as GestureOption)?.Value ?? ModifierGesture.None;
-        if (chkGestureEnabled.IsChecked == true && gesture != ModifierGesture.None)
-        {
-            sc.EnabledTriggers |= TriggerType.ModifierSequence;
-            sc.ModifierGesture = gesture;
-        }
-        else
-        {
-            // トグル OFF でも選択中のジェスチャ値は保持する（再 ON 時の利便性）。
-            sc.ModifierGesture = gesture;
-        }
-        return sc;
-    }
-
-    private static (bool mouse, bool keyboard, bool gesture) DetectShortcutConflict(ActionShortcut a, ActionShortcut b)
-    {
-        bool mouseDup =
-            a.EnabledTriggers.HasFlag(TriggerType.Mouse) && b.EnabledTriggers.HasFlag(TriggerType.Mouse)
-            && a.Modifiers == b.Modifiers && a.MouseButton == b.MouseButton;
-
-        bool keyboardDup =
-            a.EnabledTriggers.HasFlag(TriggerType.Keyboard) && b.EnabledTriggers.HasFlag(TriggerType.Keyboard)
-            && a.VirtualKeyCode == b.VirtualKeyCode;
-
-        bool gestureDup =
-            a.EnabledTriggers.HasFlag(TriggerType.ModifierSequence) && b.EnabledTriggers.HasFlag(TriggerType.ModifierSequence)
-            && a.ModifierGesture != ModifierGesture.None && a.ModifierGesture == b.ModifierGesture;
-
-        return (mouseDup, keyboardDup, gestureDup);
-    }
-
-    private static ButtonOption FindButtonOption(MouseButtonType type) =>
-        FindButtonOptionIn(DefaultButtonOptions, type);
-
-    private static ButtonOption FindButtonOptionIn(ButtonOption[] options, MouseButtonType type)
-    {
-        foreach (var opt in options)
-        {
-            if (opt.Value == type) return opt;
-        }
-        return options[0];
-    }
-
-    // ===== キー記録 UI ハンドラ =====
-
-    private void OnRecordKeyClick(object sender, RoutedEventArgs e)
-    {
-        if (sender is not Button btn) return;
-        if (btn.Tag is not string tag) return;
-        if (!_keyboardSlots.TryGetValue(tag, out var slot)) return;
-
-        // 別スロットの記録が走っていれば先にキャンセル
-        if (_recordingTarget is not null && _recordingTarget != tag)
-            EndRecording();
-
-        if (_recordingTarget == tag)
-        {
-            // 同じボタンの再クリックでキャンセル
-            EndRecording();
-            return;
-        }
-
-        _recordingTarget = tag;
-        slot.OriginalRecordButtonText = btn.Content?.ToString() ?? string.Empty;
-        btn.Content = Loc.Get("Str.Settings.RecordKeyWaiting");
-        PreviewKeyDown += OnRecordingKeyDown;
-        Focus();
-    }
-
-    private void OnClearKeyClick(object sender, RoutedEventArgs e)
-    {
-        if (sender is not Button btn) return;
-        if (btn.Tag is not string tag) return;
-        if (!_keyboardSlots.TryGetValue(tag, out var slot)) return;
-
-        // 記録中ならキャンセル
-        if (_recordingTarget == tag) EndRecording();
-
-        slot.VirtualKeyCode = 0;
-        slot.RefreshLabel();
-    }
-
-    private void OnRecordingKeyDown(object sender, KeyEventArgs e)
-    {
-        if (_recordingTarget is null) return;
-        if (!_keyboardSlots.TryGetValue(_recordingTarget, out var slot)) return;
-
-        // Alt 押下時は e.Key が Key.System、e.SystemKey に実キーが入る
-        var actualKey = e.Key == Key.System ? e.SystemKey : e.Key;
-        int vk = KeyInterop.VirtualKeyFromKey(actualKey);
-        e.Handled = true;
-
-        // 修飾キー単独は無視（修飾キーだけ押された状態 — 続けて本キーを待つ）
-        if (IsModifierVk(vk)) return;
-
-        // ESC でキャンセル
-        if (vk == NativeMethods.VK_ESCAPE)
-        {
-            EndRecording();
-            return;
-        }
-
-        slot.VirtualKeyCode = vk;
-
-        // 修飾キー状態を読み取って checkbox に反映
-        var mods = ModifierKeyFlags.None;
-        if ((Keyboard.Modifiers & ModifierKeys.Control) != 0) mods |= ModifierKeyFlags.Control;
-        if ((Keyboard.Modifiers & ModifierKeys.Alt)     != 0) mods |= ModifierKeyFlags.Alt;
-        if ((Keyboard.Modifiers & ModifierKeys.Shift)   != 0) mods |= ModifierKeyFlags.Shift;
-        // Win キーは WPF Keyboard.Modifiers に乗らないことが多いので GetAsyncKeyState で補完
-        if ((NativeMethods.GetAsyncKeyState(NativeMethods.VK_LWIN) & 0x8000) != 0
-            || (NativeMethods.GetAsyncKeyState(NativeMethods.VK_RWIN) & 0x8000) != 0)
-            mods |= ModifierKeyFlags.Windows;
-        slot.SetModifiers(mods);
-
-        // キーボード有効化を自動 ON（パネルが見えていなければここで開く）
-        slot.ChkKeyboardEnabled.IsChecked = true;
-        OnTriggerEnabledChanged(slot.ChkKeyboardEnabled, new RoutedEventArgs());
-
-        slot.RefreshLabel();
-        EndRecording();
-    }
-
-    private void EndRecording()
-    {
-        PreviewKeyDown -= OnRecordingKeyDown;
-        if (_recordingTarget is not null
-            && _keyboardSlots.TryGetValue(_recordingTarget, out var slot))
-        {
-            slot.RecordButton.Content = string.IsNullOrEmpty(slot.OriginalRecordButtonText)
-                ? Loc.Get("Str.Settings.RecordKey")
-                : slot.OriginalRecordButtonText;
-        }
-        _recordingTarget = null;
-    }
-
-    private static bool IsModifierVk(int vk) =>
-        vk == NativeMethods.VK_LCONTROL || vk == NativeMethods.VK_RCONTROL || vk == NativeMethods.VK_CONTROL ||
-        vk == NativeMethods.VK_LMENU    || vk == NativeMethods.VK_RMENU    || vk == NativeMethods.VK_MENU ||
-        vk == NativeMethods.VK_LSHIFT   || vk == NativeMethods.VK_RSHIFT   || vk == NativeMethods.VK_SHIFT ||
-        vk == NativeMethods.VK_LWIN     || vk == NativeMethods.VK_RWIN;
 }

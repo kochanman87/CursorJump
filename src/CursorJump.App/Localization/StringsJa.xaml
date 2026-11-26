@@ -80,7 +80,7 @@
     <sys:String x:Key="Str.Settings.ProFeatures.Description">Pro 版でのみ動作する追加アクションです。各機能はマウス・キーボード・修飾キー連打のいずれでもトリガーできます。</sys:String>
     <sys:String x:Key="Str.Settings.Card.ResetCycle">循環リセット</sys:String>
     <sys:String x:Key="Str.Settings.Card.ResetCycle.Desc">座標の循環を先頭に戻します。次回の移動が 1 番目の座標から始まります（その場では動きません）。Set A / B 両方が対象です。</sys:String>
-    <sys:String x:Key="Str.Settings.Card.ActiveWindowJump">前面ウィンドウ中央へ</sys:String>
+    <sys:String x:Key="Str.Settings.Card.ActiveWindowJump">最前面ウィンドウへ</sys:String>
     <sys:String x:Key="Str.Settings.Card.ActiveWindowJump.Desc">今いちばん手前のウィンドウの中央へカーソルを一発で飛ばします。遠くに出たアプリへの移動に便利です。</sys:String>
     <sys:String x:Key="Str.Settings.Card.ClickHistoryBack">クリック位置に戻る</sys:String>
     <sys:String x:Key="Str.Settings.Card.ClickHistoryBack.Desc">普段の左クリック位置を自動で記録し、直前のクリック位置へカーソルを戻します（エディタの「戻る」に近い動作）。</sys:String>
@@ -138,7 +138,7 @@
     <sys:String x:Key="Str.Settings.Action.SaveB">座標保存（2 つ目）</sys:String>
     <sys:String x:Key="Str.Settings.Action.NavigateB">座標移動（2 つ目）</sys:String>
     <sys:String x:Key="Str.Settings.Action.ResetCycle">循環リセット</sys:String>
-    <sys:String x:Key="Str.Settings.Action.ActiveWindowJump">前面ウィンドウ中央へ</sys:String>
+    <sys:String x:Key="Str.Settings.Action.ActiveWindowJump">最前面ウィンドウへ</sys:String>
     <sys:String x:Key="Str.Settings.Action.ClickHistoryBack">クリック位置に戻る</sys:String>
 
     <!-- マウスボタン名 -->
@@ -216,5 +216,55 @@
     <!-- Set B PRO バッジ -->
     <sys:String x:Key="Str.Settings.SetB.ProBadge">PRO</sys:String>
     <sys:String x:Key="Str.Settings.SetB.ProLocked">この機能は Pro 版でのみ動作します。設定は変更できますが、Free 版ではトリガーは反応しません。</sys:String>
+
+    <!-- v1.12.0 設定画面の作り直し（左ナビ・1 行 1 操作・その場で保存・ヘルプのアニメーション） -->
+    <sys:String x:Key="Str.Nav.Ops">操作</sys:String>
+    <sys:String x:Key="Str.Nav.Look">見た目</sys:String>
+    <sys:String x:Key="Str.Nav.General">全般</sys:String>
+    <sys:String x:Key="Str.Nav.Help">ヘルプ</sys:String>
+    <sys:String x:Key="Str.Nav.EditionProSub">すべての機能が使えます</sys:String>
+    <sys:String x:Key="Str.Nav.EditionFreeSub">保存は 3 か所まで</sys:String>
+    <sys:String x:Key="Str.Ops.Save">位置を保存</sys:String>
+    <sys:String x:Key="Str.Ops.Navigate">保存した位置へ移動</sys:String>
+    <sys:String x:Key="Str.Ops.Display">保存した位置を表示・削除</sys:String>
+    <sys:String x:Key="Str.Ops.NavigateMonitor">このモニタの中だけで移動</sys:String>
+    <sys:String x:Key="Str.Ops.ResetCycle">移動の順番を最初に戻す</sys:String>
+    <sys:String x:Key="Str.Ops.ActiveWindow">最前面ウィンドウへ</sys:String>
+    <sys:String x:Key="Str.Ops.ClickHistoryBack">クリックした所へ戻る</sys:String>
+    <sys:String x:Key="Str.Ops.ClickHistoryMarkers">印を表示</sys:String>
+    <sys:String x:Key="Str.Settings.Off">オフ</sys:String>
+    <sys:String x:Key="Str.Settings.KeyClear">キーを外す</sys:String>
+    <sys:String x:Key="Str.Settings.NotSavedFormat">保存していません: {0}</sys:String>
+    <sys:String x:Key="Str.Look.ListColorA">1 つ目のリストの色</sys:String>
+    <sys:String x:Key="Str.Look.ListColorB">2 つ目のリストの色</sys:String>
+    <sys:String x:Key="Str.Look.ListColorHint">保存の円・移動の線・表示の印のすべてに使います</sys:String>
+    <sys:String x:Key="Str.Look.SaveCircle">保存した時に円を出す</sys:String>
+    <sys:String x:Key="Str.Look.Trail">移動した時に線を出す</sys:String>
+    <sys:String x:Key="Str.Look.TrailDuration">線が消えるまでの時間</sys:String>
+    <sys:String x:Key="Str.Look.SecondsFormat">{0:0.0} 秒</sys:String>
+    <sys:String x:Key="Str.Look.Details">詳細（線の太さ・濃さ、効果ごとの色）</sys:String>
+    <sys:String x:Key="Str.Look.TrailThickness">線の太さ</sys:String>
+    <sys:String x:Key="Str.Look.TrailOpacity">線の濃さ</sys:String>
+    <sys:String x:Key="Str.Look.SaveCircleColor">保存の円の色（1 つ目 / 2 つ目）</sys:String>
+    <sys:String x:Key="Str.Look.TrailColor">移動の線の色（1 つ目 / 2 つ目）</sys:String>
+    <sys:String x:Key="Str.Look.MarkerColor">表示・削除の印の色（1 つ目 / 2 つ目）</sys:String>
+    <sys:String x:Key="Str.Look.Markers">表示・削除の時に印を出す</sys:String>
+    <sys:String x:Key="Str.Look.DeleteHelp">表示・削除の時に操作の説明を出す</sys:String>
+    <sys:String x:Key="Str.General.ActivateWindow">移動した先のウィンドウを前面にする</sys:String>
+    <sys:String x:Key="Str.General.Theme">テーマ</sys:String>
+    <sys:String x:Key="Str.General.Language">言語</sys:String>
+    <sys:String x:Key="Str.General.CheckNow">今すぐ確認</sys:String>
+    <sys:String x:Key="Str.General.License">ライセンス</sys:String>
+    <sys:String x:Key="Str.General.Open">開く ↗</sys:String>
+    <sys:String x:Key="Str.General.Trouble">困った時</sys:String>
+    <sys:String x:Key="Str.Help.CaptionSaveFormat">{0} で、その位置を保存</sys:String>
+    <sys:String x:Key="Str.Help.CaptionNavFormat">{0} で、保存した順に飛ぶ</sys:String>
+    <sys:String x:Key="Str.Help.Tile.WheelTitle">ホイール上 / 下</sys:String>
+    <sys:String x:Key="Str.Help.Tile.WheelBody">前 / 次へ</sys:String>
+    <sys:String x:Key="Str.Help.Tile.DisplayBody">表示・削除</sys:String>
+    <sys:String x:Key="Str.Help.Tile.SetBTitle">2 つ目</sys:String>
+    <sys:String x:Key="Str.Help.Tile.SetBBody">2 つ目のリスト</sys:String>
+    <sys:String x:Key="Str.Help.Tile.MonitorTitle">このモニタだけ</sys:String>
+    <sys:String x:Key="Str.Help.Tile.MonitorBody">設定すると使える</sys:String>
 
 </ResourceDictionary>

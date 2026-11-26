@@ -1,0 +1,84 @@
+<UserControl x:Class="CursorJump.App.Controls.ActionRow"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             FontFamily="{StaticResource UiFont}">
+    <!-- 操作 1 つ分の行。普段は見出し（アイコン・名前・今の割り当て）だけ。押すと下に編集欄が開く -->
+    <Border x:Name="RowBorder" BorderBrush="{DynamicResource BorderSubtleBrush}" BorderThickness="0,1,0,0">
+        <StackPanel>
+            <Button x:Name="HeaderButton" Style="{StaticResource RowHeaderButtonStyle}" Click="OnHeaderClick">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    <Border Width="30" Height="30" CornerRadius="7" Background="{DynamicResource BgInputBrush}" VerticalAlignment="Center">
+                        <TextBlock x:Name="IconGlyph" Style="{StaticResource FluentIcon}" FontSize="15"
+                                   HorizontalAlignment="Center" VerticalAlignment="Center"
+                                   Foreground="{DynamicResource AccentBrush}"/>
+                    </Border>
+                    <TextBlock x:Name="TitleText" Grid.Column="1" FontSize="13" Margin="12,0,8,0"
+                               VerticalAlignment="Center" TextTrimming="CharacterEllipsis"
+                               Foreground="{DynamicResource TextPrimaryBrush}"/>
+                    <Border x:Name="ProBadge" Grid.Column="2" Visibility="Collapsed" CornerRadius="9" Padding="7,1" Margin="0,0,8,0"
+                            BorderBrush="{DynamicResource AccentBrush}" BorderThickness="1" VerticalAlignment="Center">
+                        <TextBlock Text="PRO" FontSize="10" FontWeight="SemiBold" Foreground="{DynamicResource AccentBrush}"/>
+                    </Border>
+                    <StackPanel x:Name="SummaryPanel" Grid.Column="3" Orientation="Horizontal" VerticalAlignment="Center"/>
+                    <TextBlock x:Name="Chevron" Grid.Column="4" Style="{StaticResource FluentIcon}" Text="&#xE76C;" FontSize="11"
+                               Margin="12,0,0,0" VerticalAlignment="Center" RenderTransformOrigin="0.5,0.5"
+                               Foreground="{DynamicResource TextSecondaryBrush}">
+                        <TextBlock.RenderTransform>
+                            <RotateTransform x:Name="ChevronRotate" Angle="0"/>
+                        </TextBlock.RenderTransform>
+                    </TextBlock>
+                </Grid>
+            </Button>
+
+            <!-- 編集欄（1 行に収める。マウス → キーボード → 修飾キー 2 回 → 追加の設定） -->
+            <StackPanel x:Name="Body" Visibility="Collapsed" Margin="56,0,14,14">
+                <StackPanel Orientation="Horizontal" Margin="0,4">
+                    <TextBlock Text="{DynamicResource Str.Settings.MouseButton}" Width="84" VerticalAlignment="Center"
+                               FontSize="12" Foreground="{DynamicResource TextSecondaryBrush}"/>
+                    <CheckBox x:Name="ChkMouse" Style="{StaticResource ToggleSwitchStyle}" VerticalAlignment="Center" Click="OnTriggerToggleClick"/>
+                    <StackPanel x:Name="PnlMouse" Orientation="Horizontal" Margin="12,0,0,0">
+                        <CheckBox x:Name="ChkShift" Style="{StaticResource ModifierChipStyle}" Padding="10,3" Margin="0,0,4,0" Content="Shift" Click="OnPartChanged"/>
+                        <CheckBox x:Name="ChkCtrl"  Style="{StaticResource ModifierChipStyle}" Padding="10,3" Margin="0,0,4,0" Content="Ctrl"  Click="OnPartChanged"/>
+                        <CheckBox x:Name="ChkWin"   Style="{StaticResource ModifierChipStyle}" Padding="10,3" Margin="0,0,4,0" Content="Win"   Click="OnPartChanged"/>
+                        <CheckBox x:Name="ChkAlt"   Style="{StaticResource ModifierChipStyle}" Padding="10,3" Margin="0,0,4,0" Content="Alt"   Click="OnPartChanged"/>
+                        <TextBlock Text="+" Margin="2,0,6,0" VerticalAlignment="Center" Foreground="{DynamicResource TextMutedBrush}"/>
+                        <ComboBox x:Name="CmbButton" Style="{StaticResource ModernComboBoxStyle}" Width="132" SelectionChanged="OnComboChanged"/>
+                    </StackPanel>
+                </StackPanel>
+
+                <StackPanel Orientation="Horizontal" Margin="0,4">
+                    <TextBlock Text="{DynamicResource Str.Settings.KeyboardKey}" Width="84" VerticalAlignment="Center"
+                               FontSize="12" Foreground="{DynamicResource TextSecondaryBrush}"
+                               ToolTip="{DynamicResource Str.Settings.FKeyTooltip}"/>
+                    <CheckBox x:Name="ChkKeyboard" Style="{StaticResource ToggleSwitchStyle}" VerticalAlignment="Center" Click="OnTriggerToggleClick"/>
+                    <StackPanel x:Name="PnlKeyboard" Orientation="Horizontal" Margin="12,0,0,0">
+                        <Border Style="{StaticResource KbdKeyStyle}" MinWidth="110" Padding="8,3" Margin="0,0,6,0">
+                            <TextBlock x:Name="LblKey" FontSize="12" HorizontalAlignment="Center" Foreground="{DynamicResource TextPrimaryBrush}"/>
+                        </Border>
+                        <Button x:Name="BtnRecord" Content="{DynamicResource Str.Settings.RecordKey}" Style="{StaticResource SecondaryButtonStyle}"
+                                Margin="0,0,6,0" Click="OnRecordClick"/>
+                        <Button x:Name="BtnClear" Content="✕" Style="{StaticResource SecondaryButtonStyle}" MinWidth="32" Padding="6,4"
+                                Click="OnClearClick" ToolTip="{DynamicResource Str.Settings.KeyClear}"/>
+                    </StackPanel>
+                </StackPanel>
+
+                <StackPanel x:Name="GestureRow" Orientation="Horizontal" Margin="0,4" Visibility="Collapsed">
+                    <TextBlock Text="{DynamicResource Str.Settings.Trigger.Gesture}" Width="84" VerticalAlignment="Center"
+                               FontSize="12" Foreground="{DynamicResource TextSecondaryBrush}" TextTrimming="CharacterEllipsis"/>
+                    <CheckBox x:Name="ChkGesture" Style="{StaticResource ToggleSwitchStyle}" VerticalAlignment="Center" Click="OnTriggerToggleClick"/>
+                    <ComboBox x:Name="CmbGesture" Style="{StaticResource ModernComboBoxStyle}" Width="200" Margin="12,0,0,0"
+                              SelectionChanged="OnComboChanged"/>
+                </StackPanel>
+
+                <ContentPresenter x:Name="ExtraHost" Margin="0,8,0,0"/>
+            </StackPanel>
+        </StackPanel>
+    </Border>
+</UserControl>

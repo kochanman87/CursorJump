@@ -48,10 +48,14 @@ public sealed class AppSettings
         MouseButton = MouseButtonType.Left
     };
 
+    /// <summary>
+    /// 既定は Ctrl+Win+マウスホイール（上で前へ・下で次へ）。v1.12.0 で Ctrl+Win+右クリックから変更（2026-11-27 ユーザー指示）。
+    /// 変わるのは settings.json が無い新規インストールだけで、既存の割り当ては保存値のまま。
+    /// </summary>
     public ActionShortcut NavigateShortcut { get; set; } = new()
     {
         Modifiers = ModifierKeyFlags.Control | ModifierKeyFlags.Windows,
-        MouseButton = MouseButtonType.Right
+        MouseButton = MouseButtonType.MouseWheel
     };
 
     public ActionShortcut DisplayDeleteShortcut { get; set; } = new()
