@@ -132,7 +132,6 @@ public partial class SettingsWindow : Window
         foreach (var b in _rows) b.Row.RefreshLanguage();
         UpdateLicenseUI();
         UpdateLastCheckedLabel(_settingsService.Current.LastUpdateCheckUtc);
-        UpdateTrailValueLabels();
         UpdateHelpShortcuts(_settingsService.Current);
         if (MessageBar.Visibility == Visibility.Visible) SaveNow(); // 知らせ欄の文言も今の言語で出し直す
     }
@@ -156,12 +155,10 @@ public partial class SettingsWindow : Window
         var s = _settingsService.Current;
         foreach (var b in _rows) b.Row.Load(b.Get(s));
 
-        SldClickHistoryDepth.Value = Math.Clamp(s.ClickHistoryDepth, (int)SldClickHistoryDepth.Minimum, (int)SldClickHistoryDepth.Maximum);
+        StepClickHistoryDepth.Value = s.ClickHistoryDepth;
         ChkClickHistoryMarkersEnabled.IsChecked = s.ClickHistoryMarkersEnabled;
         _clickHistoryMarkerColor = s.ClickHistoryMarkerColor ?? "#5BA8F0";
-        SldClickHistoryMarkerOpacity.Value = double.IsFinite(s.ClickHistoryMarkerOpacity)
-            ? Math.Clamp(s.ClickHistoryMarkerOpacity, 0.1, 1.0) : 0.35;
-        UpdateClickHistoryLabels();
+        StepClickHistoryMarkerOpacity.Value = double.IsFinite(s.ClickHistoryMarkerOpacity) ? s.ClickHistoryMarkerOpacity : 0.35;
 
         _saveColor   = s.SaveCircleColor;
         _saveColorB  = s.SaveCircleColorB;
@@ -177,10 +174,9 @@ public partial class SettingsWindow : Window
         ChkMarkerEffectEnabled.IsChecked = s.MarkerEffectEnabled;
         ChkShowDeleteModeHelp.IsChecked = s.ShowDeleteModeHelp;
 
-        SldTrailThickness.Value = Math.Clamp(s.TrailThickness, SldTrailThickness.Minimum, SldTrailThickness.Maximum);
-        SldTrailDuration.Value = Math.Clamp(s.TrailDurationMs, (int)SldTrailDuration.Minimum, (int)SldTrailDuration.Maximum);
-        SldTrailOpacity.Value = Math.Clamp(s.TrailOpacity, SldTrailOpacity.Minimum, SldTrailOpacity.Maximum);
-        UpdateTrailValueLabels();
+        StepTrailThickness.Value = s.TrailThickness;
+        StepTrailDuration.Value = s.TrailDurationMs;
+        StepTrailOpacity.Value = s.TrailOpacity;
 
         if (s.UiTheme == UiTheme.Dark) ThemeDark.IsChecked = true; else ThemeLight.IsChecked = true;
         // 言語（Auto は実際に解決された言語のラジオを選ぶ。保存値は利用者がラジオを押すまで Auto のまま）
@@ -230,10 +226,10 @@ public partial class SettingsWindow : Window
         var settings = _settingsService.Current.Clone();
         foreach (var b in _rows) b.Set(settings, b.Row.Read());
 
-        settings.ClickHistoryDepth = (int)Math.Round(SldClickHistoryDepth.Value);
+        settings.ClickHistoryDepth = (int)Math.Round(StepClickHistoryDepth.Value);
         settings.ClickHistoryMarkersEnabled = ChkClickHistoryMarkersEnabled.IsChecked == true;
         settings.ClickHistoryMarkerColor = _clickHistoryMarkerColor;
-        settings.ClickHistoryMarkerOpacity = SldClickHistoryMarkerOpacity.Value;
+        settings.ClickHistoryMarkerOpacity = StepClickHistoryMarkerOpacity.Value;
         settings.SaveCircleColor  = _saveColor;
         settings.SaveCircleColorB = _saveColorB;
         settings.TrailColor       = _trailColor;
@@ -244,9 +240,9 @@ public partial class SettingsWindow : Window
         settings.TrailEffectEnabled = ChkTrailEffectEnabled.IsChecked == true;
         settings.MarkerEffectEnabled = ChkMarkerEffectEnabled.IsChecked == true;
         settings.ShowDeleteModeHelp = ChkShowDeleteModeHelp.IsChecked == true;
-        settings.TrailThickness = SldTrailThickness.Value;
-        settings.TrailDurationMs = (int)Math.Round(SldTrailDuration.Value);
-        settings.TrailOpacity = SldTrailOpacity.Value;
+        settings.TrailThickness = StepTrailThickness.Value;
+        settings.TrailDurationMs = (int)Math.Round(StepTrailDuration.Value);
+        settings.TrailOpacity = StepTrailOpacity.Value;
         settings.ActivateWindowUnderCursorOnJump = ChkActivateWindowOnJump.IsChecked == true;
         settings.AutoUpdateEnabled = AutoUpdateToggle.IsChecked == true;
         settings.VerboseLogging = VerboseLoggingToggle.IsChecked == true;
@@ -371,6 +367,26 @@ public partial class SettingsWindow : Window
         HelpTileSetBTitle.Text = b.EnabledTriggers.HasFlag(TriggerType.Mouse) && b.Modifiers != ModifierKeyFlags.None
             ? ShortcutFormatter.FormatModifiers(b.Modifiers).Replace("+", " + ")
             : Loc.Get("Str.Help.Tile.SetBTitle");
+
+        // 色は設定（リストの色）に追従させる（2026-11-27 ユーザー要望）。絵の円・線・印は 1 つ目のリストの各色
+        var listA = ToColor(s.SaveCircleColor, Color.FromRgb(0x5B, 0xA8, 0xF0));
+        var listB = ToColor(s.SaveCircleColorB, Color.FromRgb(0xFF, 0x7F, 0xA8));
+        HelpAnim.SetColors(listA, ToColor(s.TrailColor, listA), ToColor(s.MarkerColor, listA));
+        foreach (var icon in new[] { HelpIconWheel, HelpIconDisp, HelpIconMonitor })
+            icon.Foreground = new SolidColorBrush(listA);
+        HelpIconSetB.Foreground = new SolidColorBrush(listB);
+        RowSaveB.SetIconColor(listB);
+        RowNavB.SetIconColor(listB);
+    }
+
+    private static Color ToColor(string? hex, Color fallback)
+    {
+        try
+        {
+            if (!string.IsNullOrEmpty(hex) && ColorConverter.ConvertFromString(hex) is Color c) return c;
+        }
+        catch (FormatException) { }
+        return fallback;
     }
 
     /// <summary>キーの絵に出す部品（例: Ctrl / Win / 左クリック）。マウスが無効ならキーボード側。</summary>
@@ -396,22 +412,8 @@ public partial class SettingsWindow : Window
 
     // ==== 見た目 ====
 
-    private void OnTrailSliderChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
-    {
-        UpdateTrailValueLabels();
-        ScheduleSave();
-    }
-
-    private void UpdateTrailValueLabels()
-    {
-        // XAML ロード中は後続の TextBlock がまだ無いことがあるので個別に null チェック
-        if (TxtTrailThickness is not null && SldTrailThickness is not null)
-            TxtTrailThickness.Text = $"{SldTrailThickness.Value:0} dp";
-        if (TxtTrailDuration is not null && SldTrailDuration is not null)
-            TxtTrailDuration.Text = string.Format(CultureInfo.CurrentCulture, Loc.Get("Str.Look.SecondsFormat"), SldTrailDuration.Value / 1000.0);
-        if (TxtTrailOpacity is not null && SldTrailOpacity is not null)
-            TxtTrailOpacity.Text = $"{SldTrailOpacity.Value:P0}";
-    }
+    /// <summary>数の欄（StepField）が利用者の操作で変わった。</summary>
+    private void OnStepChanged(object? sender, EventArgs e) => ScheduleSave();
 
     private void OnLookDetailsToggled(object sender, RoutedEventArgs e)
     {
@@ -490,28 +492,6 @@ public partial class SettingsWindow : Window
         shape.Fill = Brushes.Transparent;
     }
 
-    // ==== クリック履歴（「クリックした所へ戻る」の追加設定） ====
-
-    private void OnClickHistoryDepthChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
-    {
-        UpdateClickHistoryLabels();
-        ScheduleSave();
-    }
-
-    private void OnClickHistoryMarkerOpacityChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
-    {
-        UpdateClickHistoryLabels();
-        ScheduleSave();
-    }
-
-    private void UpdateClickHistoryLabels()
-    {
-        if (TxtClickHistoryDepth is not null && SldClickHistoryDepth is not null)
-            TxtClickHistoryDepth.Text = $"{SldClickHistoryDepth.Value:0}";
-        if (TxtClickHistoryMarkerOpacity is not null && SldClickHistoryMarkerOpacity is not null)
-            TxtClickHistoryMarkerOpacity.Text = $"{SldClickHistoryMarkerOpacity.Value:P0}";
-    }
-
     // ==== 全般 ====
 
     private void OnThemeChecked(object sender, RoutedEventArgs e)
@@ -555,6 +535,15 @@ public partial class SettingsWindow : Window
         // Pro 限定の行（2 つ目のリスト・追加の操作）は Free では PRO の印を出して押せなくする（v1.9.1 の仕様を引き継ぐ）
         foreach (var row in new[] { RowSaveB, RowNavB, RowReset, RowActWin, RowClkBack })
             row.IsLocked = !isPro;
+
+        // 2 つ目のリスト（ピンク）は Pro 版のときだけ見せる（2026-11-27 ユーザー指示）
+        var setB = isPro ? Visibility.Visible : Visibility.Collapsed;
+        CardSetB.Visibility = setB;
+        RowListColorB.Visibility = setB;
+        HelpTileSetB.Visibility = setB;
+        HelpTiles.Columns = isPro ? 4 : 3;
+        foreach (var swatch in new[] { RectSaveColorB, RectTrailColorB, RectMarkerColorB })
+            swatch.Visibility = setB;
     }
 
     private void OnLicenseApplyClick(object sender, RoutedEventArgs e)

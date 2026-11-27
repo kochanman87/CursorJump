@@ -277,5 +277,9 @@
     <sys:String x:Key="Str.Help.Tile.SetBBody">Second list</sys:String>
     <sys:String x:Key="Str.Help.Tile.MonitorTitle">This monitor only</sys:String>
     <sys:String x:Key="Str.Help.Tile.MonitorBody">Turn on to use</sys:String>
+    <!-- v1.12.1 数の欄（StepField）の単位 -->
+    <sys:String x:Key="Str.Unit.Percent">%</sys:String>
+    <sys:String x:Key="Str.Unit.Seconds">s</sys:String>
+    <sys:String x:Key="Str.Unit.Dp">dp</sys:String>
 
 </ResourceDictionary>

@@ -30,6 +30,7 @@ internal sealed class HelpAnimation : Border
     private const double MarkerDelay = 0.03;                 // 保存からマーカー出現まで
     private const double ShrinkSeconds = 0.4;                // 縮む円の長さ
     private const double TrailSeconds = 0.45;                // 軌跡が消えきるまで
+    private const double JumpMoveSeconds = 0.18;             // ジャンプでカーソルが目的地へ動く長さ（瞬間移動だと動きが見えないため）
     private const double KeysSwitchAt = 2.1;                 // 保存キー → 移動キーの切替
     private const double FadeStart = 4.0, FadeEnd = 4.25;    // マーカーの消去
     private const int TrailSegments = 12;
@@ -86,6 +87,24 @@ internal sealed class HelpAnimation : Border
     /// </summary>
     /// <param name="saveKeys">保存操作の表記（例: Ctrl, Win, 左クリック）</param>
     /// <param name="navKeys">移動操作の表記</param>
+    private enum ColorRole { Save, Trail, Marker }
+    private readonly List<(DependencyObject Target, DependencyProperty Property, ColorRole Role)> _colorTargets = new();
+    private readonly List<TextBlock> _markerNumbers = new();
+
+    /// <summary>
+    /// 円・線・印の色を設定（1 つ目のリストの色）に合わせる（2026-11-27 ユーザー要望「色は設定に追従」）。
+    /// 呼ばれるまでは強調色（AccentBrush）のまま。印の番号は実物のマーカーと同じく白。
+    /// </summary>
+    public void SetColors(Color save, Color trail, Color marker)
+    {
+        foreach (var (target, property, role) in _colorTargets)
+        {
+            var c = role switch { ColorRole.Save => save, ColorRole.Trail => trail, _ => marker };
+            target.SetValue(property, new SolidColorBrush(c));
+        }
+        foreach (var num in _markerNumbers) num.Foreground = Brushes.White;
+    }
+
     public void SetShortcuts(IReadOnlyList<string> saveKeys, IReadOnlyList<string> navKeys)
     {
         bool wasRunning = _running;
@@ -174,6 +193,7 @@ internal sealed class HelpAnimation : Border
 
             var ring = new Ellipse { Width = 78, Height = 78, StrokeThickness = 2.5, Opacity = 0, RenderTransformOrigin = new Point(0.5, 0.5), RenderTransform = new ScaleTransform(1, 1) };
             Res(ring, Shape.StrokeProperty, "AccentBrush");
+            _colorTargets.Add((ring, Shape.StrokeProperty, ColorRole.Save));
             Canvas.SetLeft(ring, p.X - 39);
             Canvas.SetTop(ring, p.Y - 39);
             Panel.SetZIndex(ring, 5);
@@ -184,6 +204,8 @@ internal sealed class HelpAnimation : Border
             Res(num, TextBlock.ForegroundProperty, "AccentForegroundBrush");
             var marker = new Border { Width = 20, Height = 20, CornerRadius = new CornerRadius(10), Opacity = 0, Child = num };
             Res(marker, BackgroundProperty, "AccentBrush");
+            _colorTargets.Add((marker, BackgroundProperty, ColorRole.Marker));
+            _markerNumbers.Add(num);
             Canvas.SetLeft(marker, p.X - 10);
             Canvas.SetTop(marker, p.Y - 10);
             Panel.SetZIndex(marker, 4);
@@ -203,20 +225,21 @@ internal sealed class HelpAnimation : Border
                     StrokeThickness = 5, StrokeStartLineCap = PenLineCap.Round, StrokeEndLineCap = PenLineCap.Round, Opacity = 0,
                 };
                 Res(seg, Shape.StrokeProperty, "AccentBrush");
+                _colorTargets.Add((seg, Shape.StrokeProperty, ColorRole.Trail));
                 Panel.SetZIndex(seg, 3);
                 _canvas.Children.Add(seg);
                 _trails[i][k] = seg;
             }
         }
 
-        var cursor = new Path
+        _cursor = new Path
         {
             Data = Geometry.Parse("M0,0 L0,17 L4.5,13 L7.5,19.5 L10.2,18.3 L7.3,12 L12.5,12 Z"),
             Fill = Brushes.White, Stroke = Brushes.Black, StrokeThickness = 1, StrokeLineJoin = PenLineJoin.Round,
             RenderTransform = _cursorMove,
         };
-        Panel.SetZIndex(cursor, 10);
-        _canvas.Children.Add(cursor);
+        Panel.SetZIndex(_cursor, 10);
+        _canvas.Children.Add(_cursor);
     }
 
     private static Grid KeyRow()
@@ -271,7 +294,7 @@ internal sealed class HelpAnimation : Border
     {
         _story = new Storyboard { Duration = TimeSpan.FromSeconds(LoopSeconds), RepeatBehavior = RepeatBehavior.Forever };
 
-        // カーソル: 保存前に点へ動き、ジャンプでは瞬間移動
+        // カーソル: 保存前に点へ動き、ジャンプでも目的地へ素早く動く
         var xs = new List<(double, double, bool)> { (0, StartPoint.X, false) };
         var ys = new List<(double, double, bool)> { (0, StartPoint.Y, false) };
         var prev = StartPoint;
@@ -283,13 +306,19 @@ internal sealed class HelpAnimation : Border
             ys.Add((SaveAt[i] - MoveEnd, Points[i].Y, true));
             prev = Points[i];
         }
+        // ジャンプ: 押した瞬間に移動を始め、JumpMoveSeconds で目的地へ素早く動く（2026-11-27 ユーザー要望「カーソルが動くように」）
         for (int j = 0; j < 3; j++)
         {
-            xs.Add((JumpAt[j], Points[j].X, false));
-            ys.Add((JumpAt[j], Points[j].Y, false));
+            var from = Points[(j + 2) % 3];
+            xs.Add((JumpAt[j], from.X, false));
+            ys.Add((JumpAt[j], from.Y, false));
+            xs.Add((JumpAt[j] + JumpMoveSeconds, Points[j].X, true));
+            ys.Add((JumpAt[j] + JumpMoveSeconds, Points[j].Y, true));
         }
-        Key(_cursorMove, TranslateTransform.XProperty, xs);
-        Key(_cursorMove, TranslateTransform.YProperty, ys);
+        // Transform（Freezable）を直接 SetTarget すると動かない（2026-11-27 実機で確認、カーソルが止まったままだった）。
+        // 木の中の要素（_cursor）から RenderTransform をたどるパスで指定する（CircleSwitch の HelpPage と同じ）
+        Key(_cursor, OnTransform(TranslateTransform.XProperty), xs);
+        Key(_cursor, OnTransform(TranslateTransform.YProperty), ys);
 
         // 保存: マーカーと縮む円
         for (int i = 0; i < 3; i++)
@@ -337,12 +366,21 @@ internal sealed class HelpAnimation : Border
         foreach (var k in keys)
         {
             Key(k.Pressed, OpacityProperty, overlay);
-            Key(k.Shift, TranslateTransform.YProperty, shift);
+            Key(k.Key, OnTransform(TranslateTransform.YProperty), shift);
         }
     }
 
     /// <summary>1つの値のキーフレーム。Ease が true の区間はなめらかに、false は時刻で切り替える。</summary>
-    private void Key(DependencyObject target, DependencyProperty property, IEnumerable<(double At, double Value, bool Ease)> frames)
+    private Path _cursor = null!;
+
+    /// <summary>要素の RenderTransform の中のプロパティを指すパス。</summary>
+    private static PropertyPath OnTransform(DependencyProperty property) =>
+        new("(0).(1)", UIElement.RenderTransformProperty, property);
+
+    private void Key(DependencyObject target, DependencyProperty property, IEnumerable<(double At, double Value, bool Ease)> frames) =>
+        Key(target, new PropertyPath(property), frames);
+
+    private void Key(DependencyObject target, PropertyPath path, IEnumerable<(double At, double Value, bool Ease)> frames)
     {
         var anim = new DoubleAnimationUsingKeyFrames();
         foreach (var (at, value, ease) in frames)
@@ -353,7 +391,7 @@ internal sealed class HelpAnimation : Border
                 : new DiscreteDoubleKeyFrame(value, time));
         }
         Storyboard.SetTarget(anim, target);
-        Storyboard.SetTargetProperty(anim, new PropertyPath(property));
+        Storyboard.SetTargetProperty(anim, path);
         _story.Children.Add(anim);
     }
 

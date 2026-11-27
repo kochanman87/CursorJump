@@ -95,8 +95,8 @@
                         </StackPanel>
                     </Border>
 
-                    <!-- 2 つ目のリスト（Pro） -->
-                    <Border Style="{StaticResource ListCard}">
+                    <!-- 2 つ目のリスト（Pro のみ表示。Free では隠す） -->
+                    <Border x:Name="CardSetB" Style="{StaticResource ListCard}">
                         <StackPanel>
                             <c:ActionRow x:Name="RowSaveB" TitleKey="Str.Ops.Save" Glyph="&#xE81D;" IsSetB="True" IsFirst="True"/>
                             <c:ActionRow x:Name="RowNavB" TitleKey="Str.Ops.Navigate" Glyph="&#xE72A;" IsSetB="True"/>
@@ -115,10 +115,7 @@
                                             <TextBlock Text="{DynamicResource Str.Settings.ClickHistoryDepth}" Width="84" VerticalAlignment="Center"
                                                        FontSize="12" Foreground="{DynamicResource TextSecondaryBrush}"
                                                        ToolTip="{DynamicResource Str.Settings.ClickHistoryDepth.Hint}"/>
-                                            <Slider x:Name="SldClickHistoryDepth" Width="180" Minimum="2" Maximum="10" SmallChange="1" LargeChange="1"
-                                                    IsSnapToTickEnabled="True" TickFrequency="1" VerticalAlignment="Center"
-                                                    ValueChanged="OnClickHistoryDepthChanged"/>
-                                            <TextBlock x:Name="TxtClickHistoryDepth" Width="32" TextAlignment="Right" VerticalAlignment="Center"/>
+                                            <c:StepField x:Name="StepClickHistoryDepth" Minimum="2" Maximum="10" Step="1" ValueChanged="OnStepChanged"/>
                                         </StackPanel>
                                         <StackPanel Orientation="Horizontal" Margin="0,4">
                                             <TextBlock Text="{DynamicResource Str.Ops.ClickHistoryMarkers}" Width="84" VerticalAlignment="Center"
@@ -134,11 +131,7 @@
                                                          ToolTip="{DynamicResource Str.Settings.ClickHistoryMarkers.Color}"/>
                                                 <TextBlock Text="{DynamicResource Str.Settings.ClickHistoryMarkers.Opacity}" Margin="14,0,8,0" VerticalAlignment="Center"
                                                            FontSize="12" Foreground="{DynamicResource TextSecondaryBrush}"/>
-                                                <Slider x:Name="SldClickHistoryMarkerOpacity" Width="110" Minimum="0.1" Maximum="1" Value="0.35"
-                                                        SmallChange="0.05" LargeChange="0.1" TickFrequency="0.05" IsSnapToTickEnabled="True"
-                                                        VerticalAlignment="Center" ValueChanged="OnClickHistoryMarkerOpacityChanged"
-                                                        AutomationProperties.Name="{DynamicResource Str.Settings.ClickHistoryMarkers.Opacity}"/>
-                                                <TextBlock x:Name="TxtClickHistoryMarkerOpacity" Width="40" TextAlignment="Right" VerticalAlignment="Center"/>
+                                                <c:StepField x:Name="StepClickHistoryMarkerOpacity" Minimum="0.1" Maximum="1" Step="0.05" Scale="100" UnitKey="Str.Unit.Percent" ValueChanged="OnStepChanged"/>
                                             </StackPanel>
                                         </StackPanel>
                                     </StackPanel>
@@ -161,7 +154,7 @@
                                     <TextBlock Text="{DynamicResource Str.Look.ListColorA}" VerticalAlignment="Center"/>
                                 </DockPanel>
                             </Border>
-                            <Border Style="{StaticResource SettingRow}">
+                            <Border x:Name="RowListColorB" Style="{StaticResource SettingRow}">
                                 <DockPanel>
                                     <Ellipse x:Name="RectListColorB" DockPanel.Dock="Right" Style="{StaticResource ColorSwatchStyle}"
                                              MouseLeftButtonDown="OnColorRectangleClick" VerticalAlignment="Center"/>
@@ -185,11 +178,7 @@
                             </Border>
                             <Border Style="{StaticResource SettingRow}">
                                 <DockPanel>
-                                    <TextBlock x:Name="TxtTrailDuration" DockPanel.Dock="Right" Width="64" TextAlignment="Right" VerticalAlignment="Center"
-                                               Foreground="{DynamicResource TextSecondaryBrush}"/>
-                                    <Slider x:Name="SldTrailDuration" DockPanel.Dock="Right" Width="180" Minimum="100" Maximum="3000"
-                                            SmallChange="50" LargeChange="100" TickFrequency="50" IsSnapToTickEnabled="True"
-                                            VerticalAlignment="Center" ValueChanged="OnTrailSliderChanged"/>
+                                    <c:StepField x:Name="StepTrailDuration" DockPanel.Dock="Right" Minimum="100" Maximum="3000" Step="100" Scale="0.001" Decimals="1" UnitKey="Str.Unit.Seconds" ValueChanged="OnStepChanged"/>
                                     <TextBlock Text="{DynamicResource Str.Look.TrailDuration}" VerticalAlignment="Center"/>
                                 </DockPanel>
                             </Border>
@@ -219,21 +208,13 @@
                             <StackPanel x:Name="PnlLookDetails" Visibility="Collapsed">
                                 <Border Style="{StaticResource SettingRow}">
                                     <DockPanel>
-                                        <TextBlock x:Name="TxtTrailThickness" DockPanel.Dock="Right" Width="64" TextAlignment="Right" VerticalAlignment="Center"
-                                                   Foreground="{DynamicResource TextSecondaryBrush}"/>
-                                        <Slider x:Name="SldTrailThickness" DockPanel.Dock="Right" Width="180" Minimum="1" Maximum="20"
-                                                SmallChange="1" LargeChange="2" TickFrequency="1" IsSnapToTickEnabled="True"
-                                                VerticalAlignment="Center" ValueChanged="OnTrailSliderChanged"/>
+                                        <c:StepField x:Name="StepTrailThickness" DockPanel.Dock="Right" Minimum="1" Maximum="20" Step="1" UnitKey="Str.Unit.Dp" ValueChanged="OnStepChanged"/>
                                         <TextBlock Text="{DynamicResource Str.Look.TrailThickness}" VerticalAlignment="Center"/>
                                     </DockPanel>
                                 </Border>
                                 <Border Style="{StaticResource SettingRow}">
                                     <DockPanel>
-                                        <TextBlock x:Name="TxtTrailOpacity" DockPanel.Dock="Right" Width="64" TextAlignment="Right" VerticalAlignment="Center"
-                                                   Foreground="{DynamicResource TextSecondaryBrush}"/>
-                                        <Slider x:Name="SldTrailOpacity" DockPanel.Dock="Right" Width="180" Minimum="0.1" Maximum="1"
-                                                SmallChange="0.05" LargeChange="0.1" TickFrequency="0.05" IsSnapToTickEnabled="True"
-                                                VerticalAlignment="Center" ValueChanged="OnTrailSliderChanged"/>
+                                        <c:StepField x:Name="StepTrailOpacity" DockPanel.Dock="Right" Minimum="0.1" Maximum="1" Step="0.05" Scale="100" UnitKey="Str.Unit.Percent" ValueChanged="OnStepChanged"/>
                                         <TextBlock Text="{DynamicResource Str.Look.TrailOpacity}" VerticalAlignment="Center"/>
                                     </DockPanel>
                                 </Border>
@@ -430,31 +411,31 @@
                     <Border Style="{StaticResource CardBorder}" Padding="16,16,16,12">
                         <c:HelpAnimation x:Name="HelpAnim" HorizontalAlignment="Center"/>
                     </Border>
-                    <UniformGrid Columns="4">
+                    <UniformGrid x:Name="HelpTiles" Columns="4">
                         <Border Style="{StaticResource CardBorder}" Padding="6,12,6,10" Margin="0,0,5,0">
                             <StackPanel HorizontalAlignment="Center">
-                                <TextBlock Style="{StaticResource FluentIcon}" Text="&#xE962;" FontSize="18" HorizontalAlignment="Center" Margin="0,0,0,6" Foreground="{DynamicResource AccentBrush}"/>
+                                <TextBlock x:Name="HelpIconWheel" Style="{StaticResource FluentIcon}" Text="&#xE962;" FontSize="18" HorizontalAlignment="Center" Margin="0,0,0,6" Foreground="{DynamicResource AccentBrush}"/>
                                 <TextBlock Text="{DynamicResource Str.Help.Tile.WheelTitle}" FontSize="12" FontWeight="SemiBold" HorizontalAlignment="Center" TextTrimming="CharacterEllipsis"/>
                                 <TextBlock Text="{DynamicResource Str.Help.Tile.WheelBody}" FontSize="12" HorizontalAlignment="Center" Foreground="{DynamicResource TextSecondaryBrush}" TextTrimming="CharacterEllipsis"/>
                             </StackPanel>
                         </Border>
                         <Border Style="{StaticResource CardBorder}" Padding="6,12,6,10" Margin="5,0">
                             <StackPanel HorizontalAlignment="Center">
-                                <TextBlock Style="{StaticResource FluentIcon}" Text="&#xE81E;" FontSize="18" HorizontalAlignment="Center" Margin="0,0,0,6" Foreground="{DynamicResource AccentBrush}"/>
+                                <TextBlock x:Name="HelpIconDisp" Style="{StaticResource FluentIcon}" Text="&#xE81E;" FontSize="18" HorizontalAlignment="Center" Margin="0,0,0,6" Foreground="{DynamicResource AccentBrush}"/>
                                 <TextBlock x:Name="HelpTileDispTitle" FontSize="12" FontWeight="SemiBold" HorizontalAlignment="Center" TextTrimming="CharacterEllipsis"/>
                                 <TextBlock Text="{DynamicResource Str.Help.Tile.DisplayBody}" FontSize="12" HorizontalAlignment="Center" Foreground="{DynamicResource TextSecondaryBrush}" TextTrimming="CharacterEllipsis"/>
                             </StackPanel>
                         </Border>
-                        <Border Style="{StaticResource CardBorder}" Padding="6,12,6,10" Margin="5,0">
+                        <Border x:Name="HelpTileSetB" Style="{StaticResource CardBorder}" Padding="6,12,6,10" Margin="5,0">
                             <StackPanel HorizontalAlignment="Center">
-                                <TextBlock Style="{StaticResource FluentIcon}" Text="&#xE81D;" FontSize="18" HorizontalAlignment="Center" Margin="0,0,0,6" Foreground="#FF7FA8"/>
+                                <TextBlock x:Name="HelpIconSetB" Style="{StaticResource FluentIcon}" Text="&#xE81D;" FontSize="18" HorizontalAlignment="Center" Margin="0,0,0,6" Foreground="#FF7FA8"/>
                                 <TextBlock x:Name="HelpTileSetBTitle" FontSize="12" FontWeight="SemiBold" HorizontalAlignment="Center" TextTrimming="CharacterEllipsis"/>
                                 <TextBlock Text="{DynamicResource Str.Help.Tile.SetBBody}" FontSize="12" HorizontalAlignment="Center" Foreground="{DynamicResource TextSecondaryBrush}" TextTrimming="CharacterEllipsis"/>
                             </StackPanel>
                         </Border>
                         <Border Style="{StaticResource CardBorder}" Padding="6,12,6,10" Margin="5,0,0,0">
                             <StackPanel HorizontalAlignment="Center">
-                                <TextBlock Style="{StaticResource FluentIcon}" Text="&#xE7F4;" FontSize="18" HorizontalAlignment="Center" Margin="0,0,0,6" Foreground="{DynamicResource AccentBrush}"/>
+                                <TextBlock x:Name="HelpIconMonitor" Style="{StaticResource FluentIcon}" Text="&#xE7F4;" FontSize="18" HorizontalAlignment="Center" Margin="0,0,0,6" Foreground="{DynamicResource AccentBrush}"/>
                                 <TextBlock Text="{DynamicResource Str.Help.Tile.MonitorTitle}" FontSize="12" FontWeight="SemiBold" HorizontalAlignment="Center" TextTrimming="CharacterEllipsis"/>
                                 <TextBlock Text="{DynamicResource Str.Help.Tile.MonitorBody}" FontSize="12" HorizontalAlignment="Center" Foreground="{DynamicResource TextSecondaryBrush}" TextTrimming="CharacterEllipsis"/>
                             </StackPanel>

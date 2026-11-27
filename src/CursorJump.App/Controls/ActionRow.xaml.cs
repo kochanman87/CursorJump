@@ -42,18 +42,18 @@ public partial class ActionRow : UserControl
         new(ModifierGesture.AltDoubleTap,   "Str.Settings.Gesture.AltDoubleTap"),
     };
 
-    // 既定のボタン選択肢。v1.7.0 で MiddleDoubleClick/MiddleTripleClick、v1.6.1 で WheelUp/WheelDown を UI から除外。
+    // 既定のボタン選択肢（並び: 左・右・ホイールクリック・マウスホイール・戻る・進む。v1.12.1 ユーザー指示）。
+    // v1.12.1 で MiddleLeftChord/MiddleRightChord（ホイール＋左/右クリック）、v1.7.0 で MiddleDoubleClick/MiddleTripleClick、
+    // v1.6.1 で WheelUp/WheelDown を UI から除外（動作は残す）。
     // 旧 settings.json に除外済みの値が残っている場合だけ BuildButtonOptions で末尾に足して表示を保つ。
     private static readonly ButtonOption[] DefaultButtonOptions =
     {
         new(MouseButtonType.Left,              "Str.Button.Left"),
         new(MouseButtonType.Right,             "Str.Button.Right"),
         new(MouseButtonType.Middle,            "Str.Button.Middle"),
+        new(MouseButtonType.MouseWheel,        "Str.Button.MouseWheel"),
         new(MouseButtonType.XButton1,          "Str.Button.XButton1"),
         new(MouseButtonType.XButton2,          "Str.Button.XButton2"),
-        new(MouseButtonType.MiddleLeftChord,   "Str.Button.MiddleLeftChord"),
-        new(MouseButtonType.MiddleRightChord,  "Str.Button.MiddleRightChord"),
-        new(MouseButtonType.MouseWheel,        "Str.Button.MouseWheel"),
     };
 
     private static ButtonOption[] BuildButtonOptions(MouseButtonType currentValue)
@@ -64,6 +64,8 @@ public partial class ActionRow : UserControl
             MouseButtonType.WheelDown         => "Str.Button.WheelDown",
             MouseButtonType.MiddleDoubleClick => "Str.Button.MiddleDoubleClick",
             MouseButtonType.MiddleTripleClick => "Str.Button.MiddleTripleClick",
+            MouseButtonType.MiddleLeftChord   => "Str.Button.MiddleLeftChord",
+            MouseButtonType.MiddleRightChord  => "Str.Button.MiddleRightChord",
             _ => null
         };
         if (legacyKey is null) return DefaultButtonOptions;
@@ -130,6 +132,9 @@ public partial class ActionRow : UserControl
             else IconGlyph.SetResourceReference(TextBlock.ForegroundProperty, "AccentBrush");
         }
     }
+
+    /// <summary>アイコンの色を設定のリストの色にする（2 つ目のリストの行で使う）。</summary>
+    public void SetIconColor(Color color) => IconGlyph.Foreground = new SolidColorBrush(color);
 
     /// <summary>修飾キー 2 回（ModifierSequence）を使える行か（Pro 追加機能 3 種のみ）。</summary>
     public bool SupportsGesture

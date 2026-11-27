@@ -714,13 +714,14 @@ internal sealed class OverlayService : IDisposable
         if (_deleteStores.Count == 0 || _markerOverlay is null) return;
 
         // 全ストア合算で削除前の座標を集める（収縮円アニメ用）
-        var positions = new List<(int X, int Y)>();
+        // 色はそのリストのマーカー色（2 つ目のリストは 2 つ目の色。v1.12.1 で修正、以前は全部 1 つ目の保存色だった）
+        var positions = new List<(int X, int Y, Color Color)>();
         int totalBefore = 0;
-        foreach (var (store, _) in _deleteStores)
+        foreach (var (store, storeColor) in _deleteStores)
         {
             totalBefore += store.Count;
             foreach (var coord in store.GetAll())
-                positions.Add((coord.X, coord.Y));
+                positions.Add((coord.X, coord.Y, storeColor));
         }
         DebugLog.Write($"ExecuteClearAll: clearing {totalBefore} coordinates across {_deleteStores.Count} stores");
 
@@ -740,11 +741,10 @@ internal sealed class OverlayService : IDisposable
     /// <summary>
     /// 複数座標の収縮円アニメーションを1枚のOverlayWindowに集約して表示する（GC負荷回避）。
     /// </summary>
-    private void ShowClearAllShrinkCircles(List<(int X, int Y)> positions)
+    private void ShowClearAllShrinkCircles(List<(int X, int Y, Color Color)> positions)
     {
         if (!_settingsService.Current.SaveEffectEnabled) return;
 
-        var color = ParseColor(_settingsService.Current.SaveCircleColor, Colors.Red);
         const double initialRadius = 30;
         const double duration = 500; // ms
 
@@ -752,7 +752,7 @@ internal sealed class OverlayService : IDisposable
 
         for (int i = 0; i < positions.Count; i++)
         {
-            var (physX, physY) = positions[i];
+            var (physX, physY, color) = positions[i];
             var pos = overlay.PhysicalToWpf(physX, physY);
             double canvasX = pos.X - overlay.Left;
             double canvasY = pos.Y - overlay.Top;

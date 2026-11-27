@@ -266,5 +266,9 @@
     <sys:String x:Key="Str.Help.Tile.SetBBody">2 つ目のリスト</sys:String>
     <sys:String x:Key="Str.Help.Tile.MonitorTitle">このモニタだけ</sys:String>
     <sys:String x:Key="Str.Help.Tile.MonitorBody">設定すると使える</sys:String>
+    <!-- v1.12.1 数の欄（StepField）の単位 -->
+    <sys:String x:Key="Str.Unit.Percent">%</sys:String>
+    <sys:String x:Key="Str.Unit.Seconds">秒</sys:String>
+    <sys:String x:Key="Str.Unit.Dp">dp</sys:String>
 
 </ResourceDictionary>
