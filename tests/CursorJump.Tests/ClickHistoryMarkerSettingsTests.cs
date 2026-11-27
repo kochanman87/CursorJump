@@ -11,9 +11,10 @@ public class ClickHistoryMarkerSettingsTests
     {
         var settings = JsonSerializer.Deserialize<AppSettings>("{\"ClickHistoryDepth\":5}")!;
         Assert.Equal(5, settings.ClickHistoryDepth);
-        Assert.True(settings.ClickHistoryMarkersEnabled);
+        // v1.12.1: 既定を作者の使用中の設定（印は非表示・濃さ 10%）に変更（2026-11-28 ユーザー指示）
+        Assert.False(settings.ClickHistoryMarkersEnabled);
         Assert.Equal("#5BA8F0", settings.ClickHistoryMarkerColor);
-        Assert.Equal(0.35, settings.ClickHistoryMarkerOpacity);
+        Assert.Equal(0.1, settings.ClickHistoryMarkerOpacity);
     }
 
     [Fact]

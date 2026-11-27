@@ -428,7 +428,7 @@
                         </Border>
                         <Border x:Name="HelpTileSetB" Style="{StaticResource CardBorder}" Padding="6,12,6,10" Margin="5,0">
                             <StackPanel HorizontalAlignment="Center">
-                                <TextBlock x:Name="HelpIconSetB" Style="{StaticResource FluentIcon}" Text="&#xE81D;" FontSize="18" HorizontalAlignment="Center" Margin="0,0,0,6" Foreground="#FF7FA8"/>
+                                <TextBlock x:Name="HelpIconSetB" Style="{StaticResource FluentIcon}" Text="&#xE81D;" FontSize="18" HorizontalAlignment="Center" Margin="0,0,0,6" Foreground="#FF8080"/>
                                 <TextBlock x:Name="HelpTileSetBTitle" FontSize="12" FontWeight="SemiBold" HorizontalAlignment="Center" TextTrimming="CharacterEllipsis"/>
                                 <TextBlock Text="{DynamicResource Str.Help.Tile.SetBBody}" FontSize="12" HorizontalAlignment="Center" Foreground="{DynamicResource TextSecondaryBrush}" TextTrimming="CharacterEllipsis"/>
                             </StackPanel>

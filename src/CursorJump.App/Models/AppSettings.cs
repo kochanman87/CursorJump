@@ -72,27 +72,27 @@ public sealed class AppSettings
         VirtualKeyCode = 0
     };
 
-    /// <summary>第2座標セット（Set B）の座標保存ショートカット。デフォルト Win+Shift+左。
-    /// 旧デフォルト Win+Alt+左 は Xbox Game Bar（Win+Alt プレフィックス）との干渉で
-    /// GetAsyncKeyState(VK_LMENU) が 0 を返す問題があるため Win+Shift に変更。</summary>
+    /// <summary>第2座標セット（Set B）の座標保存ショートカット。デフォルト Ctrl+Alt+左。
+    /// 2026-11-28 ユーザー指示で既定を作者の使用中の設定に合わせた（v1.12.1）。それ以前は Win+Shift+左（旧々デフォルト Win+Alt+左 は Xbox Game Bar の Win+Alt と干渉したため。
+    /// Ctrl+Alt は Win を含まないのでこの干渉は無い）。</summary>
     public ActionShortcut SaveShortcutB { get; set; } = new()
     {
         EnabledTriggers = TriggerType.Mouse,
-        Modifiers = ModifierKeyFlags.Shift | ModifierKeyFlags.Windows,
+        Modifiers = ModifierKeyFlags.Control | ModifierKeyFlags.Alt,
         MouseButton = MouseButtonType.Left,
         VirtualKeyCode = 0
     };
 
-    /// <summary>第2座標セット（Set B）の座標移動ショートカット。デフォルト Win+Shift+右。</summary>
+    /// <summary>第2座標セット（Set B）の座標移動ショートカット。デフォルト Ctrl+Alt+マウスホイール（2026-11-28 ユーザー指示で既定を作者の使用中の設定に合わせた（v1.12.1）。以前は Win+Shift+右）。</summary>
     public ActionShortcut NavigateShortcutB { get; set; } = new()
     {
         EnabledTriggers = TriggerType.Mouse,
-        Modifiers = ModifierKeyFlags.Shift | ModifierKeyFlags.Windows,
-        MouseButton = MouseButtonType.Right,
+        Modifiers = ModifierKeyFlags.Control | ModifierKeyFlags.Alt,
+        MouseButton = MouseButtonType.MouseWheel,
         VirtualKeyCode = 0
     };
 
-    // ── Pro 追加機能（v1.9.0+） 3 種。いずれも既定無効（利用者が各機能ごとに ON）。 ──
+    // ── Pro 追加機能（v1.9.0+） 3 種。循環リセットは既定無効、最前面ウィンドウへ・クリック位置に戻るは既定で修飾キー連打を ON（2026-11-28 ユーザー指示で既定を作者の使用中の設定に合わせた（v1.12.1））。 ──
 
     /// <summary>ジャンプ循環リセット（Set A/B 両方の循環インデックスを先頭前へ戻す）。Pro 限定。既定無効。
     /// 既定プリセット = Ctrl ダブルタップ（ON にすると即使える想定値）。</summary>
@@ -105,26 +105,25 @@ public sealed class AppSettings
         ModifierGesture = ModifierGesture.CtrlDoubleTap
     };
 
-    /// <summary>フォアグラウンドウィンドウ中央へジャンプ。Pro 限定。既定無効。
-    /// 既定プリセット = Shift ダブルタップ。</summary>
+    /// <summary>フォアグラウンドウィンドウ中央へジャンプ（最前面ウィンドウへ）。Pro 限定。既定 = Shift ダブルタップで有効。</summary>
     public ActionShortcut ActiveWindowJumpShortcut { get; set; } = new()
     {
-        EnabledTriggers = TriggerType.None,
+        EnabledTriggers = TriggerType.ModifierSequence,
         Modifiers = ModifierKeyFlags.Alt | ModifierKeyFlags.Windows,
         MouseButton = MouseButtonType.Middle,
         VirtualKeyCode = 0,
         ModifierGesture = ModifierGesture.ShiftDoubleTap
     };
 
-    /// <summary>通常左クリック履歴を 1 つ戻る（Cursor の Ctrl+Z 風）。Pro 限定。既定無効。
-    /// 既定プリセット = Alt ダブルタップ。</summary>
+    /// <summary>通常左クリック履歴を 1 つ戻る（Cursor の Ctrl+Z 風）。Pro 限定。既定 = Ctrl ダブルタップで有効（以前は Alt ダブルタップ・無効）。
+    /// 循環リセットの既定プリセットも Ctrl ダブルタップだが、そちらは既定無効なので重複しない。</summary>
     public ActionShortcut ClickHistoryBackShortcut { get; set; } = new()
     {
-        EnabledTriggers = TriggerType.None,
+        EnabledTriggers = TriggerType.ModifierSequence,
         Modifiers = ModifierKeyFlags.Alt | ModifierKeyFlags.Windows,
         MouseButton = MouseButtonType.Left,
         VirtualKeyCode = 0,
-        ModifierGesture = ModifierGesture.AltDoubleTap
+        ModifierGesture = ModifierGesture.CtrlDoubleTap
     };
 
     /// <summary>左クリック履歴の巡回に含める最近クリック数（1..10）。戻るショートカットを押すたびに最近 N 件を循環する。
@@ -132,19 +131,19 @@ public sealed class AppSettings
     public int ClickHistoryDepth { get; set; } = 2;
 
     /// <summary>Pro のクリック履歴を番号付きマーカーで常時表示する。</summary>
-    public bool ClickHistoryMarkersEnabled { get; set; } = true;
+    public bool ClickHistoryMarkersEnabled { get; set; } = false;
     public string ClickHistoryMarkerColor { get; set; } = "#5BA8F0";
-    /// <summary>履歴マーカー全体の濃さ（0.1..1.0）。</summary>
-    public double ClickHistoryMarkerOpacity { get; set; } = 0.35;
+    /// <summary>履歴マーカー全体の濃さ（0.1..1.0）。既定 0.1（以前は 0.35）。</summary>
+    public double ClickHistoryMarkerOpacity { get; set; } = 0.1;
 
-    // 初期色は Set A=青 / Set B=ピンク で 3 効果（保存円・軌跡・マーカー）を統一する。
+    // 初期色は Set A=青 / Set B=赤みのピンク（#FF8080。2026-11-28 ユーザー指示で既定を作者の使用中の設定に合わせた（v1.12.1）、以前は #FF7FA8）で 3 効果（保存円・軌跡・マーカー）を統一する。
     // デフォルト変更は新規インストール（settings.json 不在）時のみ反映。既存環境は保存値を維持する。
     public string SaveCircleColor { get; set; } = "#5BA8F0";
-    public string SaveCircleColorB { get; set; } = "#FF7FA8";
+    public string SaveCircleColorB { get; set; } = "#FF8080";
     public string TrailColor { get; set; } = "#5BA8F0";
-    public string TrailColorB { get; set; } = "#FF7FA8";
+    public string TrailColorB { get; set; } = "#FF8080";
     public string MarkerColor { get; set; } = "#5BA8F0";
-    public string MarkerColorB { get; set; } = "#FF7FA8";
+    public string MarkerColorB { get; set; } = "#FF8080";
 
     /// <summary>座標保存時の収縮円エフェクトを表示するか。false なら視覚効果のみスキップ（保存自体は動作）。</summary>
     public bool SaveEffectEnabled { get; set; } = true;
@@ -190,8 +189,8 @@ public sealed class AppSettings
 
     // ── ジャンプ後アクション ──
     /// <summary>座標ジャンプ後、カーソル直下にウィンドウがあればそれを前面化（フォーカス）するか。
-    /// 既定 true。旧 settings.json では未定義 → C# 初期化値 true（オプトアウト）。</summary>
-    public bool ActivateWindowUnderCursorOnJump { get; set; } = true;
+    /// 既定 false（2026-11-28 ユーザー指示で既定を作者の使用中の設定に合わせた（v1.12.1）。以前は true）。この項目の無い旧 settings.json（v1.8.0 より前）も false になる。</summary>
+    public bool ActivateWindowUnderCursorOnJump { get; set; } = false;
 
     // ── 自動起動 ──
     /// <summary>Windows サインイン時に CursorJump を自動起動するか。

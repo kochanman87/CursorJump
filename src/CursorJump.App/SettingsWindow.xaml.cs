@@ -35,11 +35,11 @@ public partial class SettingsWindow : Window
     private RowBinding[] _rows = Array.Empty<RowBinding>();
 
     private string _saveColor = "#5BA8F0";
-    private string _saveColorB = "#FF7FA8";
+    private string _saveColorB = "#FF8080";
     private string _trailColor = "#5BA8F0";
-    private string _trailColorB = "#FF7FA8";
+    private string _trailColorB = "#FF8080";
     private string _markerColor = "#5BA8F0";
-    private string _markerColorB = "#FF7FA8";
+    private string _markerColorB = "#FF8080";
     private string _clickHistoryMarkerColor = "#5BA8F0";
 
     private bool _initialized;
@@ -370,7 +370,7 @@ public partial class SettingsWindow : Window
 
         // 色は設定（リストの色）に追従させる（2026-11-27 ユーザー要望）。絵の円・線・印は 1 つ目のリストの各色
         var listA = ToColor(s.SaveCircleColor, Color.FromRgb(0x5B, 0xA8, 0xF0));
-        var listB = ToColor(s.SaveCircleColorB, Color.FromRgb(0xFF, 0x7F, 0xA8));
+        var listB = ToColor(s.SaveCircleColorB, Color.FromRgb(0xFF, 0x80, 0x80));
         HelpAnim.SetColors(listA, ToColor(s.TrailColor, listA), ToColor(s.MarkerColor, listA));
         foreach (var icon in new[] { HelpIconWheel, HelpIconDisp, HelpIconMonitor })
             icon.Foreground = new SolidColorBrush(listA);

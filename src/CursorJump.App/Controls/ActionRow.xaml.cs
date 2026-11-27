@@ -128,7 +128,7 @@ public partial class ActionRow : UserControl
     {
         set
         {
-            if (value) IconGlyph.Foreground = new SolidColorBrush(Color.FromRgb(0xFF, 0x7F, 0xA8));
+            if (value) IconGlyph.Foreground = new SolidColorBrush(Color.FromRgb(0xFF, 0x80, 0x80));
             else IconGlyph.SetResourceReference(TextBlock.ForegroundProperty, "AccentBrush");
         }
     }
